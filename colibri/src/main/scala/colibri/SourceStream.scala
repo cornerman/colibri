@@ -1,4 +1,4 @@
-package atta
+package colibri
 
 import outwatch.effect._
 

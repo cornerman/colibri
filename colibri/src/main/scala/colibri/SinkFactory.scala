@@ -1,4 +1,4 @@
-package atta
+package colibri
 
 //TODO: should have createsink typeclass to create without lift overhead
 @inline final class SinkFactory[S[_] : LiftSink] {

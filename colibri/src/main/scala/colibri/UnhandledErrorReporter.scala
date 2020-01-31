@@ -1,6 +1,6 @@
-package atta
+package colibri
 
 object UnhandledErrorReporter {
-  private[atta] val errorSubject = SinkSourceHandler.publish[Throwable]
+  private[colibri] val errorSubject = SinkSourceHandler.publish[Throwable]
   @inline def error: SourceStream[Throwable] = errorSubject
 }

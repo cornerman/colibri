@@ -1,4 +1,4 @@
-package atta
+package colibri
 
 trait CancelSubscription[-T] {
   def cancel(subscription: T): Unit

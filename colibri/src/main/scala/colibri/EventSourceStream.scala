@@ -1,4 +1,4 @@
-package atta
+package colibri
 
 import org.scalajs.dom
 import scala.scalajs.js

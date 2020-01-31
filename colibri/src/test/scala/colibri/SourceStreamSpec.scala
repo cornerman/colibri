@@ -1,4 +1,4 @@
-package atta
+package colibri
 
 import cats.effect.IO
 import org.scalatest.matchers.should.Matchers

@@ -1,2 +1,2 @@
-# Atta - a simple functional reactive library scala-js
+# Colibri - a simple functional reactive library scala-js
 

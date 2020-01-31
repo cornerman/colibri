@@ -31,7 +31,7 @@ lazy val commonSettings = Seq(
 
   scalacOptions += {
     val local = baseDirectory.value.toURI
-    val remote = s"https://raw.githubusercontent.com/cornerman/atta/${git.gitHeadCommit.value.get}/"
+    val remote = s"https://raw.githubusercontent.com/cornerman/colibri/${git.gitHeadCommit.value.get}/"
     s"-P:scalajs:mapSourceURI:$local->$remote"
   },
 
@@ -57,13 +57,13 @@ lazy val commonSettings = Seq(
   pomIncludeRepository := { _ => false }
 )
 
-lazy val atta = project
+lazy val colibri = project
   .enablePlugins(ScalaJSPlugin, ScalaJSBundlerPlugin)
-  .in(file("atta"))
+  .in(file("colibri"))
   .settings(commonSettings)
   .settings(
-    name := "atta",
-    normalizedName := "atta",
+    name := "colibri",
+    normalizedName := "colibri",
 
     libraryDependencies ++= Seq(
       "org.scala-js"  %%% "scalajs-dom" % "0.9.8",
@@ -75,7 +75,7 @@ lazy val atta = project
 lazy val root = project
   .in(file("."))
   .settings(
-    name := "atta-root",
+    name := "colibri-root",
     skip in publish := true,
   )
-  .aggregate(atta)
+  .aggregate(colibri)

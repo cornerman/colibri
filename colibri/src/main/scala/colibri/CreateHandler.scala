@@ -1,4 +1,4 @@
-package atta
+package colibri
 
 trait CreateHandler[+F[_]] {
   def publisher[A]: F[A]

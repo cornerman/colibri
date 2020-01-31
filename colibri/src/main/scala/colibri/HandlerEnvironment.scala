@@ -1,4 +1,4 @@
-package atta
+package colibri
 
 trait HandlerEnvironment[SinkT[-_], SourceT[+_], HandlerT[_], ProHandlerT[-_, +_]] {
 

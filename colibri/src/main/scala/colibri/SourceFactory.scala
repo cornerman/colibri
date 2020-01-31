@@ -1,4 +1,4 @@
-package atta
+package colibri
 
 //TODO: should have creataesource typeclass to create without lift overhead
 @inline class SourceFactory[S[_] : LiftSource] {

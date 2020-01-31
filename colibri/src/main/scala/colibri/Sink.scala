@@ -1,4 +1,4 @@
-package atta
+package colibri
 
 trait Sink[-F[_]] {
   def onNext[A](sink: F[A])(value: A): Unit
