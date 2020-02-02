@@ -1,9 +1,9 @@
 package colibri
 
 trait CreateHandler[+F[_]] {
-  def publisher[A]: F[A]
-  def variable[A]: F[A]
-  def variable[A](seed: A): F[A]
+  def publish[A]: F[A]
+  def behavior[A]: F[A]
+  def behavior[A](seed: A): F[A]
 }
 object CreateHandler {
   @inline def apply[F[_]](implicit handler: CreateHandler[F]): CreateHandler[F] = handler

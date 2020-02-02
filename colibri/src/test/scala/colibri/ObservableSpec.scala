@@ -4,21 +4,21 @@ import cats.effect.IO
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.flatspec.AnyFlatSpec
 
-class SourceStreamSpec extends AnyFlatSpec with Matchers {
+class ObservableSpec extends AnyFlatSpec with Matchers {
 
-  "SourceStream" should "map" in {
+  "Observable" should "map" in {
     var mapped = List.empty[Int]
     var received = List.empty[Int]
-    val stream = SourceStream.fromIterable(Seq(1,2,3)).map { x => mapped ::= x; x }
+    val stream = Observable.fromIterable(Seq(1,2,3)).map { x => mapped ::= x; x }
 
     mapped shouldBe List.empty
 
-    stream.subscribe(SinkObserver.create[Int](received ::= _))
+    stream.subscribe(Observer.create[Int](received ::= _))
 
     mapped shouldBe List(3,2,1)
     received shouldBe List(3,2,1)
 
-    stream.subscribe(SinkObserver.create[Int](received ::= _))
+    stream.subscribe(Observer.create[Int](received ::= _))
 
     mapped shouldBe List(3,2,1,3,2,1)
     received shouldBe List(3,2,1,3,2,1)
@@ -27,11 +27,11 @@ class SourceStreamSpec extends AnyFlatSpec with Matchers {
   it should "dropWhile" in {
     var mapped = List.empty[Int]
     var received = List.empty[Int]
-    val stream = SourceStream.fromIterable(Seq(1,2,3,4)).dropWhile { x => mapped ::= x; x < 3 }
+    val stream = Observable.fromIterable(Seq(1,2,3,4)).dropWhile { x => mapped ::= x; x < 3 }
 
     mapped shouldBe List.empty
 
-    stream.subscribe(SinkObserver.create[Int](received ::= _))
+    stream.subscribe(Observer.create[Int](received ::= _))
 
     mapped shouldBe List(3,2,1)
     received shouldBe List(4,3)
@@ -39,11 +39,11 @@ class SourceStreamSpec extends AnyFlatSpec with Matchers {
 
   it should "dropUntil" in {
     var received = List.empty[Int]
-    val handler = SinkSourceHandler[Int](0)
-    val until = SinkSourceHandler[Unit]
+    val handler = Subject.behavior[Int](0)
+    val until = Subject.behavior[Unit]
     val stream = handler.dropUntil(until)
 
-    stream.subscribe(SinkObserver.create[Int](received ::= _))
+    stream.subscribe(Observer.create[Int](received ::= _))
 
     received shouldBe List()
 
@@ -75,11 +75,11 @@ class SourceStreamSpec extends AnyFlatSpec with Matchers {
   it should "takeWhile" in {
     var mapped = List.empty[Int]
     var received = List.empty[Int]
-    val stream = SourceStream.fromIterable(Seq(1,2,3,4,5)).takeWhile { x => mapped ::= x; x < 3 }
+    val stream = Observable.fromIterable(Seq(1,2,3,4,5)).takeWhile { x => mapped ::= x; x < 3 }
 
     mapped shouldBe List.empty
 
-    stream.subscribe(SinkObserver.create[Int](received ::= _))
+    stream.subscribe(Observer.create[Int](received ::= _))
 
     mapped shouldBe List(3,2,1)
     received shouldBe List(2,1)
@@ -87,11 +87,11 @@ class SourceStreamSpec extends AnyFlatSpec with Matchers {
 
   it should "takeUntil" in {
     var received = List.empty[Int]
-    val handler = SinkSourceHandler[Int](0)
-    val until = SinkSourceHandler[Unit]
+    val handler = Subject.behavior[Int](0)
+    val until = Subject.behavior[Unit]
     val stream = handler.takeUntil(until)
 
-    stream.subscribe(SinkObserver.create[Int](received ::= _))
+    stream.subscribe(Observer.create[Int](received ::= _))
 
     received shouldBe List(0)
 
@@ -127,17 +127,17 @@ class SourceStreamSpec extends AnyFlatSpec with Matchers {
   it should "share" in {
     var mapped = List.empty[Int]
     var received = List.empty[Int]
-    val handler = SinkSourceHandler[Int]
-    val stream = SourceStream.merge(handler, SourceStream.fromIterable(Seq(1,2,3))).map { x => mapped ::= x; x }.share
+    val handler = Subject.behavior[Int]
+    val stream = Observable.merge(handler, Observable.fromIterable(Seq(1,2,3))).map { x => mapped ::= x; x }.share
 
     mapped shouldBe List.empty
 
-    val sub1 = stream.subscribe(SinkObserver.create[Int](received ::= _))
+    val sub1 = stream.subscribe(Observer.create[Int](received ::= _))
 
     mapped shouldBe List(3,2,1)
     received shouldBe List(3,2,1)
 
-    val sub2 = stream.subscribe(SinkObserver.create[Int](received ::= _))
+    val sub2 = stream.subscribe(Observer.create[Int](received ::= _))
 
     mapped shouldBe List(3,2,1)
     received shouldBe List(3,2,1)
@@ -166,12 +166,12 @@ class SourceStreamSpec extends AnyFlatSpec with Matchers {
     var mapped = List.empty[Int]
     var received = List.empty[Int]
     var errors = 0
-    val handler = SinkSourceHandler[Int]
-    val stream = SourceStream.merge(handler, SourceStream.fromIterable(Seq(1,2,3))).map { x => mapped ::= x; x }.shareWithLatest
+    val handler = Subject.behavior[Int]
+    val stream = Observable.merge(handler, Observable.fromIterable(Seq(1,2,3))).map { x => mapped ::= x; x }.shareWithLatest
 
     mapped shouldBe List.empty
 
-    val sub1 = stream.subscribe(SinkObserver.create[Int](
+    val sub1 = stream.subscribe(Observer.create[Int](
       received ::= _,
       _ => errors += 1,
     ))
@@ -179,7 +179,7 @@ class SourceStreamSpec extends AnyFlatSpec with Matchers {
     mapped shouldBe List(3,2,1)
     received shouldBe List(3,2,1)
 
-    val sub2 = stream.subscribe(SinkObserver.create[Int](
+    val sub2 = stream.subscribe(Observer.create[Int](
       received ::= _,
       _ => errors += 1,
     ))
@@ -208,7 +208,7 @@ class SourceStreamSpec extends AnyFlatSpec with Matchers {
 
     errors shouldBe 0
 
-    val sub3 = stream.subscribe(SinkObserver.create[Int](
+    val sub3 = stream.subscribe(Observer.create[Int](
       received ::= _,
       _ => errors += 1,
     ))
@@ -244,11 +244,11 @@ class SourceStreamSpec extends AnyFlatSpec with Matchers {
     var runEffect = 0
     var received = List.empty[Int]
     var errors = 0
-    val stream = SourceStream.concatAsync(IO { runEffect += 1; 0 }, SourceStream.fromIterable(Seq(1,2,3)))
+    val stream = Observable.concatAsync(IO { runEffect += 1; 0 }, Observable.fromIterable(Seq(1,2,3)))
 
     runEffect shouldBe 0
 
-    stream.subscribe(SinkObserver.create[Int](
+    stream.subscribe(Observer.create[Int](
       received ::= _,
       _ => errors += 1,
     ))
@@ -262,11 +262,11 @@ class SourceStreamSpec extends AnyFlatSpec with Matchers {
     var runEffect = List.empty[Int]
     var received = List.empty[Int]
     var errors = 0
-    val stream = SourceStream.concatAsync(IO { runEffect ::= 0; 0 }, IO { runEffect ::= 1; 1 }, IO { runEffect ::= 2; 2 }, IO.never, IO { runEffect ::= 3; 3 })
+    val stream = Observable.concatAsync(IO { runEffect ::= 0; 0 }, IO { runEffect ::= 1; 1 }, IO { runEffect ::= 2; 2 }, IO.never, IO { runEffect ::= 3; 3 })
 
     runEffect shouldBe List()
 
-    stream.subscribe(SinkObserver.create[Int](
+    stream.subscribe(Observer.create[Int](
       received ::= _,
       _ => errors += 1,
     ))
@@ -283,9 +283,9 @@ class SourceStreamSpec extends AnyFlatSpec with Matchers {
     val handler1 = IO(200)
     val handler2 = IO(300)
     val handlers = Array(handler0, handler1, handler2)
-    val stream = SourceStream.fromIterable(Seq(0,1,2)).concatMapAsync(handlers(_))
+    val stream = Observable.fromIterable(Seq(0,1,2)).concatMapAsync(handlers(_))
 
-    stream.subscribe(SinkObserver.create[Int](
+    stream.subscribe(Observer.create[Int](
       received ::= _,
       _ => errors += 1,
     ))
@@ -298,11 +298,11 @@ class SourceStreamSpec extends AnyFlatSpec with Matchers {
     var runEffect = 0
     var received = List.empty[Int]
     var errors = 0
-    val stream = SourceStream.switchVaried(SourceStream.fromAsync(IO { runEffect += 1; 0 }), SourceStream.fromIterable(Seq(1,2,3)))
+    val stream = Observable.switchVaried(Observable.fromAsync(IO { runEffect += 1; 0 }), Observable.fromIterable(Seq(1,2,3)))
 
     runEffect shouldBe 0
 
-    stream.subscribe(SinkObserver.create[Int](
+    stream.subscribe(Observer.create[Int](
       received ::= _,
       _ => errors += 1,
     ))
@@ -315,10 +315,10 @@ class SourceStreamSpec extends AnyFlatSpec with Matchers {
   it should "switch" in {
     var received = List.empty[Int]
     var errors = 0
-    val handler = SinkSourceHandler(0)
-    val stream = SourceStream.switch(handler, SourceStream.fromIterable(Seq(1,2,3)))
+    val handler = Subject.behavior(0)
+    val stream = Observable.switch(handler, Observable.fromIterable(Seq(1,2,3)))
 
-    stream.subscribe(SinkObserver.create[Int](
+    stream.subscribe(Observer.create[Int](
       received ::= _,
       _ => errors += 1,
     ))
@@ -335,13 +335,13 @@ class SourceStreamSpec extends AnyFlatSpec with Matchers {
   it should "switchMap" in {
     var received = List.empty[Int]
     var errors = 0
-    val handler0 = SinkSourceHandler[Int](0)
-    val handler1 = SinkSourceHandler[Int]
-    val handler2 = SinkSourceHandler[Int](2)
-    val handlers = Array(handler0, handler1, SourceStream.empty, handler2)
-    val stream = SourceStream.fromIterable(Seq(0,1,2,3)).switchMap(handlers(_))
+    val handler0 = Subject.behavior[Int](0)
+    val handler1 = Subject.behavior[Int]
+    val handler2 = Subject.behavior[Int](2)
+    val handlers = Array(handler0, handler1, Observable.empty, handler2)
+    val stream = Observable.fromIterable(Seq(0,1,2,3)).switchMap(handlers(_))
 
-    stream.subscribe(SinkObserver.create[Int](
+    stream.subscribe(Observer.create[Int](
       received ::= _,
       _ => errors += 1,
     ))
@@ -379,11 +379,11 @@ class SourceStreamSpec extends AnyFlatSpec with Matchers {
     var runEffect = 0
     var received = List.empty[Int]
     var errors = 0
-    val stream = SourceStream.mergeVaried(SourceStream.fromAsync(IO { runEffect += 1; 0 }), SourceStream.fromIterable(Seq(1,2,3)))
+    val stream = Observable.mergeVaried(Observable.fromAsync(IO { runEffect += 1; 0 }), Observable.fromIterable(Seq(1,2,3)))
 
     runEffect shouldBe 0
 
-    stream.subscribe(SinkObserver.create[Int](
+    stream.subscribe(Observer.create[Int](
       received ::= _,
       _ => errors += 1,
     ))
@@ -396,11 +396,11 @@ class SourceStreamSpec extends AnyFlatSpec with Matchers {
   it should "merge" in {
     var received = List.empty[Int]
     var errors = 0
-    val handler = SinkSourceHandler(0)
-    val handler2 = SinkSourceHandler(3)
-    val stream = SourceStream.merge(handler, handler2)
+    val handler = Subject.behavior(0)
+    val handler2 = Subject.behavior(3)
+    val stream = Observable.merge(handler, handler2)
 
-    stream.subscribe(SinkObserver.create[Int](
+    stream.subscribe(Observer.create[Int](
       received ::= _,
       _ => errors += 1,
     ))
@@ -442,13 +442,13 @@ class SourceStreamSpec extends AnyFlatSpec with Matchers {
   it should "mergeMap" in {
     var received = List.empty[Int]
     var errors = 0
-    val handler0 = SinkSourceHandler[Int](0)
-    val handler1 = SinkSourceHandler[Int]
-    val handler2 = SinkSourceHandler[Int](2)
+    val handler0 = Subject.behavior[Int](0)
+    val handler1 = Subject.behavior[Int]
+    val handler2 = Subject.behavior[Int](2)
     val handlers = Array(handler0, handler1, handler2)
-    val stream = SourceStream.fromIterable(Seq(0,1,2)).mergeMap(handlers(_))
+    val stream = Observable.fromIterable(Seq(0,1,2)).mergeMap(handlers(_))
 
-    stream.subscribe(SinkObserver.create[Int](
+    stream.subscribe(Observer.create[Int](
       received ::= _,
       _ => errors += 1,
     ))

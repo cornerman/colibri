@@ -11,8 +11,8 @@ import scala.scalajs.js
 // sufficient to do them in an observable.doOnNext(_.stopPropagation()), because this
 // might be async and event handling/bubbling is done sync.
 
-final class EventSourceStream[+EV] private(target: dom.EventTarget, eventType: String, operator: EV => Unit) extends SourceStream[EV] {
-  private val base: SourceStream[EV] = SourceStream.create { sink =>
+final class EventObservable[+EV] private(target: dom.EventTarget, eventType: String, operator: EV => Unit) extends Observable[EV] {
+  private val base: Observable[EV] = Observable.create { sink =>
     var isCancel = false
 
     val eventHandler: js.Function1[EV, Unit] = { v =>
@@ -30,17 +30,17 @@ final class EventSourceStream[+EV] private(target: dom.EventTarget, eventType: S
 
     register()
 
-    Subscription(() => unregister())
+    Cancelable(() => unregister())
   }
 
-  @inline private def withOperator(newOperator: EV => Unit): EventSourceStream[EV] = new EventSourceStream[EV](target, eventType, { ev => operator(ev); newOperator(ev) })
+  @inline private def withOperator(newOperator: EV => Unit): EventObservable[EV] = new EventObservable[EV](target, eventType, { ev => operator(ev); newOperator(ev) })
 
-  @inline def preventDefault(implicit env: EV <:< dom.Event): EventSourceStream[EV] = withOperator(_.preventDefault)
-  @inline def stopPropagation(implicit env: EV <:< dom.Event): EventSourceStream[EV] = withOperator(_.stopPropagation)
-  @inline def stopImmediatePropagation(implicit env: EV <:< dom.Event): EventSourceStream[EV] = withOperator(_.stopImmediatePropagation)
+  @inline def preventDefault(implicit env: EV <:< dom.Event): EventObservable[EV] = withOperator(_.preventDefault)
+  @inline def stopPropagation(implicit env: EV <:< dom.Event): EventObservable[EV] = withOperator(_.stopPropagation)
+  @inline def stopImmediatePropagation(implicit env: EV <:< dom.Event): EventObservable[EV] = withOperator(_.stopImmediatePropagation)
 
-  @inline def subscribe[G[_] : Sink](sink: G[_ >: EV]): Subscription = base.subscribe(sink)
+  @inline def subscribe[G[_] : Sink](sink: G[_ >: EV]): Cancelable = base.subscribe(sink)
 }
-object EventSourceStream {
-  @inline def apply[EV <: dom.Event](target: dom.EventTarget, eventType: String): EventSourceStream[EV] = new EventSourceStream[EV](target, eventType, _ => ())
+object EventObservable {
+  @inline def apply[EV <: dom.Event](target: dom.EventTarget, eventType: String): EventObservable[EV] = new EventObservable[EV](target, eventType, _ => ())
 }

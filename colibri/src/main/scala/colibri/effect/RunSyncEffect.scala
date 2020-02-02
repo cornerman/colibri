@@ -1,4 +1,4 @@
-package outwatch.effect
+package colibri.effect
 
 import cats.Eval
 import cats.effect.SyncIO
