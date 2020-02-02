@@ -70,8 +70,6 @@ class PublishSubject[I, O](convert: I => O) extends Observer[I] with Observable[
 }
 
 object Subject {
-  type Uniform[T] = Subject[T,T]
-
   object behavior {
     def apply[O]: BehaviorSubject[O,O] = new BehaviorSubject[O, O](None, identity)
     def apply[O](seed: O): BehaviorSubject[O,O] = new BehaviorSubject[O, O](Some(seed), identity)
@@ -94,7 +92,7 @@ object Subject {
     @inline def transformSubject[G[_] : Sink, S[_] : Source, I2, O2](f: Observer[I] => G[I2])(g: Observable[O] => S[O2]): Subject[I2, O2] = from(f(handler), g(handler))
   }
 
-  object createHandler extends CreateHandler[Uniform] {
+  object createHandler extends CreateHandler[Lambda[X => Subject[X,X]]] {
     @inline def publish[A]: Subject[A,A] = Subject.publish[A]
     @inline def behavior[A]: Subject[A,A] = Subject.behavior[A]
     @inline def behavior[A](seed: A): Subject[A,A] = Subject.behavior[A](seed)
