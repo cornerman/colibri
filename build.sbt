@@ -68,7 +68,7 @@ lazy val colibri = project
     libraryDependencies ++= Seq(
       "org.scala-js"  %%% "scalajs-dom" % "0.9.8",
       "org.typelevel" %%% "cats-core" % "2.1.0",
-      "org.typelevel" %%% "cats-effect" % "2.1.0",
+      "org.typelevel" %%% "cats-effect" % "2.1.1",
     )
   )
 
