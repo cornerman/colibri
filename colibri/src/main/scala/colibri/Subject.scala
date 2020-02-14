@@ -98,8 +98,9 @@ object Subject {
     @inline def behavior[A](seed: A): Subject[A,A] = Subject.behavior[A](seed)
   }
   object createProHandler extends CreateProHandler[Subject] {
-    @inline def apply[I,O](f: I => O): Subject[I,O] = Subject.behavior.map(f)
-    @inline def apply[I,O](seed: I)(f: I => O): Subject[I,O] = Subject.behavior.map(seed)(f)
+    @inline def publish[I,O](f: I => O): Subject[I,O] = Subject.publish.map(f)
+    @inline def behavior[I,O](f: I => O): Subject[I,O] = Subject.behavior.map(f)
+    @inline def behavior[I,O](seed: I)(f: I => O): Subject[I,O] = Subject.behavior.map(seed)(f)
     @inline def from[SI[_] : Sink, SO[_] : Source, I,O](sink: SI[I], source: SO[O]): Subject[I, O] = Subject.from(sink, source)
   }
 }

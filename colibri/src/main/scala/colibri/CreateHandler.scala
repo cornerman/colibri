@@ -10,8 +10,9 @@ object CreateHandler {
 }
 
 trait CreateProHandler[+F[_,_]] {
-  def apply[I,O](f: I => O): F[I,O]
-  def apply[I,O](seed: I)(f: I => O): F[I,O]
+  def publish[I,O](f: I => O): F[I,O]
+  def behavior[I,O](f: I => O): F[I,O]
+  def behavior[I,O](seed: I)(f: I => O): F[I,O]
   def from[SI[_] : Sink, SO[_] : Source, I,O](sink: SI[I], source: SO[O]): F[I, O]
 }
 object CreateProHandler {
