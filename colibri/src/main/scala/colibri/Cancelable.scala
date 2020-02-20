@@ -82,6 +82,34 @@ object Cancelable {
     }
   }
 
+  class RefCount(subscription: () => Cancelable) extends Cancelable {
+    private var counter = 0
+    private var currentCancelable: Cancelable = null
+
+    def ref(): Cancelable = if (counter == -1) Cancelable.empty else {
+      counter += 1
+      if (counter == 1) {
+        currentCancelable = subscription()
+      }
+
+      Cancelable({ () =>
+        counter -= 1
+        if (counter == 0) {
+          currentCancelable.cancel()
+          currentCancelable = null
+        }
+      })
+    }
+
+    def cancel(): Unit = {
+      counter = -1
+      if (currentCancelable != null) {
+        currentCancelable.cancel()
+        currentCancelable = null
+      }
+    }
+  }
+
   object Empty extends Cancelable {
     @inline def cancel(): Unit = ()
   }
@@ -89,10 +117,14 @@ object Cancelable {
   @inline def empty = Empty
 
   @inline def apply(f: () => Unit) = new Cancelable {
-    @inline def cancel() = f()
+    private var isCanceled = false
+    @inline def cancel() = if (!isCanceled) {
+      isCanceled = true
+      f()
+    }
   }
 
-  @inline def lift[T : CancelCancelable](subscription: T) = apply(() => CancelCancelable[T].cancel(subscription))
+  @inline def lift[T : CanCancel](subscription: T) = apply(() => CanCancel[T].cancel(subscription))
 
   @inline def composite(subscriptions: Cancelable*): Cancelable = compositeFromIterable(subscriptions)
   @inline def compositeFromIterable(subscriptions: Iterable[Cancelable]): Cancelable = new Cancelable {
@@ -105,12 +137,14 @@ object Cancelable {
 
   @inline def consecutive(): Consecutive = new Consecutive
 
+  @inline def refCount(subscription: () => Cancelable): RefCount = new RefCount(subscription)
+
   implicit object monoid extends Monoid[Cancelable] {
     @inline def empty = Cancelable.empty
     @inline def combine(a: Cancelable, b: Cancelable) = Cancelable.composite(a, b)
   }
 
-  implicit object cancelCancelable extends CancelCancelable[Cancelable] {
+  implicit object cancelCancelable extends CanCancel[Cancelable] {
     @inline def cancel(subscription: Cancelable): Unit = subscription.cancel()
   }
 }
