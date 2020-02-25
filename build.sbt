@@ -1,6 +1,5 @@
 import Options._
 
-
 inThisBuild(Seq(
   version := "0.1.0-SNAPSHOT",
 
@@ -15,25 +14,15 @@ lazy val commonSettings = Seq(
   addCompilerPlugin("org.typelevel" %% "kind-projector" % "0.11.0" cross CrossVersion.full),
   addCompilerPlugin("com.github.ghik" % "silencer-plugin" % "1.4.4" cross CrossVersion.full),
 
-  requireJsDomEnv in Test := true,
-
-  useYarn := true,
-
   libraryDependencies ++= Seq(
-    "org.scalatest" %%% "scalatest" % "3.1.0" % Test,
+    "org.scalatest" %%% "scalatest" % "3.1.1" % Test,
     "com.github.ghik" % "silencer-lib" % "1.4.4" % Provided cross CrossVersion.full,
   ),
 
-  scalacOptions ++= CrossVersion.partialVersion(scalaVersion.value).map(v =>
-    allOptionsForVersion(s"${v._1}.${v._2}", true)
-  ).getOrElse(Nil),
-  scalacOptions in (Compile, console) ~= (_.diff(badConsoleFlags)),
-
-  scalacOptions += {
-    val local = baseDirectory.value.toURI
-    val remote = s"https://raw.githubusercontent.com/cornerman/colibri/${git.gitHeadCommit.value.get}/"
-    s"-P:scalajs:mapSourceURI:$local->$remote"
+  scalacOptions ++= CrossVersion.partialVersion(scalaVersion.value).toList.flatMap { case (major, minor) =>
+    versionBasedOptions(s"${major}.${minor}")
   },
+  scalacOptions in (Compile, console) ~= (_.diff(badConsoleFlags)),
 
   publishMavenStyle := true,
 
@@ -57,17 +46,26 @@ lazy val commonSettings = Seq(
   pomIncludeRepository := { _ => false }
 )
 
+lazy val jsSettings = Seq(
+  scalacOptions ++= scalajsOptions,
+
+  scalacOptions += {
+    val local = baseDirectory.value.toURI
+    val remote = s"https://raw.githubusercontent.com/cornerman/colibri/${git.gitHeadCommit.value.get}/"
+    s"-P:scalajs:mapSourceURI:$local->$remote"
+  }
+)
+
 lazy val colibri = project
-  .enablePlugins(ScalaJSPlugin, ScalaJSBundlerPlugin)
+  .enablePlugins(ScalaJSPlugin)
   .in(file("colibri"))
-  .settings(commonSettings)
+  .settings(commonSettings, jsSettings)
   .settings(
     name := "colibri",
-    normalizedName := "colibri",
 
     libraryDependencies ++= Seq(
-      "org.scala-js"  %%% "scalajs-dom" % "1.0.0",
-      "org.typelevel" %%% "cats-core" % "2.1.0",
+      "org.scala-js"  %%% "scalajs-dom" % "0.9.8",
+      "org.typelevel" %%% "cats-core" % "2.1.1",
       "org.typelevel" %%% "cats-effect" % "2.1.1",
     )
   )
@@ -76,6 +74,7 @@ lazy val root = project
   .in(file("."))
   .settings(
     name := "colibri-root",
+
     skip in publish := true,
   )
   .aggregate(colibri)
