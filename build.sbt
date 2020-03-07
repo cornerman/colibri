@@ -1,4 +1,3 @@
-import sbtcrossproject.CrossPlugin.autoImport.{crossProject, CrossType}
 import Options._
 
 inThisBuild(Seq(
