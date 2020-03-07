@@ -1,10 +1,11 @@
 package colibri.ext.monix
 
-import _root_.monix.execution.Ack
+import _root_.monix.execution.{Ack, Scheduler}
 import _root_.monix.reactive.{Observable, Observer}
 import _root_.monix.reactive.subjects.PublishSubject
+import _root_.monix.eval.Task
 
-import scala.concurrent.Future
+import scala.concurrent.{ExecutionContext, Future}
 
 object ops {
   implicit class RichObserver[I](val observer: Observer[I]) extends AnyVal {
@@ -25,6 +26,13 @@ object ops {
 
     def redirectCollect[I2](f: PartialFunction[I2, I]): Observer[I2] = redirectMapMaybe(f.lift)
     def redirectFilter(f: I => Boolean): Observer[I] = redirectMapMaybe(e => Some(e).filter(f))
+
+    def redirectEval[R](f: R => Task[I])(implicit s: Scheduler): Observer[R] = redirectFuture(r => f(r).runToFuture)
+    def redirectFuture[R](f: R => Future[I])(implicit ec: ExecutionContext): Observer[R] = new Observer[R] {
+      override def onNext(elem: R): Future[Ack] = f(elem).flatMap(observer.onNext(_))
+      override def onError(ex: Throwable): Unit = observer.onError(ex)
+      override def onComplete(): Unit = observer.onComplete()
+    }
   }
 
   implicit class RichProSubject[I,O](val self: MonixProSubject[I,O]) extends AnyVal {
