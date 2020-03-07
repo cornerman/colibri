@@ -1,4 +1,3 @@
-import sbtcrossproject.CrossPlugin.autoImport.{crossProject, CrossType}
 import Options._
 
 inThisBuild(Seq(
@@ -13,11 +12,11 @@ inThisBuild(Seq(
 
 lazy val commonSettings = Seq(
   addCompilerPlugin("org.typelevel" %% "kind-projector" % "0.11.0" cross CrossVersion.full),
-  addCompilerPlugin("com.github.ghik" % "silencer-plugin" % "1.4.4" cross CrossVersion.full),
+  addCompilerPlugin("com.github.ghik" % "silencer-plugin" % "1.6.0" cross CrossVersion.full),
 
   libraryDependencies ++= Seq(
     "org.scalatest" %%% "scalatest" % "3.1.1" % Test,
-    "com.github.ghik" % "silencer-lib" % "1.4.4" % Provided cross CrossVersion.full,
+    "com.github.ghik" % "silencer-lib" % "1.6.0" % Provided cross CrossVersion.full,
   ),
 
   scalacOptions ++= CrossVersion.partialVersion(scalaVersion.value).toList.flatMap { case (major, minor) =>
@@ -34,6 +33,10 @@ lazy val commonSettings = Seq(
     else
         Some("releases" at nexus + "service/local/staging/deploy/maven2")
   },
+
+  resolvers ++=
+      ("jitpack" at "https://jitpack.io") ::
+      Nil,
 
   pomExtra :=
     <developers>
@@ -67,7 +70,7 @@ lazy val colibri = project
     libraryDependencies ++= Seq(
       "org.scala-js"  %%% "scalajs-dom" % "0.9.8",
       "org.typelevel" %%% "cats-core" % "2.1.1",
-      "org.typelevel" %%% "cats-effect" % "2.1.1",
+      "org.typelevel" %%% "cats-effect" % "2.1.2",
     )
   )
 
@@ -84,6 +87,19 @@ lazy val monix = project
     )
   )
 
+lazy val rx = project
+  .enablePlugins(ScalaJSPlugin)
+  .dependsOn(colibri)
+  .in(file("rx"))
+  .settings(commonSettings, jsSettings)
+  .settings(
+    name := "colibri-rx",
+
+    libraryDependencies ++= Seq(
+      "com.github.cornerman.scalarx" %%% "scalarx" % "70cd41c"
+    )
+  )
+
 lazy val root = project
   .in(file("."))
   .settings(
@@ -91,4 +107,4 @@ lazy val root = project
 
     skip in publish := true,
   )
-  .aggregate(colibri, monix)
+  .aggregate(colibri, monix, rx)

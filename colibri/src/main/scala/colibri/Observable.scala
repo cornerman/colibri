@@ -947,10 +947,18 @@ object Observable {
     }
   }
 
-  @inline implicit class SubjectOperations[I,O](val handler: ProSubject[I,O]) extends AnyVal {
-    @inline def transformSubjectSource[S[_] : Source, O2](g: Observable[O] => S[O2]): ProSubject[I, O2] = ProSubject.from[Observer, S, I, O2](handler, g(handler))
-    @inline def transformSubjectSink[G[_] : Sink, I2](f: Observer[I] => G[I2]): ProSubject[I2, O] = ProSubject.from[G, Observable, I2, O](f(handler), handler)
-    @inline def transformSubject[G[_] : Sink, S[_] : Source, I2, O2](f: Observer[I] => G[I2])(g: Observable[O] => S[O2]): ProSubject[I2, O2] = ProSubject.from(f(handler), g(handler))
+  @inline implicit class ProSubjectOperations[I,O](val handler: ProSubject[I,O]) extends AnyVal {
+    @inline def transformSubjectSourceVaried[S[_] : Source, O2](g: Observable[O] => S[O2]): ProSubject[I, O2] = ProSubject.from[Observer, S, I, O2](handler, g(handler))
+    @inline def transformSubjectSinkVaried[G[_] : Sink, I2](f: Observer[I] => G[I2]): ProSubject[I2, O] = ProSubject.from[G, Observable, I2, O](f(handler), handler)
+    @inline def transformProSubjectVaried[G[_] : Sink, S[_] : Source, I2, O2](f: Observer[I] => G[I2])(g: Observable[O] => S[O2]): ProSubject[I2, O2] = ProSubject.from[G, S, I2, O2](f(handler), g(handler))
+    @inline def transformSubjectSource[O2](g: Observable[O] => Observable[O2]): ProSubject[I, O2] = transformSubjectSourceVaried(g)
+    @inline def transformSubjectSink[I2](f: Observer[I] => Observer[I2]): ProSubject[I2, O] = transformSubjectSinkVaried(f)
+    @inline def transformProSubject[I2, O2](f: Observer[I] => Observer[I2])(g: Observable[O] => Observable[O2]): ProSubject[I2, O2] = transformProSubjectVaried(f)(g)
+  }
+
+  @inline implicit class SubjectOperations[A](val handler: Subject[A]) extends AnyVal {
+    @inline def transformSubjectVaried[G[_] : Sink, S[_] : Source, A2](f: Observer[A] => G[A2])(g: Observable[A] => S[A2]): Subject[A2] = handler.transformProSubjectVaried(f)(g)
+    @inline def transformSubject[A2](f: Observer[A] => Observer[A2])(g: Observable[A] => Observable[A2]): Subject[A2] = handler.transformProSubjectVaried(f)(g)
   }
 
   private def recovered[T](action: => Unit, onError: Throwable => Unit) = try action catch { case NonFatal(t) => onError(t) }
