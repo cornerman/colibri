@@ -24,6 +24,19 @@ class ObservableSpec extends AnyFlatSpec with Matchers {
     received shouldBe List(3,2,1,3,2,1)
   }
 
+  it should "scan" in {
+    var mapped = List.empty[Int]
+    var received = List.empty[Int]
+    val stream = Observable.fromIterable(Seq(1,2,3)).scan(0) { (a,x) => mapped ::= x; a + x }
+
+    mapped shouldBe List.empty
+
+    stream.subscribe(Observer.create[Int](received ::= _))
+
+    mapped shouldBe List(3,2,1)
+    received shouldBe List(6,3,1)
+  }
+
   it should "dropWhile" in {
     var mapped = List.empty[Int]
     var received = List.empty[Int]
@@ -40,7 +53,7 @@ class ObservableSpec extends AnyFlatSpec with Matchers {
   it should "dropUntil" in {
     var received = List.empty[Int]
     val handler = Subject.behavior[Int](0)
-    val until = Subject.behavior[Unit]
+    val until = Subject.replay[Unit]
     val stream = handler.dropUntil(until)
 
     stream.subscribe(Observer.create[Int](received ::= _))
@@ -88,7 +101,7 @@ class ObservableSpec extends AnyFlatSpec with Matchers {
   it should "takeUntil" in {
     var received = List.empty[Int]
     val handler = Subject.behavior[Int](0)
-    val until = Subject.behavior[Unit]
+    val until = Subject.replay[Unit]
     val stream = handler.takeUntil(until)
 
     stream.subscribe(Observer.create[Int](received ::= _))
@@ -124,11 +137,134 @@ class ObservableSpec extends AnyFlatSpec with Matchers {
     received shouldBe List(2,1,0)
   }
 
-  it should "share" in {
+  it should "zip" in {
+    var received = List.empty[(Int,String)]
+    val handler = Subject.behavior[Int](0)
+    val zipped = Subject.behavior[String]("a")
+    val stream = handler.zip(zipped)
+
+    val sub = stream.subscribe(Observer.create[(Int,String)](received ::= _))
+
+    received shouldBe List((0, "a"))
+
+    handler.onNext(1)
+
+    received shouldBe List((0, "a"))
+
+    handler.onNext(2)
+
+    received shouldBe List((0, "a"))
+
+    zipped.onNext("b")
+
+    received shouldBe List((1, "b"), (0, "a"))
+
+    zipped.onNext("c")
+
+    received shouldBe List((2, "c"), (1, "b"), (0, "a"))
+
+    zipped.onNext("d")
+
+    received shouldBe List((2, "c"), (1, "b"), (0, "a"))
+
+    handler.onNext(3)
+
+    received shouldBe List((3, "d"), (2, "c"), (1, "b"), (0, "a"))
+
+    sub.cancel()
+
+    handler.onNext(4)
+
+    received shouldBe List((3, "d"), (2, "c"), (1, "b"), (0, "a"))
+
+    zipped.onNext("e")
+
+    received shouldBe List((3, "d"), (2, "c"), (1, "b"), (0, "a"))
+  }
+
+  it should "combineLatest" in {
+    var received = List.empty[(Int,String)]
+    val handler = Subject.behavior[Int](0)
+    val combined = Subject.behavior[String]("a")
+    val stream = handler.combineLatest(combined)
+
+    val sub = stream.subscribe(Observer.create[(Int,String)](received ::= _))
+
+    received shouldBe List((0, "a"))
+
+    handler.onNext(1)
+
+    received shouldBe List((1, "a"), (0, "a"))
+
+    handler.onNext(2)
+
+    received shouldBe List((2, "a"), (1, "a"), (0, "a"))
+
+    combined.onNext("b")
+
+    received shouldBe List((2, "b"), (2, "a"), (1, "a"), (0, "a"))
+
+    combined.onNext("c")
+
+    received shouldBe List((2, "c"), (2, "b"), (2, "a"), (1, "a"), (0, "a"))
+
+    sub.cancel()
+
+    handler.onNext(3)
+
+    received shouldBe List((2, "c"), (2, "b"), (2, "a"), (1, "a"), (0, "a"))
+
+    combined.onNext("d")
+
+    received shouldBe List((2, "c"), (2, "b"), (2, "a"), (1, "a"), (0, "a"))
+  }
+
+  it should "withLatest" in {
+    var received = List.empty[(Int,String)]
+    val handler = Subject.behavior[Int](0)
+    val latest = Subject.behavior[String]("a")
+    val stream = handler.withLatest(latest)
+
+    val sub = stream.subscribe(Observer.create[(Int,String)](received ::= _))
+
+    received shouldBe List((0, "a"))
+
+    handler.onNext(1)
+
+    received shouldBe List((1, "a"), (0, "a"))
+
+    handler.onNext(2)
+
+    received shouldBe List((2, "a"), (1, "a"), (0, "a"))
+
+    latest.onNext("b")
+
+    received shouldBe List((2, "a"), (1, "a"), (0, "a"))
+
+    latest.onNext("c")
+
+    received shouldBe List((2, "a"), (1, "a"), (0, "a"))
+
+    handler.onNext(3)
+
+    received shouldBe List((3, "c"), (2, "a"), (1, "a"), (0, "a"))
+
+    sub.cancel()
+
+    handler.onNext(3)
+
+    received shouldBe List((3, "c"), (2, "a"), (1, "a"), (0, "a"))
+
+    latest.onNext("d")
+
+    received shouldBe List((3, "c"), (2, "a"), (1, "a"), (0, "a"))
+  }
+
+  it should "publish" in {
     var mapped = List.empty[Int]
     var received = List.empty[Int]
-    val handler = Subject.behavior[Int]
-    val stream = Observable.merge(handler, Observable.fromIterable(Seq(1,2,3))).map { x => mapped ::= x; x }.share
+    val handler = Subject.replay[Int]
+    val stream = Observable.merge(handler, Observable.fromIterable(Seq(1,2,3))).map { x => mapped ::= x; x }.publish.refCount
 
     mapped shouldBe List.empty
 
@@ -162,12 +298,12 @@ class ObservableSpec extends AnyFlatSpec with Matchers {
     received shouldBe List(5,4,4,3,2,1)
   }
 
-  it should "shareWithLatest" in {
+  it should "replay" in {
     var mapped = List.empty[Int]
     var received = List.empty[Int]
     var errors = 0
-    val handler = Subject.behavior[Int]
-    val stream = Observable.merge(handler, Observable.fromIterable(Seq(1,2,3))).map { x => mapped ::= x; x }.shareWithLatest
+    val handler = Subject.replay[Int]
+    val stream = Observable.merge(handler, Observable.fromIterable(Seq(1,2,3))).map { x => mapped ::= x; x }.replay.refCount
 
     mapped shouldBe List.empty
 
@@ -336,7 +472,7 @@ class ObservableSpec extends AnyFlatSpec with Matchers {
     var received = List.empty[Int]
     var errors = 0
     val handler0 = Subject.behavior[Int](0)
-    val handler1 = Subject.behavior[Int]
+    val handler1 = Subject.replay[Int]
     val handler2 = Subject.behavior[Int](2)
     val handlers = Array(handler0, handler1, Observable.empty, handler2)
     val stream = Observable.fromIterable(Seq(0,1,2,3)).switchMap(handlers(_))
@@ -443,7 +579,7 @@ class ObservableSpec extends AnyFlatSpec with Matchers {
     var received = List.empty[Int]
     var errors = 0
     val handler0 = Subject.behavior[Int](0)
-    val handler1 = Subject.behavior[Int]
+    val handler1 = Subject.replay[Int]
     val handler2 = Subject.behavior[Int](2)
     val handlers = Array(handler0, handler1, handler2)
     val stream = Observable.fromIterable(Seq(0,1,2)).mergeMap(handlers(_))
