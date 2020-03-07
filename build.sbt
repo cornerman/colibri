@@ -35,6 +35,10 @@ lazy val commonSettings = Seq(
         Some("releases" at nexus + "service/local/staging/deploy/maven2")
   },
 
+  resolvers ++=
+      ("jitpack" at "https://jitpack.io") ::
+      Nil,
+
   pomExtra :=
     <developers>
         <developer>
@@ -84,6 +88,19 @@ lazy val monix = project
     )
   )
 
+lazy val rx = project
+  .enablePlugins(ScalaJSPlugin)
+  .dependsOn(colibri)
+  .in(file("rx"))
+  .settings(commonSettings, jsSettings)
+  .settings(
+    name := "colibri-rx",
+
+    libraryDependencies ++= Seq(
+      "com.github.cornerman.scalarx" %%% "scalarx" % "70cd41c"
+    )
+  )
+
 lazy val root = project
   .in(file("."))
   .settings(
@@ -91,4 +108,4 @@ lazy val root = project
 
     skip in publish := true,
   )
-  .aggregate(colibri, monix)
+  .aggregate(colibri, monix, rx)

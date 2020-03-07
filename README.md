@@ -2,6 +2,22 @@
 
 # Colibri - a simple functional reactive library scala-js
 
+Usage:
+```scala
+resolvers += "jitpack" at "https://jitpack.io"
+libraryDependencies += "com.github.cornerman.colibri" %%% "colibri" % "master-SNAPSHOT"
+```
+
+For monix support:
+```scala
+libraryDependencies += "com.github.outwatch.colibri-monix" % "master-SNAPSHOT"
+```
+
+For scala.rx support:
+```scala
+libraryDependencies += "com.github.outwatch.colibri-rx" % "master-SNAPSHOT"
+```
+
 This library includes a minimal frp library and typeclasses for streaming.
 
 We have prepared typeclasses for integrating other streaming libaries:
@@ -18,4 +34,6 @@ Most important here are `Sink` and `Source`. `Source` allows you use your observ
 
 Source Code: [Source.scala](colibri/src/main/scala/colibri/Source.scala), [Sink.scala](colibri/src/main/scala/colibri/Sink.scala)
 
-Example: [Implmentation for Monix](monix/src/main/scala/colibri/ext/monix/package.scala)
+[Implmentation for Monix](monix/src/main/scala/colibri/ext/monix/package.scala)
+
+[Implmentation for Rx](rx/src/main/scala/colibri/ext/rx/package.scala)
