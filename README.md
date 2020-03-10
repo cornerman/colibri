@@ -30,7 +30,7 @@ We have prepared typeclasses for integrating other streaming libaries:
 - `CreateHandler[F[_]]` how to create subject in `F`
 - `CreateProHandler[F[_,_]]` how to create subject in `F` which has differnt input/output types.
 
-Most important here are `Sink` and `Source`. `Source` allows you use your observable as a `VDomModifier`. `Sink` allows you to use your observer on the right-hand side of `-->`.
+Most important here are `Sink` and `Source`. `Source` is a typeclass for Observables, `Sink` is a typeclass for Observers.
 
 Source Code: [Source.scala](colibri/src/main/scala/colibri/Source.scala), [Sink.scala](colibri/src/main/scala/colibri/Sink.scala)
 
