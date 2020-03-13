@@ -2,7 +2,7 @@ package colibri
 
 import colibri.effect._
 
-import cats.{ MonoidK, Functor, FunctorFilter, Eq, Semigroupal }
+import cats.{ MonoidK, Applicative, FunctorFilter, Eq, Semigroupal }
 import cats.effect.{ Effect, IO }
 
 import scala.scalajs.js
@@ -31,12 +31,14 @@ object Observable {
     @inline def combineK[T](a: Observable[T], b: Observable[T]) = Observable.mergeVaried(a, b)
   }
 
-  implicit object functor extends Functor[Observable] {
-    @inline def map[A, B](fa: Observable[A])(f: A => B): Observable[B] = Observable.map(fa)(f)
+  implicit object applicative extends Applicative[Observable] {
+    @inline def ap[A, B](ff: Observable[A => B])(fa: Observable[A]): Observable[B] = Observable.combineLatestMap(ff, fa)((f, a) => f(a))
+    @inline def pure[A](a: A): Observable[A] = Observable(a)
+    @inline override def map[A, B](fa: Observable[A])(f: A => B): Observable[B] = Observable.map(fa)(f)
   }
 
   implicit object functorFilter extends FunctorFilter[Observable] {
-    @inline def functor = Observable.functor
+    @inline def functor = Observable.applicative
     @inline def mapFilter[A, B](fa: Observable[A])(f: A => Option[B]): Observable[B] = Observable.mapFilter(fa)(f)
   }
 
