@@ -2,7 +2,7 @@ package colibri
 
 import colibri.effect._
 
-import cats.{ MonoidK, Functor, FunctorFilter, Eq }
+import cats.{ MonoidK, Functor, FunctorFilter, Eq, Semigroupal }
 import cats.effect.{ Effect, IO }
 
 import scala.scalajs.js
@@ -38,6 +38,10 @@ object Observable {
   implicit object functorFilter extends FunctorFilter[Observable] {
     @inline def functor = Observable.functor
     @inline def mapFilter[A, B](fa: Observable[A])(f: A => Option[B]): Observable[B] = Observable.mapFilter(fa)(f)
+  }
+
+  implicit object semigroupal extends Semigroupal[Observable] {
+    @inline def product[A, B](fa: Observable[A], fb: Observable[B]): Observable[(A,B)] = Observable.combineLatest(fa, fb)
   }
 
   implicit object createSubject extends CreateSubject[Subject] {
