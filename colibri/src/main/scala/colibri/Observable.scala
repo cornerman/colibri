@@ -731,6 +731,24 @@ object Observable {
       Cancelable.composite(source.subscribe(sink), source.connect())
   }
 
+  def hot[A](source: Connectable[A]): Observable.Hot[A] = new Observable[A] with Cancelable {
+    private val cancelable = source.connect()
+    def cancel() = cancelable.cancel()
+    def subscribe[G[_]: Sink](sink: G[_ >: A]): Cancelable = source.subscribe(sink)
+  }
+  def hotValue[A](source: ConnectableValue[A]): Observable.HotValue[A] = new Value[A] with Cancelable {
+    private val cancelable = source.connect()
+    def cancel() = cancelable.cancel()
+    def now() = source.now()
+    def subscribe[G[_]: Sink](sink: G[_ >: A]): Cancelable = source.subscribe(sink)
+  }
+  def hotMaybeValue[A](source: ConnectableMaybeValue[A]): Observable.HotMaybeValue[A] = new Observable.MaybeValue[A] with Cancelable {
+    private val cancelable = source.connect()
+    def cancel() = cancelable.cancel()
+    def now() = source.now()
+    def subscribe[G[_]: Sink](sink: G[_ >: A]): Cancelable = source.subscribe(sink)
+  }
+
   @inline def prependSync[S[_]: Source, A, F[_] : RunSyncEffect](source: S[A])(value: F[A]): Observable[A] = concatSync[F, A, S](value, source)
   @inline def prependAsync[S[_]: Source, A, F[_] : Effect](source: S[A])(value: F[A]): Observable[A] = concatAsync[F, A, S](value, source)
   @inline def prependFuture[S[_]: Source, A](source: S[A])(value: Future[A])(implicit ec: ExecutionContext): Observable[A] = concatFuture[A, S](value, source)
@@ -919,12 +937,15 @@ object Observable {
 
   @inline implicit class ConnectableOperations[A](val source: Observable.Connectable[A]) extends AnyVal {
     @inline def refCount: Observable[A] = Observable.refCount(source)
+    @inline def hot: Observable.Hot[A] = Observable.hot(source)
   }
   @inline implicit class ConnectableValueOperations[A](val source: Observable.ConnectableValue[A]) extends AnyVal {
     @inline def refCount: Observable.Value[A] = Observable.refCountValue(source)
+    @inline def hot: Observable.HotValue[A] = Observable.hotValue(source)
   }
   @inline implicit class ConnectableMaybeValueOperations[A](val source: Observable.ConnectableMaybeValue[A]) extends AnyVal {
     @inline def refCount: Observable.MaybeValue[A] = Observable.refCountMaybeValue(source)
+    @inline def hot: Observable.HotMaybeValue[A] = Observable.hotMaybeValue(source)
   }
 
   @inline implicit class SyncEventOperations[EV <: dom.Event](val source: Synchronous[EV]) extends AnyVal {
