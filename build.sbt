@@ -96,7 +96,7 @@ lazy val rx = project
     name := "colibri-rx",
 
     libraryDependencies ++= Seq(
-      "com.github.cornerman.scalarx" %%% "scalarx" % "de8989d"
+      "com.lihaoyi" %% "scalarx" % "0.4.1"
     )
   )
 
