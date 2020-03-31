@@ -323,6 +323,16 @@ object Observable {
     }
   }
 
+  def doOnSubscribe[F[_]: Source, A](source: F[A])(f: () => Cancelable): Observable[A] = new Observable[A] {
+    def subscribe[G[_]: Sink](sink: G[_ >: A]): Cancelable = {
+      val cancelable = f()
+      Cancelable.composite(
+        source.subscribe(source)(sink),
+        cancelable
+      )
+    }
+  }
+
   def doOnNext[F[_]: Source, A](source: F[A])(f: A => Unit): Observable[A] = new Observable[A] {
     def subscribe[G[_]: Sink](sink: G[_ >: A]): Cancelable = {
       Source[F].subscribe(source)(Observer.doOnNext[G, A](sink) { value =>
@@ -902,6 +912,7 @@ object Observable {
     @inline def map[B](f: A => B): Observable[B] = Observable.map(source)(f)
     @inline def mapEither[B](f: A => Either[Throwable, B]): Observable[B] = Observable.mapEither(source)(f)
     @inline def mapFilter[B](f: A => Option[B]): Observable[B] = Observable.mapFilter(source)(f)
+    @inline def doOnSubscribe(f: () => Cancelable): Observable[A] = Observable.doOnSubscribe(source)(f)
     @inline def doOnNext(f: A => Unit): Observable[A] = Observable.doOnNext(source)(f)
     @inline def doOnError(f: Throwable => Unit): Observable[A] = Observable.doOnError(source)(f)
     @inline def collect[B](f: PartialFunction[A, B]): Observable[B] = Observable.collect(source)(f)
