@@ -327,7 +327,7 @@ object Observable {
     def subscribe[G[_]: Sink](sink: G[_ >: A]): Cancelable = {
       val cancelable = f()
       Cancelable.composite(
-        source.subscribe(source)(sink),
+        Source[F].subscribe(source)(sink),
         cancelable
       )
     }
