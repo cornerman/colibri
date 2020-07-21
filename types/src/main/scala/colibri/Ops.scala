@@ -9,13 +9,13 @@ object ZipSource {
   @inline def apply[F[_]](implicit source: ZipSource[F]): ZipSource[F] = source
 
   @inline implicit class Ops[F[_]](val source: ZipSource[F]) extends AnyVal {
-    def zip[A, B](sourceA: F[A], sourceB: F[B]): F[(A,B)] = source.zipMap(sourceA, sourceB)(_ -> _)
+    @inline def zip[A, B](sourceA: F[A], sourceB: F[B]): F[(A,B)] = source.zipMap(sourceA, sourceB)(_ -> _)
   }
 }
 
 trait ConcatSource[F[_]] {
   def concatMap[A, B](source: F[A])(f: A => F[B]): F[B]
-  // def concat[A](sourceA: F[A], sourceB: F[A]): F[A]
+  def concat[A](sourceA: F[A], sourceB: F[A]): F[A]
 }
 object ConcatSource {
   @inline def apply[F[_]](implicit source: ConcatSource[F]): ConcatSource[F] = source
@@ -23,7 +23,7 @@ object ConcatSource {
 
 trait MergeSource[F[_]] {
   def mergeMap[A, B](source: F[A])(f: A => F[B]): F[B]
-  // def merge[A](sourceA: F[A], sourceB: F[A]): F[A]
+  def merge[A](sourceA: F[A], sourceB: F[A]): F[A]
 }
 object MergeSource {
   @inline def apply[F[_]](implicit source: MergeSource[F]): MergeSource[F] = source
@@ -36,7 +36,7 @@ object CombineLatestSource {
   @inline def apply[F[_]](implicit source: CombineLatestSource[F]): CombineLatestSource[F] = source
 
   @inline implicit class Ops[F[_]](val source: CombineLatestSource[F]) extends AnyVal {
-    def combineLatest[A, B](sourceA: F[A], sourceB: F[B]): F[(A,B)] = source.combineLatestMap(sourceA, sourceB)(_ -> _)
+    @inline def combineLatest[A, B](sourceA: F[A], sourceB: F[B]): F[(A,B)] = source.combineLatestMap(sourceA, sourceB)(_ -> _)
   }
 }
 
@@ -47,13 +47,13 @@ object WithLatestSource {
   @inline def apply[F[_]](implicit source: WithLatestSource[F]): WithLatestSource[F] = source
 
   @inline implicit class Ops[F[_]](val source: WithLatestSource[F]) extends AnyVal {
-    def withLatest[A, B](sourceA: F[A], sourceB: F[B]): F[(A,B)] = source.withLatestMap(sourceA, sourceB)(_ -> _)
+    @inline def withLatest[A, B](sourceA: F[A], sourceB: F[B]): F[(A,B)] = source.withLatestMap(sourceA, sourceB)(_ -> _)
   }
 }
 
 trait SwitchSource[F[_]] {
   def switchMap[A, B](source: F[A])(f: A => F[B]): F[B]
-  // def switch[A](sourceA: F[A], sourceB: F[A]): F[A]
+  def switch[A](sourceA: F[A], sourceB: F[A]): F[A]
 }
 object SwitchSource {
   @inline def apply[F[_]](implicit source: SwitchSource[F]): SwitchSource[F] = source
@@ -66,9 +66,11 @@ object DebounceSource {
   @inline def apply[F[_]](implicit source: DebounceSource[F]): DebounceSource[F] = source
 }
 
-trait SampleSource[F[_]] {
-  def sample[A](source: F[A])(duration: FiniteDuration): F[A]
+trait ToSinkSource[F[_]] {
+  def toSink[G[_] : Sink, A](source: F[A])(f: G[A]): F[A]
 }
-object SampleSource {
-  @inline def apply[F[_]](implicit source: SampleSource[F]): SampleSource[F] = source
+object ToSinkSource {
+  @inline def apply[F[_]](implicit source: ToSinkSource[F]): ToSinkSource[F] = source
 }
+
+
