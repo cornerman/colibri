@@ -10,12 +10,12 @@ libraryDependencies += "com.github.cornerman.colibri" %%% "colibri" % "master-SN
 
 For monix support:
 ```scala
-libraryDependencies += "com.github.outwatch.colibri" %%% "colibri-monix" % "master-SNAPSHOT"
+libraryDependencies += "com.github.cornerman.colibri" %%% "colibri-monix" % "master-SNAPSHOT"
 ```
 
 For scala.rx support:
 ```scala
-libraryDependencies += "com.github.outwatch.colibri" %%% "colibri-rx" % "master-SNAPSHOT"
+libraryDependencies += "com.github.cornerman.colibri" %%% "colibri-rx" % "master-SNAPSHOT"
 ```
 
 This library includes a minimal frp library and typeclasses for streaming.
