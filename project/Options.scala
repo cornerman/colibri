@@ -15,7 +15,7 @@ object Options {
     "-Ypartial-unification",             // Enable partial unification in type constructor inference
   )
 
-  val badConsoleFlags = Seq("-P:silencer:checkUnused", "-Ywarn-unused:imports", "-Xfatal-warnings")
+  val badConsoleFlags = Seq("-Ywarn-unused:imports", "-Xfatal-warnings")
 
   val options211 = baseOptions ++ Seq(
       "-Ywarn-unused",
@@ -57,7 +57,6 @@ object Options {
       "-Ywarn-unused:patvars",             // Warn if a variable bound in a pattern is unused.
       "-Ywarn-unused:privates",            // Warn if a private member is unused.
       "-Ywarn-value-discard",              // Warn when non-Unit expression results are unused.
-      "-P:silencer:checkUnused",           // Warn if silencer is used when no warning is suppressed
   )
 
   val options213 = options212.diff(Seq(
