@@ -12,11 +12,11 @@ inThisBuild(Seq(
 
 lazy val commonSettings = Seq(
   addCompilerPlugin("org.typelevel" %% "kind-projector" % "0.11.0" cross CrossVersion.full),
-  addCompilerPlugin("com.github.ghik" % "silencer-plugin" % "1.6.0" cross CrossVersion.full),
+  addCompilerPlugin("com.github.ghik" % "silencer-plugin" % "1.7.1" cross CrossVersion.full),
 
   libraryDependencies ++= Seq(
     "org.scalatest" %%% "scalatest" % "3.2.0" % Test,
-    "com.github.ghik" % "silencer-lib" % "1.6.0" % Provided cross CrossVersion.full,
+    "com.github.ghik" % "silencer-lib" % "1.7.1" % Provided cross CrossVersion.full,
   ),
 
   scalacOptions ++= CrossVersion.partialVersion(scalaVersion.value).toList.flatMap { case (major, minor) =>
