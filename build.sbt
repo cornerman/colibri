@@ -14,7 +14,7 @@ lazy val commonSettings = Seq(
   addCompilerPlugin("org.typelevel" %% "kind-projector" % "0.11.0" cross CrossVersion.full),
 
   libraryDependencies ++= Seq(
-    "org.scalatest" %%% "scalatest" % "3.2.0" % Test,
+    "org.scalatest" %%% "scalatest" % "3.2.2" % Test,
   ),
 
   scalacOptions ++= CrossVersion.partialVersion(scalaVersion.value).toList.flatMap { case (major, minor) =>
@@ -66,7 +66,7 @@ lazy val colibri = project
     name := "colibri",
 
     libraryDependencies ++= Seq(
-      "org.scala-js"  %%% "scalajs-dom" % "1.0.0",
+      "org.scala-js"  %%% "scalajs-dom" % "1.1.0",
       "org.typelevel" %%% "cats-core" % "2.2.0",
       "org.typelevel" %%% "cats-effect" % "2.1.4",
     )
