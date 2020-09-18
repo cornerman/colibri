@@ -1,8 +1,10 @@
 package colibri
 
-import cats.Monoid
+import cats.{Monoid, Functor}
 import cats.implicits._
 import cats.effect.{IO, Effect}
+
+import colibri.effect.RunSyncEffect
 
 import scala.scalajs.js
 
@@ -134,6 +136,10 @@ object Cancelable {
       f()
     }
   }
+
+  @inline def fromSync[F[_]: RunSyncEffect : Functor](effect: F[Unit]): Cancelable = fromSyncCancelable[F, Cancelable](effect.map(_ => Cancelable.empty))
+
+  def fromSyncCancelable[F[_]: RunSyncEffect, T: CanCancel](effect: F[T]): Cancelable = Cancelable(() => CanCancel[T].cancel((RunSyncEffect[F].unsafeRun(effect))))
 
   @inline def fromAsync[F[_]: Effect](effect: F[Unit]): Cancelable = fromAsyncCancelable[F, Cancelable](effect.map(_ => Cancelable.empty))
 
