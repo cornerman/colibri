@@ -1,6 +1,7 @@
 package colibri
 
 import cats.Monoid
+import cats.effect.{IO, Effect}
 
 import scala.scalajs.js
 
@@ -116,13 +117,18 @@ object Cancelable {
 
   @inline def empty = Empty
 
-  @inline def apply(f: () => Unit) = new Cancelable {
+  @inline def apply(f: () => Unit): Cancelable = new Cancelable {
     private var isCanceled = false
     @inline def cancel() = if (!isCanceled) {
       isCanceled = true
       f()
     }
   }
+
+  def fromAsync[F[_]: Effect](effect: F[Unit]): Cancelable = Cancelable(Effect[F].runAsync(effect) {
+    case Right(_) => IO.pure(())
+    case Left(err) => IO(helpers.UnhandledErrorReporter.errorSubject.onNext(err))
+  }.unsafeRunSync)
 
   @inline def lift[T : CanCancel](subscription: T) = apply(() => CanCancel[T].cancel(subscription))
 
