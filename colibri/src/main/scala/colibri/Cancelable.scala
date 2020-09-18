@@ -1,6 +1,7 @@
 package colibri
 
 import cats.Monoid
+import cats.implicits._
 import cats.effect.{IO, Effect}
 
 import scala.scalajs.js
@@ -9,6 +10,15 @@ trait Cancelable {
   def cancel(): Unit
 }
 object Cancelable {
+
+  implicit object monoid extends Monoid[Cancelable] {
+    @inline def empty = Cancelable.empty
+    @inline def combine(a: Cancelable, b: Cancelable) = Cancelable.composite(a, b)
+  }
+
+  implicit object cancelCancelable extends CanCancel[Cancelable] {
+    @inline def cancel(subscription: Cancelable): Unit = subscription.cancel()
+  }
 
   class Builder extends Cancelable {
     private var buffer = new js.Array[Cancelable]()
@@ -125,8 +135,10 @@ object Cancelable {
     }
   }
 
-  def fromAsync[F[_]: Effect](effect: F[Unit]): Cancelable = Cancelable(Effect[F].runAsync(effect) {
-    case Right(_) => IO.pure(())
+  @inline def fromAsync[F[_]: Effect](effect: F[Unit]): Cancelable = fromAsyncCancelable[F, Cancelable](effect.map(_ => Cancelable.empty))
+
+  def fromAsyncCancelable[F[_]: Effect, T: CanCancel](effect: F[T]): Cancelable = Cancelable(Effect[F].runAsync(effect) {
+    case Right(cancel) => IO(CanCancel[T].cancel(cancel))
     case Left(err) => IO(helpers.UnhandledErrorReporter.errorSubject.onNext(err))
   }.unsafeRunSync)
 
@@ -144,13 +156,4 @@ object Cancelable {
   @inline def consecutive(): Consecutive = new Consecutive
 
   @inline def refCount(subscription: () => Cancelable): RefCount = new RefCount(subscription)
-
-  implicit object monoid extends Monoid[Cancelable] {
-    @inline def empty = Cancelable.empty
-    @inline def combine(a: Cancelable, b: Cancelable) = Cancelable.composite(a, b)
-  }
-
-  implicit object cancelCancelable extends CanCancel[Cancelable] {
-    @inline def cancel(subscription: Cancelable): Unit = subscription.cancel()
-  }
 }
