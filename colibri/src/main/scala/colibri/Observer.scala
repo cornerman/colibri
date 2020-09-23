@@ -13,7 +13,7 @@ object Observer {
 
   object Empty extends Observer[Any] {
     @inline def onNext(value: Any): Unit = ()
-    @inline def onError(error: Throwable): Unit = ()
+    @inline def onError(error: Throwable): Unit = UnhandledErrorReporter.errorSubject.onNext(error)
   }
 
   @inline def empty = Empty
