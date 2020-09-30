@@ -885,6 +885,17 @@ object Observable {
     }
   }
 
+  def resource[F[_] : RunSyncEffect, R, S](acquire: F[R], use: R => S, release: R => F[Unit]): Observable[S] = resourceFunction[R, S](() => RunSyncEffect[F].unsafeRun(acquire), use, r => RunSyncEffect[F].unsafeRun(release(r)))
+
+  def resourceFunction[R, S](acquire: () => R, use: R => S, release: R => Unit): Observable[S] = new Observable[S] {
+    def subscribe[G[_]: Sink](sink: G[_ >: S]): Cancelable = {
+      val r = acquire()
+      val s = use(r)
+      Sink[G].onNext(sink)(s)
+      Cancelable(() => release(r))
+    }
+  }
+
   @inline implicit class Operations[A](val source: Observable[A]) extends AnyVal {
     @inline def liftSource[G[_]: LiftSource]: G[A] = LiftSource[G].lift(source)
     @inline def failed: Observable[Throwable] = Observable.failed(source)
