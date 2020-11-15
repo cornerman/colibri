@@ -92,6 +92,30 @@ object Cancelable {
     }
   }
 
+  class Singly extends Cancelable {
+    private var latest: Cancelable = null
+    private var isCancel = false
+
+    def done(): Unit = if (latest != null) {
+      latest.cancel()
+      latest = null
+    }
+
+    def update(subscription: () => Cancelable): Unit = if (latest == null) {
+      val variable = Cancelable.variable()
+      latest = variable
+      variable() = subscription()
+    }
+
+    def cancel(): Unit = if (!isCancel) {
+      isCancel = true
+      if (latest != null) {
+        latest.cancel()
+        latest = null
+      }
+    }
+  }
+
   class RefCount(subscription: () => Cancelable) extends Cancelable {
     private var counter = 0
     private var currentCancelable: Cancelable = null
@@ -146,6 +170,8 @@ object Cancelable {
   @inline def variable(): Variable = new Variable
 
   @inline def consecutive(): Consecutive = new Consecutive
+
+  @inline def singly(): Singly = new Singly
 
   @inline def refCount(subscription: () => Cancelable): RefCount = new RefCount(subscription)
 }
