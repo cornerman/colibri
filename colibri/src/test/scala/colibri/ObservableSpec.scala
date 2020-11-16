@@ -412,14 +412,14 @@ class ObservableSpec extends AnyFlatSpec with Matchers {
     errors shouldBe 0
   }
 
-  it should "concatMapAsync" in {
+  it should "mapAsync" in {
     var received = List.empty[Int]
     var errors = 0
     val handler0 = IO(100)
     val handler1 = IO(200)
     val handler2 = IO(300)
     val handlers = Array(handler0, handler1, handler2)
-    val stream = Observable.fromIterable(Seq(0,1,2)).concatMapAsync(handlers(_))
+    val stream = Observable.fromIterable(Seq(0,1,2)).mapAsync(handlers(_))
 
     stream.subscribe(Observer.create[Int](
       received ::= _,

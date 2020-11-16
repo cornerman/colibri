@@ -92,7 +92,7 @@ object Cancelable {
     }
   }
 
-  class Singly extends Cancelable {
+  class SingleOrDrop extends Cancelable {
     private var latest: Cancelable = null
     private var isCancel = false
 
@@ -171,7 +171,7 @@ object Cancelable {
 
   @inline def consecutive(): Consecutive = new Consecutive
 
-  @inline def singly(): Singly = new Singly
+  @inline def singleOrDrop(): SingleOrDrop = new SingleOrDrop
 
   @inline def refCount(subscription: () => Cancelable): RefCount = new RefCount(subscription)
 }

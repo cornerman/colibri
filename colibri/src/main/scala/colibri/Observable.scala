@@ -196,11 +196,11 @@ object Observable {
     }
   }
 
-  def concatAsync[F[_] : Effect, T](effects: F[T]*): Observable[T] = fromIterable(effects).concatMapAsync(identity)
+  def concatAsync[F[_] : Effect, T](effects: F[T]*): Observable[T] = fromIterable(effects).mapAsync(identity)
 
   def concatSync[F[_] : RunSyncEffect, T](effects: F[T]*): Observable[T] = fromIterable(effects).mapSync(identity)
 
-  def concatFuture[T](values: Future[T]*)(implicit ec: ExecutionContext): Observable[T] = fromIterable(values).concatMapFuture(identity)
+  def concatFuture[T](values: Future[T]*)(implicit ec: ExecutionContext): Observable[T] = fromIterable(values).mapFuture(identity)
 
   def concatAsync[F[_] : Effect, T, S[_] : Source](effect: F[T], source: S[T]): Observable[T] = new Observable[T] {
     def subscribe[G[_]: Sink](sink: G[_ >: T]): Cancelable = {
@@ -383,7 +383,7 @@ object Observable {
     }
   }
 
-  def concatMapAsync[S[_]: Source, F[_]: Effect, A, B](sourceA: S[A])(f: A => F[B]): Observable[B] = new Observable[B] {
+  def mapAsync[S[_]: Source, F[_]: Effect, A, B](sourceA: S[A])(f: A => F[B]): Observable[B] = new Observable[B] {
     def subscribe[G[_]: Sink](sink: G[_ >: B]): Cancelable = {
       val consecutive = Cancelable.consecutive()
 
@@ -413,16 +413,16 @@ object Observable {
     }
   }
 
-  @inline def concatMapFuture[S[_]: Source, A, B](source: S[A])(f: A => Future[B])(implicit ec: ExecutionContext): Observable[B] = concatMapAsync(source)(v => IO.fromFuture(IO.pure(f(v)))(IO.contextShift(ec)))
+  @inline def mapFuture[S[_]: Source, A, B](source: S[A])(f: A => Future[B])(implicit ec: ExecutionContext): Observable[B] = mapAsync(source)(v => IO.fromFuture(IO.pure(f(v)))(IO.contextShift(ec)))
 
-  def concatMapSingleAsync[S[_]: Source, F[_]: Effect, A, B](sourceA: S[A])(f: A => F[B]): Observable[B] = new Observable[B] {
+  def mapAsyncSingleOrDrop[S[_]: Source, F[_]: Effect, A, B](sourceA: S[A])(f: A => F[B]): Observable[B] = new Observable[B] {
     def subscribe[G[_]: Sink](sink: G[_ >: B]): Cancelable = {
-      val singly = Cancelable.singly()
+      val single = Cancelable.singleOrDrop()
 
       val subscription = Source[S].subscribe(sourceA)(Observer.create[A](
         { value =>
           val effect = f(value)
-          singly() = { () =>
+          single() = { () =>
             //TODO: proper cancel effects?
             var isCancel = false
             Effect[F].runAsync(effect)(either => IO {
@@ -431,7 +431,7 @@ object Observable {
                   case Right(value) => Sink[G].onNext(sink)(value)
                   case Left(error)  => Sink[G].onError(sink)(error)
                 }
-                singly.done()
+                single.done()
               }
             }).unsafeRunSync()
 
@@ -441,11 +441,11 @@ object Observable {
         Sink[G].onError(sink),
       ))
 
-      Cancelable.composite(subscription, singly)
+      Cancelable.composite(subscription, single)
     }
   }
 
-  @inline def concatMapSingleFuture[S[_]: Source, A, B](source: S[A])(f: A => Future[B])(implicit ec: ExecutionContext): Observable[B] = concatMapSingleAsync(source)(v => IO.fromFuture(IO.pure(f(v)))(IO.contextShift(ec)))
+  @inline def mapFutureSingleOrDrop[S[_]: Source, A, B](source: S[A])(f: A => Future[B])(implicit ec: ExecutionContext): Observable[B] = mapAsyncSingleOrDrop(source)(v => IO.fromFuture(IO.pure(f(v)))(IO.contextShift(ec)))
 
   @inline def mapSync[S[_]: Source, F[_]: RunSyncEffect, A, B](source: S[A])(f: A => F[B]): Observable[B] = map(source)(v => RunSyncEffect[F].unsafeRun(f(v)))
 
@@ -949,10 +949,10 @@ object Observable {
     @inline def delayMillis(millis: Int): Observable[A] = Observable.delayMillis(source)(millis)
     @inline def distinctOnEquals: Observable[A] = Observable.distinctOnEquals(source)
     @inline def distinct(implicit eq: Eq[A]): Observable[A] = Observable.distinct(source)
-    @inline def concatMapFuture[B](f: A => Future[B])(implicit ec: ExecutionContext): Observable[B] = Observable.concatMapFuture(source)(f)
-    @inline def concatMapAsync[G[_]: Effect, B](f: A => G[B]): Observable[B] = Observable.concatMapAsync(source)(f)
-    @inline def concatMapSingleFuture[B](f: A => Future[B])(implicit ec: ExecutionContext): Observable[B] = Observable.concatMapSingleFuture(source)(f)
-    @inline def concatMapSingleAsync[G[_]: Effect, B](f: A => G[B]): Observable[B] = Observable.concatMapSingleAsync(source)(f)
+    @inline def mapFuture[B](f: A => Future[B])(implicit ec: ExecutionContext): Observable[B] = Observable.mapFuture(source)(f)
+    @inline def mapAsync[G[_]: Effect, B](f: A => G[B]): Observable[B] = Observable.mapAsync(source)(f)
+    @inline def mapFutureSingleOrDrop[B](f: A => Future[B])(implicit ec: ExecutionContext): Observable[B] = Observable.mapFutureSingleOrDrop(source)(f)
+    @inline def mapAsyncSingleOrDrop[G[_]: Effect, B](f: A => G[B]): Observable[B] = Observable.mapAsyncSingleOrDrop(source)(f)
     @inline def mapSync[G[_]: RunSyncEffect, B](f: A => G[B]): Observable[B] = Observable.mapSync(source)(f)
     @inline def map[B](f: A => B): Observable[B] = Observable.map(source)(f)
     @inline def mapEither[B](f: A => Either[Throwable, B]): Observable[B] = Observable.mapEither(source)(f)
