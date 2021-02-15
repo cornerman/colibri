@@ -145,7 +145,7 @@ object Observer {
     @inline def contrafilter(f: A => Boolean): Observer[A] = Observer.contrafilter(observer)(f)
     @inline def contrascan[B](seed: A)(f: (A, B) => A): Observer[B] = Observer.contrascan(observer)(seed)(f)
     @inline def doOnError(f: Throwable => Unit): Observer[A] = Observer.doOnError(observer)(f)
-    @inline def via[G[_] : Sink](sink: G[A]): Observer[A] = Observer.combine(observer, Observer.lift(sink))
+    @inline def andThen[G[_] : Sink](sink: G[A]): Observer[A] = Observer.combine(observer, Observer.lift(sink))
     @inline def redirect[G[_] : Source, B](f: Observable[B] => G[A]): Observer.Connectable[B] = Observer.redirect(observer)(f)
   }
 
