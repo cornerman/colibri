@@ -196,6 +196,10 @@ object Observable {
     }
   }
 
+  def via[S[_]: Source, G[_]: Sink, A](source: S[A])(sink: G[A]): Observable[A] = new Observable[A] {
+    def subscribe[GG[_]: Sink](sink2: GG[_ >: A]): Cancelable = Source[S].subscribe(source)(Observer.combine[Observer, A](Observer.lift(sink), Observer.lift(sink2)))
+  }
+
   def concatAsync[F[_] : Effect, T](effects: F[T]*): Observable[T] = fromIterable(effects).mapAsync(identity)
 
   def concatSync[F[_] : RunSyncEffect, T](effects: F[T]*): Observable[T] = fromIterable(effects).mapSync(identity)
@@ -931,6 +935,7 @@ object Observable {
   @inline implicit class Operations[A](val source: Observable[A]) extends AnyVal {
     @inline def liftSource[G[_]: LiftSource]: G[A] = LiftSource[G].lift(source)
     @inline def failed: Observable[Throwable] = Observable.failed(source)
+    @inline def via[G[_]: Sink](sink: G[A]): Observable[A] = Observable.via(source)(sink)
     @inline def mergeMap[S[_]: Source, B](f: A => S[B]): Observable[B] = Observable.mergeMap(source)(f)
     @inline def switchMap[S[_]: Source, B](f: A => S[B]): Observable[B] = Observable.switchMap(source)(f)
     @inline def zip[S[_]: Source, B](combined: S[B]): Observable[(A,B)] = Observable.zip(source, combined)
