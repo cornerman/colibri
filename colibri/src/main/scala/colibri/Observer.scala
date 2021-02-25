@@ -91,6 +91,13 @@ object Observer {
     def onError(error: Throwable): Unit = Sink[G].onError(sink)(error)
   }
 
+  def contramapIterable[G[_] : Sink, A, B](sink: G[_ >: A])(f: B => Iterable[A]): Observer[B] = new Observer[B] {
+    def onNext(value: B): Unit = recovered(f(value).foreach(Sink[G].onNext(sink)(_)), onError)
+    def onError(error: Throwable): Unit = Sink[G].onError(sink)(error)
+  }
+
+  def contraflattenIterable[G[_] : Sink, A, B](sink: G[_ >: A]): Observer[Iterable[A]] = contramapIterable(sink)(identity)
+
   //TODO return effect
   def contrascan[G[_] : Sink, A, B](sink: G[_ >: A])(seed: A)(f: (A, B) => A): Observer[B] = new Observer[B] {
     private var state = seed
@@ -143,6 +150,8 @@ object Observer {
     @inline def contramapFilter[B](f: B => Option[A]): Observer[B] = Observer.contramapFilter(observer)(f)
     @inline def contracollect[B](f: PartialFunction[B, A]): Observer[B] = Observer.contracollect(observer)(f)
     @inline def contrafilter(f: A => Boolean): Observer[A] = Observer.contrafilter(observer)(f)
+    @inline def contramapIterable[B](f: B => Iterable[A]): Observer[B] = Observer.contramapIterable(observer)(f)
+    @inline def contraflattenIterable: Observer[Iterable[A]] = Observer.contraflattenIterable(observer)
     @inline def contrascan[B](seed: A)(f: (A, B) => A): Observer[B] = Observer.contrascan(observer)(seed)(f)
     @inline def doOnError(f: Throwable => Unit): Observer[A] = Observer.doOnError(observer)(f)
     @inline def combine[G[_] : Sink](sink: G[A]): Observer[A] = Observer.combine(observer, Observer.lift(sink))

@@ -289,6 +289,12 @@ object Observable {
     def subscribe[G[_]: Sink](sink: G[_ >: B]): Cancelable = Source[F].subscribe(source)(Observer.contramapFilter(sink)(f))
   }
 
+  def mapIterable[F[_]: Source, A, B](source: F[A])(f: A => Iterable[B]): Observable[B] = new Observable[B] {
+    def subscribe[G[_]: Sink](sink: G[_ >: B]): Cancelable = Source[F].subscribe(source)(Observer.contramapIterable(sink)(f))
+  }
+
+  @inline def flattenIterable[F[_]: Source, A, B](source: F[Iterable[A]]): Observable[A] = mapIterable(source)(identity)
+
   def collect[F[_]: Source, A, B](source: F[A])(f: PartialFunction[A, B]): Observable[B] = new Observable[B] {
     def subscribe[G[_]: Sink](sink: G[_ >: B]): Cancelable = Source[F].subscribe(source)(Observer.contracollect(sink)(f))
   }
@@ -960,6 +966,7 @@ object Observable {
     @inline def mapAsyncSingleOrDrop[G[_]: Effect, B](f: A => G[B]): Observable[B] = Observable.mapAsyncSingleOrDrop(source)(f)
     @inline def mapSync[G[_]: RunSyncEffect, B](f: A => G[B]): Observable[B] = Observable.mapSync(source)(f)
     @inline def map[B](f: A => B): Observable[B] = Observable.map(source)(f)
+    @inline def mapIterable[B](f: A => Iterable[B]): Observable[B] = Observable.mapIterable(source)(f)
     @inline def mapEither[B](f: A => Either[Throwable, B]): Observable[B] = Observable.mapEither(source)(f)
     @inline def mapFilter[B](f: A => Option[B]): Observable[B] = Observable.mapFilter(source)(f)
     @inline def doOnSubscribe(f: () => Cancelable): Observable[A] = Observable.doOnSubscribe(source)(f)
@@ -994,6 +1001,10 @@ object Observable {
     @inline def withDefaultSubscription[G[_] : Sink](sink: G[A]): Observable[A] = Observable.withDefaultSubscription(source)(sink)
     @inline def subscribe(): Cancelable = source.subscribe(Observer.empty)
     @inline def foreach(f: A => Unit): Cancelable = source.subscribe(Observer.create(f))
+  }
+
+  @inline implicit class IterableOperations[A](val source: Observable[Iterable[A]]) extends AnyVal {
+    @inline def flattenIterable[B]: Observable[A] = Observable.flattenIterable(source)
   }
 
   @inline implicit class ConnectableOperations[A](val source: Observable.Connectable[A]) extends AnyVal {
