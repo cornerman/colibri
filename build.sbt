@@ -14,7 +14,7 @@ lazy val commonSettings = Seq(
   addCompilerPlugin("org.typelevel" %% "kind-projector" % "0.11.0" cross CrossVersion.full),
 
   libraryDependencies ++= Seq(
-    "org.scalatest" %%% "scalatest" % "3.2.2" % Test,
+    "org.scalatest" %%% "scalatest" % "3.2.6" % Test,
   ),
 
   scalacOptions ++= CrossVersion.partialVersion(scalaVersion.value).toList.flatMap { case (major, minor) =>
