@@ -1053,11 +1053,13 @@ object Observable {
     @inline def transformSubjectSource[O2](g: Observable[O] => Observable[O2]): ProSubject[I, O2] = transformSubjectSourceVaried(g)
     @inline def transformSubjectSink[I2](f: Observer[I] => Observer[I2]): ProSubject[I2, O] = transformSubjectSinkVaried(f)
     @inline def transformProSubject[I2, O2](f: Observer[I] => Observer[I2])(g: Observable[O] => Observable[O2]): ProSubject[I2, O2] = transformProSubjectVaried(f)(g)
+    @inline def imapProSubject[I2, O2](f: I2 => I)(g: O => O2): ProSubject[I2, O2] = transformProSubject(_.contramap(f))(_.map(g))
   }
 
   @inline implicit class SubjectOperations[A](val handler: Subject[A]) extends AnyVal {
     @inline def transformSubjectVaried[G[_] : Sink, S[_] : Source, A2](f: Observer[A] => G[A2])(g: Observable[A] => S[A2]): Subject[A2] = handler.transformProSubjectVaried(f)(g)
     @inline def transformSubject[A2](f: Observer[A] => Observer[A2])(g: Observable[A] => Observable[A2]): Subject[A2] = handler.transformProSubjectVaried(f)(g)
+    @inline def imapSubject[A2](f: A2 => A)(g: A => A2): Subject[A2] = handler.transformSubject(_.contramap(f))(_.map(g))
   }
 
   private def recovered[T](action: => Unit, onError: Throwable => Unit) = try action catch { case NonFatal(t) => onError(t) }
