@@ -81,6 +81,14 @@ object Subject {
   def behavior[O](seed: O): BehaviorSubject[O] = new BehaviorSubject[O](seed)
 
   def publish[O]: PublishSubject[O] = new PublishSubject[O]
+
+  def from[SI[_] : Sink, SO[_] : Source, A](sink: SI[A], source: SO[A]): Subject[A] = new Observer[A] with Observable[A] {
+    @inline def onNext(value: A): Unit = Sink[SI].onNext(sink)(value)
+    @inline def onError(error: Throwable): Unit = Sink[SI].onError(sink)(error)
+    @inline def subscribe[G[_] : Sink](sink: G[_ >: A]): Cancelable = Source[SO].subscribe(source)(sink)
+  }
+
+  def create[SI[_] : Sink, SO[_] : Source, I, O](sinkF: I => Unit, sourceF: Observer[O] => Cancelable): ProSubject[I, O] = ProSubject.create(sinkF, sourceF)
 }
 
 object ProSubject {
@@ -91,5 +99,11 @@ object ProSubject {
     @inline def onNext(value: I): Unit = Sink[SI].onNext(sink)(value)
     @inline def onError(error: Throwable): Unit = Sink[SI].onError(sink)(error)
     @inline def subscribe[G[_] : Sink](sink: G[_ >: O]): Cancelable = Source[SO].subscribe(source)(sink)
+  }
+
+  def create[SI[_] : Sink, SO[_] : Source, I, O](sinkF: I => Unit, sourceF: Observer[O] => Cancelable): ProSubject[I, O] = {
+    val sink = Observer.create(sinkF)
+    val source = Observable.create(sourceF)
+    from(sink, source)
   }
 }
