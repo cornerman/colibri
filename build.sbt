@@ -5,9 +5,9 @@ inThisBuild(Seq(
 
   organization := "com.github.cornerman",
 
-  scalaVersion := "2.12.11",
+  scalaVersion := "2.12.14",
 
-  crossScalaVersions := Seq("2.12.11", "2.13.2"),
+  crossScalaVersions := Seq("2.12.14", "2.13.2"),
 ))
 
 lazy val commonSettings = Seq(
