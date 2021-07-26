@@ -106,7 +106,7 @@ object Observable {
 
   @inline def create[A](produce: Observer[A] => Cancelable): Observable[A] = createLift[Observer, A](produce)
 
-  def createLift[F[_]: Sink: LiftSink, A](produce: F[_ >: A] => Cancelable): Observable[A] = new Observable[A] {
+  def createLift[F[_]: LiftSink, A](produce: F[_ >: A] => Cancelable): Observable[A] = new Observable[A] {
     def subscribe[G[_]: Sink](sink: G[_ >: A]): Cancelable = produce(LiftSink[F].lift(sink))
   }
 
@@ -194,6 +194,10 @@ object Observable {
         dom.window.clearInterval(intervalId)
       }
     }
+  }
+
+  def via[S[_]: Source, G[_]: Sink, A](source: S[A])(sink: G[A]): Observable[A] = new Observable[A] {
+    def subscribe[GG[_]: Sink](sink2: GG[_ >: A]): Cancelable = Source[S].subscribe(source)(Observer.combine[Observer, A](Observer.lift(sink), Observer.lift(sink2)))
   }
 
   def concatAsync[F[_] : Effect, T](effects: F[T]*): Observable[T] = fromIterable(effects).mapAsync(identity)
@@ -284,6 +288,12 @@ object Observable {
   def mapFilter[F[_]: Source, A, B](source: F[A])(f: A => Option[B]): Observable[B] = new Observable[B] {
     def subscribe[G[_]: Sink](sink: G[_ >: B]): Cancelable = Source[F].subscribe(source)(Observer.contramapFilter(sink)(f))
   }
+
+  def mapIterable[F[_]: Source, A, B](source: F[A])(f: A => Iterable[B]): Observable[B] = new Observable[B] {
+    def subscribe[G[_]: Sink](sink: G[_ >: B]): Cancelable = Source[F].subscribe(source)(Observer.contramapIterable(sink)(f))
+  }
+
+  @inline def flattenIterable[F[_]: Source, A, B](source: F[Iterable[A]]): Observable[A] = mapIterable(source)(identity)
 
   def collect[F[_]: Source, A, B](source: F[A])(f: PartialFunction[A, B]): Observable[B] = new Observable[B] {
     def subscribe[G[_]: Sink](sink: G[_ >: B]): Cancelable = Source[F].subscribe(source)(Observer.contracollect(sink)(f))
@@ -720,7 +730,7 @@ object Observable {
     }
   }
 
-  @inline def transformSource[F[_]: Source, FF[_]: Source, A, B](source: F[A])(transform: F[A] => FF[B]): Observable[B] = new Observable[B] {
+  @inline def transformSource[F[_], FF[_]: Source, A, B](source: F[A])(transform: F[A] => FF[B]): Observable[B] = new Observable[B] {
     def subscribe[G[_]: Sink](sink: G[_ >: B]): Cancelable = Source[FF].subscribe(transform(source))(sink)
   }
 
@@ -931,6 +941,7 @@ object Observable {
   @inline implicit class Operations[A](val source: Observable[A]) extends AnyVal {
     @inline def liftSource[G[_]: LiftSource]: G[A] = LiftSource[G].lift(source)
     @inline def failed: Observable[Throwable] = Observable.failed(source)
+    @inline def via[G[_]: Sink](sink: G[A]): Observable[A] = Observable.via(source)(sink)
     @inline def mergeMap[S[_]: Source, B](f: A => S[B]): Observable[B] = Observable.mergeMap(source)(f)
     @inline def switchMap[S[_]: Source, B](f: A => S[B]): Observable[B] = Observable.switchMap(source)(f)
     @inline def zip[S[_]: Source, B](combined: S[B]): Observable[(A,B)] = Observable.zip(source, combined)
@@ -955,6 +966,7 @@ object Observable {
     @inline def mapAsyncSingleOrDrop[G[_]: Effect, B](f: A => G[B]): Observable[B] = Observable.mapAsyncSingleOrDrop(source)(f)
     @inline def mapSync[G[_]: RunSyncEffect, B](f: A => G[B]): Observable[B] = Observable.mapSync(source)(f)
     @inline def map[B](f: A => B): Observable[B] = Observable.map(source)(f)
+    @inline def mapIterable[B](f: A => Iterable[B]): Observable[B] = Observable.mapIterable(source)(f)
     @inline def mapEither[B](f: A => Either[Throwable, B]): Observable[B] = Observable.mapEither(source)(f)
     @inline def mapFilter[B](f: A => Option[B]): Observable[B] = Observable.mapFilter(source)(f)
     @inline def doOnSubscribe(f: () => Cancelable): Observable[A] = Observable.doOnSubscribe(source)(f)
@@ -991,6 +1003,10 @@ object Observable {
     @inline def foreach(f: A => Unit): Cancelable = source.subscribe(Observer.create(f))
   }
 
+  @inline implicit class IterableOperations[A](val source: Observable[Iterable[A]]) extends AnyVal {
+    @inline def flattenIterable[B]: Observable[A] = Observable.flattenIterable(source)
+  }
+
   @inline implicit class ConnectableOperations[A](val source: Observable.Connectable[A]) extends AnyVal {
     @inline def refCount: Observable[A] = Observable.refCount(source)
     @inline def hot: Observable.Hot[A] = Observable.hot(source)
@@ -1007,9 +1023,9 @@ object Observable {
   @inline implicit class SyncEventOperations[EV <: dom.Event](val source: Synchronous[EV]) extends AnyVal {
     @inline private def withOperator(newOperator: EV => Unit): Synchronous[EV] = new Synchronous(source.map { ev => newOperator(ev); ev })
 
-    @inline def preventDefault: Synchronous[EV] = withOperator(_.preventDefault)
-    @inline def stopPropagation: Synchronous[EV] = withOperator(_.stopPropagation)
-    @inline def stopImmediatePropagation: Synchronous[EV] = withOperator(_.stopImmediatePropagation)
+    @inline def preventDefault: Synchronous[EV] = withOperator(_.preventDefault())
+    @inline def stopPropagation: Synchronous[EV] = withOperator(_.stopPropagation())
+    @inline def stopImmediatePropagation: Synchronous[EV] = withOperator(_.stopImmediatePropagation())
   }
 
   @inline implicit class SubjectValueOperations[A](val handler: Subject.Value[A]) extends AnyVal {
@@ -1037,11 +1053,13 @@ object Observable {
     @inline def transformSubjectSource[O2](g: Observable[O] => Observable[O2]): ProSubject[I, O2] = transformSubjectSourceVaried(g)
     @inline def transformSubjectSink[I2](f: Observer[I] => Observer[I2]): ProSubject[I2, O] = transformSubjectSinkVaried(f)
     @inline def transformProSubject[I2, O2](f: Observer[I] => Observer[I2])(g: Observable[O] => Observable[O2]): ProSubject[I2, O2] = transformProSubjectVaried(f)(g)
+    @inline def imapProSubject[I2, O2](f: I2 => I)(g: O => O2): ProSubject[I2, O2] = transformProSubject(_.contramap(f))(_.map(g))
   }
 
   @inline implicit class SubjectOperations[A](val handler: Subject[A]) extends AnyVal {
     @inline def transformSubjectVaried[G[_] : Sink, S[_] : Source, A2](f: Observer[A] => G[A2])(g: Observable[A] => S[A2]): Subject[A2] = handler.transformProSubjectVaried(f)(g)
     @inline def transformSubject[A2](f: Observer[A] => Observer[A2])(g: Observable[A] => Observable[A2]): Subject[A2] = handler.transformProSubjectVaried(f)(g)
+    @inline def imapSubject[A2](f: A2 => A)(g: A => A2): Subject[A2] = handler.transformSubject(_.contramap(f))(_.map(g))
   }
 
   private def recovered[T](action: => Unit, onError: Throwable => Unit) = try action catch { case NonFatal(t) => onError(t) }
