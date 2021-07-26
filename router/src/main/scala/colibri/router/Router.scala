@@ -23,7 +23,7 @@ object Router {
         }
         .startWith(Seq(window.location.hash)),
     )
-    .transformSubjectSource(_.distinctOnEquals) // TODO: transformSink distinctOnEquals
+    .transformSubjectSource(_.distinctOnEquals.replay.hot) // TODO: transformSink distinctOnEquals
 
   val hashFragment = locationHash.imapSubject[String](s => s"#${s}")(_.tail)
   val path         = hashFragment.imapSubject[Path](_.pathString)(Path(_))
