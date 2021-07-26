@@ -6,4 +6,4 @@ addSbtPlugin("org.xerial.sbt" % "sbt-sonatype" % "3.9.7")
 addSbtPlugin("com.jsuereth" % "sbt-pgp" % "2.0.2")
 
 // sane scalac options
-addSbtPlugin("io.github.davidgregory084" % "sbt-tpolecat" % "0.1.19")
+addSbtPlugin("io.github.davidgregory084" % "sbt-tpolecat" % "0.1.20")
