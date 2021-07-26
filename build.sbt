@@ -11,7 +11,7 @@ inThisBuild(Seq(
 ))
 
 lazy val commonSettings = Seq(
-  addCompilerPlugin("org.typelevel" %% "kind-projector" % "0.11.3" cross CrossVersion.full),
+  addCompilerPlugin("org.typelevel" %% "kind-projector" % "0.13.0" cross CrossVersion.full),
 
   libraryDependencies ++= Seq(
     "org.scalatest" %%% "scalatest" % "3.2.2" % Test,
