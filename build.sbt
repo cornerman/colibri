@@ -5,13 +5,13 @@ inThisBuild(Seq(
 
   organization := "com.github.cornerman",
 
-  scalaVersion := "2.12.11",
+  scalaVersion := "2.12.14",
 
-  crossScalaVersions := Seq("2.12.11", "2.13.2"),
+  crossScalaVersions := Seq("2.12.14", "2.13.6"),
 ))
 
 lazy val commonSettings = Seq(
-  addCompilerPlugin("org.typelevel" %% "kind-projector" % "0.11.0" cross CrossVersion.full),
+  addCompilerPlugin("org.typelevel" %% "kind-projector" % "0.13.0" cross CrossVersion.full),
 
   libraryDependencies ++= Seq(
     "org.scalatest" %%% "scalatest" % "3.2.2" % Test,

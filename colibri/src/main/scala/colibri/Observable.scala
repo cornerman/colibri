@@ -196,11 +196,15 @@ object Observable {
     }
   }
 
-  def concatAsync[F[_] : Effect, T](effects: F[T]*): Observable[T] = fromIterable(effects).concatMapAsync(identity)
+  def via[S[_]: Source, G[_]: Sink, A](source: S[A])(sink: G[A]): Observable[A] = new Observable[A] {
+    def subscribe[GG[_]: Sink](sink2: GG[_ >: A]): Cancelable = Source[S].subscribe(source)(Observer.combine[Observer, A](Observer.lift(sink), Observer.lift(sink2)))
+  }
+
+  def concatAsync[F[_] : Effect, T](effects: F[T]*): Observable[T] = fromIterable(effects).mapAsync(identity)
 
   def concatSync[F[_] : RunSyncEffect, T](effects: F[T]*): Observable[T] = fromIterable(effects).mapSync(identity)
 
-  def concatFuture[T](values: Future[T]*)(implicit ec: ExecutionContext): Observable[T] = fromIterable(values).concatMapFuture(identity)
+  def concatFuture[T](values: Future[T]*)(implicit ec: ExecutionContext): Observable[T] = fromIterable(values).mapFuture(identity)
 
   def concatAsync[F[_] : Effect, T, S[_] : Source](effect: F[T], source: S[T]): Observable[T] = new Observable[T] {
     def subscribe[G[_]: Sink](sink: G[_ >: T]): Cancelable = {
@@ -284,6 +288,12 @@ object Observable {
   def mapFilter[F[_]: Source, A, B](source: F[A])(f: A => Option[B]): Observable[B] = new Observable[B] {
     def subscribe[G[_]: Sink](sink: G[_ >: B]): Cancelable = Source[F].subscribe(source)(Observer.contramapFilter(sink)(f))
   }
+
+  def mapIterable[F[_]: Source, A, B](source: F[A])(f: A => Iterable[B]): Observable[B] = new Observable[B] {
+    def subscribe[G[_]: Sink](sink: G[_ >: B]): Cancelable = Source[F].subscribe(source)(Observer.contramapIterable(sink)(f))
+  }
+
+  @inline def flattenIterable[F[_]: Source, A, B](source: F[Iterable[A]]): Observable[A] = mapIterable(source)(identity)
 
   def collect[F[_]: Source, A, B](source: F[A])(f: PartialFunction[A, B]): Observable[B] = new Observable[B] {
     def subscribe[G[_]: Sink](sink: G[_ >: B]): Cancelable = Source[F].subscribe(source)(Observer.contracollect(sink)(f))
@@ -383,7 +393,7 @@ object Observable {
     }
   }
 
-  def concatMapAsync[S[_]: Source, F[_]: Effect, A, B](sourceA: S[A])(f: A => F[B]): Observable[B] = new Observable[B] {
+  def mapAsync[S[_]: Source, F[_]: Effect, A, B](sourceA: S[A])(f: A => F[B]): Observable[B] = new Observable[B] {
     def subscribe[G[_]: Sink](sink: G[_ >: B]): Cancelable = {
       val consecutive = Cancelable.consecutive()
 
@@ -413,16 +423,16 @@ object Observable {
     }
   }
 
-  @inline def concatMapFuture[S[_]: Source, A, B](source: S[A])(f: A => Future[B])(implicit ec: ExecutionContext): Observable[B] = concatMapAsync(source)(v => IO.fromFuture(IO.pure(f(v)))(IO.contextShift(ec)))
+  @inline def mapFuture[S[_]: Source, A, B](source: S[A])(f: A => Future[B])(implicit ec: ExecutionContext): Observable[B] = mapAsync(source)(v => IO.fromFuture(IO.pure(f(v)))(IO.contextShift(ec)))
 
-  def concatMapSingleAsync[S[_]: Source, F[_]: Effect, A, B](sourceA: S[A])(f: A => F[B]): Observable[B] = new Observable[B] {
+  def mapAsyncSingleOrDrop[S[_]: Source, F[_]: Effect, A, B](sourceA: S[A])(f: A => F[B]): Observable[B] = new Observable[B] {
     def subscribe[G[_]: Sink](sink: G[_ >: B]): Cancelable = {
-      val singly = Cancelable.singly()
+      val single = Cancelable.singleOrDrop()
 
       val subscription = Source[S].subscribe(sourceA)(Observer.create[A](
         { value =>
           val effect = f(value)
-          singly() = { () =>
+          single() = { () =>
             //TODO: proper cancel effects?
             var isCancel = false
             Effect[F].runAsync(effect)(either => IO {
@@ -431,7 +441,7 @@ object Observable {
                   case Right(value) => Sink[G].onNext(sink)(value)
                   case Left(error)  => Sink[G].onError(sink)(error)
                 }
-                singly.done()
+                single.done()
               }
             }).unsafeRunSync()
 
@@ -441,11 +451,11 @@ object Observable {
         Sink[G].onError(sink),
       ))
 
-      Cancelable.composite(subscription, singly)
+      Cancelable.composite(subscription, single)
     }
   }
 
-  @inline def concatMapSingleFuture[S[_]: Source, A, B](source: S[A])(f: A => Future[B])(implicit ec: ExecutionContext): Observable[B] = concatMapSingleAsync(source)(v => IO.fromFuture(IO.pure(f(v)))(IO.contextShift(ec)))
+  @inline def mapFutureSingleOrDrop[S[_]: Source, A, B](source: S[A])(f: A => Future[B])(implicit ec: ExecutionContext): Observable[B] = mapAsyncSingleOrDrop(source)(v => IO.fromFuture(IO.pure(f(v)))(IO.contextShift(ec)))
 
   @inline def mapSync[S[_]: Source, F[_]: RunSyncEffect, A, B](source: S[A])(f: A => F[B]): Observable[B] = map(source)(v => RunSyncEffect[F].unsafeRun(f(v)))
 
@@ -931,6 +941,7 @@ object Observable {
   @inline implicit class Operations[A](val source: Observable[A]) extends AnyVal {
     @inline def liftSource[G[_]: LiftSource]: G[A] = LiftSource[G].lift(source)
     @inline def failed: Observable[Throwable] = Observable.failed(source)
+    @inline def via[G[_]: Sink](sink: G[A]): Observable[A] = Observable.via(source)(sink)
     @inline def mergeMap[S[_]: Source, B](f: A => S[B]): Observable[B] = Observable.mergeMap(source)(f)
     @inline def switchMap[S[_]: Source, B](f: A => S[B]): Observable[B] = Observable.switchMap(source)(f)
     @inline def zip[S[_]: Source, B](combined: S[B]): Observable[(A,B)] = Observable.zip(source, combined)
@@ -949,12 +960,13 @@ object Observable {
     @inline def delayMillis(millis: Int): Observable[A] = Observable.delayMillis(source)(millis)
     @inline def distinctOnEquals: Observable[A] = Observable.distinctOnEquals(source)
     @inline def distinct(implicit eq: Eq[A]): Observable[A] = Observable.distinct(source)
-    @inline def concatMapFuture[B](f: A => Future[B])(implicit ec: ExecutionContext): Observable[B] = Observable.concatMapFuture(source)(f)
-    @inline def concatMapAsync[G[_]: Effect, B](f: A => G[B]): Observable[B] = Observable.concatMapAsync(source)(f)
-    @inline def concatMapSingleFuture[B](f: A => Future[B])(implicit ec: ExecutionContext): Observable[B] = Observable.concatMapSingleFuture(source)(f)
-    @inline def concatMapSingleAsync[G[_]: Effect, B](f: A => G[B]): Observable[B] = Observable.concatMapSingleAsync(source)(f)
+    @inline def mapFuture[B](f: A => Future[B])(implicit ec: ExecutionContext): Observable[B] = Observable.mapFuture(source)(f)
+    @inline def mapAsync[G[_]: Effect, B](f: A => G[B]): Observable[B] = Observable.mapAsync(source)(f)
+    @inline def mapFutureSingleOrDrop[B](f: A => Future[B])(implicit ec: ExecutionContext): Observable[B] = Observable.mapFutureSingleOrDrop(source)(f)
+    @inline def mapAsyncSingleOrDrop[G[_]: Effect, B](f: A => G[B]): Observable[B] = Observable.mapAsyncSingleOrDrop(source)(f)
     @inline def mapSync[G[_]: RunSyncEffect, B](f: A => G[B]): Observable[B] = Observable.mapSync(source)(f)
     @inline def map[B](f: A => B): Observable[B] = Observable.map(source)(f)
+    @inline def mapIterable[B](f: A => Iterable[B]): Observable[B] = Observable.mapIterable(source)(f)
     @inline def mapEither[B](f: A => Either[Throwable, B]): Observable[B] = Observable.mapEither(source)(f)
     @inline def mapFilter[B](f: A => Option[B]): Observable[B] = Observable.mapFilter(source)(f)
     @inline def doOnSubscribe(f: () => Cancelable): Observable[A] = Observable.doOnSubscribe(source)(f)
@@ -989,6 +1001,10 @@ object Observable {
     @inline def withDefaultSubscription[G[_] : Sink](sink: G[A]): Observable[A] = Observable.withDefaultSubscription(source)(sink)
     @inline def subscribe(): Cancelable = source.subscribe(Observer.empty)
     @inline def foreach(f: A => Unit): Cancelable = source.subscribe(Observer.create(f))
+  }
+
+  @inline implicit class IterableOperations[A](val source: Observable[Iterable[A]]) extends AnyVal {
+    @inline def flattenIterable[B]: Observable[A] = Observable.flattenIterable(source)
   }
 
   @inline implicit class ConnectableOperations[A](val source: Observable.Connectable[A]) extends AnyVal {
@@ -1037,11 +1053,13 @@ object Observable {
     @inline def transformSubjectSource[O2](g: Observable[O] => Observable[O2]): ProSubject[I, O2] = transformSubjectSourceVaried(g)
     @inline def transformSubjectSink[I2](f: Observer[I] => Observer[I2]): ProSubject[I2, O] = transformSubjectSinkVaried(f)
     @inline def transformProSubject[I2, O2](f: Observer[I] => Observer[I2])(g: Observable[O] => Observable[O2]): ProSubject[I2, O2] = transformProSubjectVaried(f)(g)
+    @inline def imapProSubject[I2, O2](f: I2 => I)(g: O => O2): ProSubject[I2, O2] = transformProSubject(_.contramap(f))(_.map(g))
   }
 
   @inline implicit class SubjectOperations[A](val handler: Subject[A]) extends AnyVal {
     @inline def transformSubjectVaried[G[_] : Sink, S[_] : Source, A2](f: Observer[A] => G[A2])(g: Observable[A] => S[A2]): Subject[A2] = handler.transformProSubjectVaried(f)(g)
     @inline def transformSubject[A2](f: Observer[A] => Observer[A2])(g: Observable[A] => Observable[A2]): Subject[A2] = handler.transformProSubjectVaried(f)(g)
+    @inline def imapSubject[A2](f: A2 => A)(g: A => A2): Subject[A2] = handler.transformSubject(_.contramap(f))(_.map(g))
   }
 
   private def recovered[T](action: => Unit, onError: Throwable => Unit) = try action catch { case NonFatal(t) => onError(t) }
