@@ -10,7 +10,7 @@ import scala.concurrent.{ExecutionContext, Future}
 object ops {
   implicit class RichObserver[I](val observer: Observer[I]) extends AnyVal {
     def redirect[I2](f: Observable[I2] => Observable[I]): ConnectableObserver[I2] = {
-      val subject = PublishSubject[I2]
+      val subject = PublishSubject[I2]()
       val transformed = f(subject)
       new ConnectableObserver[I2](subject, implicit scheduler => transformed.subscribe(observer))
     }

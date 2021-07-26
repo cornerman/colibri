@@ -10,7 +10,7 @@ import scala.concurrent.Future
 object MonixSubject {
   def replay[T]: ReplaySubject[T] = ReplaySubject.createLimited(1)
   def behavior[T](seed:T): BehaviorSubject[T] = BehaviorSubject[T](seed)
-  def publish[T]: PublishSubject[T] = PublishSubject[T]
+  def publish[T]: PublishSubject[T] = PublishSubject[T]()
 }
 
 object MonixProSubject {
