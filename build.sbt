@@ -84,7 +84,7 @@ lazy val monix = project
     name := "colibri-monix",
 
     libraryDependencies ++= Seq(
-      "io.monix"      %%% "monix"       % "3.2.2",
+      "io.monix"      %%% "monix"       % "3.4.0",
     )
   )
 
