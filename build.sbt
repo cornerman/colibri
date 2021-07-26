@@ -1,26 +1,19 @@
-import Options._
-
 inThisBuild(Seq(
   version := "0.1.0-SNAPSHOT",
 
   organization := "com.github.cornerman",
 
-  scalaVersion := "2.12.11",
+  scalaVersion := "2.12.14",
 
-  crossScalaVersions := Seq("2.12.11", "2.13.2"),
+  crossScalaVersions := Seq("2.12.14", "2.13.6"),
 ))
 
 lazy val commonSettings = Seq(
-  addCompilerPlugin("org.typelevel" %% "kind-projector" % "0.11.0" cross CrossVersion.full),
+  addCompilerPlugin("org.typelevel" %% "kind-projector" % "0.13.0" cross CrossVersion.full),
 
   libraryDependencies ++= Seq(
     "org.scalatest" %%% "scalatest" % "3.2.2" % Test,
   ),
-
-  scalacOptions ++= CrossVersion.partialVersion(scalaVersion.value).toList.flatMap { case (major, minor) =>
-    versionBasedOptions(s"${major}.${minor}")
-  },
-  scalacOptions in (Compile, console) ~= (_.diff(badConsoleFlags)),
 
   publishMavenStyle := true,
 
@@ -49,8 +42,6 @@ lazy val commonSettings = Seq(
 )
 
 lazy val jsSettings = Seq(
-  scalacOptions ++= scalajsOptions,
-
   scalacOptions += {
     val local = baseDirectory.value.toURI
     val remote = s"https://raw.githubusercontent.com/cornerman/colibri/${git.gitHeadCommit.value.get}/"
@@ -69,6 +60,18 @@ lazy val colibri = project
       "org.scala-js"  %%% "scalajs-dom" % "1.1.0",
       "org.typelevel" %%% "cats-core" % "2.2.0",
       "org.typelevel" %%% "cats-effect" % "2.2.0",
+    )
+  )
+
+lazy val router = project
+  .enablePlugins(ScalaJSPlugin)
+  .dependsOn(colibri)
+  .in(file("router"))
+  .settings(commonSettings, jsSettings)
+  .settings(
+    name := "colibri-router",
+
+    libraryDependencies ++= Seq(
     )
   )
 
@@ -105,4 +108,4 @@ lazy val root = project
 
     skip in publish := true,
   )
-  .aggregate(colibri, monix, rx)
+  .aggregate(colibri, monix, rx, router)
