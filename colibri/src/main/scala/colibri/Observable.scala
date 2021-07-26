@@ -106,7 +106,7 @@ object Observable {
 
   @inline def create[A](produce: Observer[A] => Cancelable): Observable[A] = createLift[Observer, A](produce)
 
-  def createLift[F[_]: Sink: LiftSink, A](produce: F[_ >: A] => Cancelable): Observable[A] = new Observable[A] {
+  def createLift[F[_]: LiftSink, A](produce: F[_ >: A] => Cancelable): Observable[A] = new Observable[A] {
     def subscribe[G[_]: Sink](sink: G[_ >: A]): Cancelable = produce(LiftSink[F].lift(sink))
   }
 
@@ -730,7 +730,7 @@ object Observable {
     }
   }
 
-  @inline def transformSource[F[_]: Source, FF[_]: Source, A, B](source: F[A])(transform: F[A] => FF[B]): Observable[B] = new Observable[B] {
+  @inline def transformSource[F[_], FF[_]: Source, A, B](source: F[A])(transform: F[A] => FF[B]): Observable[B] = new Observable[B] {
     def subscribe[G[_]: Sink](sink: G[_ >: B]): Cancelable = Source[FF].subscribe(transform(source))(sink)
   }
 
@@ -1023,9 +1023,9 @@ object Observable {
   @inline implicit class SyncEventOperations[EV <: dom.Event](val source: Synchronous[EV]) extends AnyVal {
     @inline private def withOperator(newOperator: EV => Unit): Synchronous[EV] = new Synchronous(source.map { ev => newOperator(ev); ev })
 
-    @inline def preventDefault: Synchronous[EV] = withOperator(_.preventDefault)
-    @inline def stopPropagation: Synchronous[EV] = withOperator(_.stopPropagation)
-    @inline def stopImmediatePropagation: Synchronous[EV] = withOperator(_.stopImmediatePropagation)
+    @inline def preventDefault: Synchronous[EV] = withOperator(_.preventDefault())
+    @inline def stopPropagation: Synchronous[EV] = withOperator(_.stopPropagation())
+    @inline def stopImmediatePropagation: Synchronous[EV] = withOperator(_.stopImmediatePropagation())
   }
 
   @inline implicit class SubjectValueOperations[A](val handler: Subject.Value[A]) extends AnyVal {
@@ -1053,11 +1053,13 @@ object Observable {
     @inline def transformSubjectSource[O2](g: Observable[O] => Observable[O2]): ProSubject[I, O2] = transformSubjectSourceVaried(g)
     @inline def transformSubjectSink[I2](f: Observer[I] => Observer[I2]): ProSubject[I2, O] = transformSubjectSinkVaried(f)
     @inline def transformProSubject[I2, O2](f: Observer[I] => Observer[I2])(g: Observable[O] => Observable[O2]): ProSubject[I2, O2] = transformProSubjectVaried(f)(g)
+    @inline def imapProSubject[I2, O2](f: I2 => I)(g: O => O2): ProSubject[I2, O2] = transformProSubject(_.contramap(f))(_.map(g))
   }
 
   @inline implicit class SubjectOperations[A](val handler: Subject[A]) extends AnyVal {
     @inline def transformSubjectVaried[G[_] : Sink, S[_] : Source, A2](f: Observer[A] => G[A2])(g: Observable[A] => S[A2]): Subject[A2] = handler.transformProSubjectVaried(f)(g)
     @inline def transformSubject[A2](f: Observer[A] => Observer[A2])(g: Observable[A] => Observable[A2]): Subject[A2] = handler.transformProSubjectVaried(f)(g)
+    @inline def imapSubject[A2](f: A2 => A)(g: A => A2): Subject[A2] = handler.transformSubject(_.contramap(f))(_.map(g))
   }
 
   private def recovered[T](action: => Unit, onError: Throwable => Unit) = try action catch { case NonFatal(t) => onError(t) }
