@@ -19,7 +19,7 @@ class MonixOpsSpec extends AsyncFlatSpec with Matchers {
 
     var currentValue = 0
 
-    val subject = PublishSubject[Int]
+    val subject = PublishSubject[Int]()
     subject.foreach{currentValue = _}
 
     val redirected = subject.redirect[Int](_.map(_ + 1))
@@ -38,7 +38,7 @@ class MonixOpsSpec extends AsyncFlatSpec with Matchers {
 
     var currentValue = 0
 
-    val subject = PublishSubject[Int]
+    val subject = PublishSubject[Int]()
     val mapped = subject.transformObservable(_.map(_ + 1))
     mapped.foreach{currentValue = _}
 
