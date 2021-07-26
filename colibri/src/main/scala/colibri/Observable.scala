@@ -106,7 +106,7 @@ object Observable {
 
   @inline def create[A](produce: Observer[A] => Cancelable): Observable[A] = createLift[Observer, A](produce)
 
-  def createLift[F[_]: Sink: LiftSink, A](produce: F[_ >: A] => Cancelable): Observable[A] = new Observable[A] {
+  def createLift[F[_]: LiftSink, A](produce: F[_ >: A] => Cancelable): Observable[A] = new Observable[A] {
     def subscribe[G[_]: Sink](sink: G[_ >: A]): Cancelable = produce(LiftSink[F].lift(sink))
   }
 
@@ -730,7 +730,7 @@ object Observable {
     }
   }
 
-  @inline def transformSource[F[_]: Source, FF[_]: Source, A, B](source: F[A])(transform: F[A] => FF[B]): Observable[B] = new Observable[B] {
+  @inline def transformSource[F[_], FF[_]: Source, A, B](source: F[A])(transform: F[A] => FF[B]): Observable[B] = new Observable[B] {
     def subscribe[G[_]: Sink](sink: G[_ >: B]): Cancelable = Source[FF].subscribe(transform(source))(sink)
   }
 
@@ -1023,9 +1023,9 @@ object Observable {
   @inline implicit class SyncEventOperations[EV <: dom.Event](val source: Synchronous[EV]) extends AnyVal {
     @inline private def withOperator(newOperator: EV => Unit): Synchronous[EV] = new Synchronous(source.map { ev => newOperator(ev); ev })
 
-    @inline def preventDefault: Synchronous[EV] = withOperator(_.preventDefault)
-    @inline def stopPropagation: Synchronous[EV] = withOperator(_.stopPropagation)
-    @inline def stopImmediatePropagation: Synchronous[EV] = withOperator(_.stopImmediatePropagation)
+    @inline def preventDefault: Synchronous[EV] = withOperator(_.preventDefault())
+    @inline def stopPropagation: Synchronous[EV] = withOperator(_.stopPropagation())
+    @inline def stopImmediatePropagation: Synchronous[EV] = withOperator(_.stopImmediatePropagation())
   }
 
   @inline implicit class SubjectValueOperations[A](val handler: Subject.Value[A]) extends AnyVal {
