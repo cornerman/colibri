@@ -84,7 +84,7 @@ object Subject {
 
   def from[SI[_] : Sink, SO[_] : Source, A](sink: SI[A], source: SO[A]): Subject[A] = ProSubject.from(sink, source)
 
-  def create[SI[_] : Sink, SO[_] : Source, A](sinkF: A => Unit, sourceF: Observer[A] => Cancelable): Subject[A] = ProSubject.create(sinkF, sourceF)
+  def create[A](sinkF: A => Unit, sourceF: Observer[A] => Cancelable): Subject[A] = ProSubject.create(sinkF, sourceF)
 }
 
 object ProSubject {
@@ -97,7 +97,7 @@ object ProSubject {
     @inline def subscribe[G[_] : Sink](sink: G[_ >: O]): Cancelable = Source[SO].subscribe(source)(sink)
   }
 
-  def create[SI[_] : Sink, SO[_] : Source, I, O](sinkF: I => Unit, sourceF: Observer[O] => Cancelable): ProSubject[I, O] = {
+  def create[I, O](sinkF: I => Unit, sourceF: Observer[O] => Cancelable): ProSubject[I, O] = {
     val sink = Observer.create(sinkF)
     val source = Observable.create(sourceF)
     from(sink, source)
