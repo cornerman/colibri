@@ -20,7 +20,7 @@ For airstream support:
 libraryDependencies += "com.github.cornerman" %%% "colibri-airstream" % "0.3.0"
 ```
 
-For zio support (effects only):
+For zio support:
 ```scala
 libraryDependencies += "com.github.cornerman" %%% "colibri-zio" % "0.3.0"
 ```
