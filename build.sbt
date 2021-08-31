@@ -1,3 +1,4 @@
+
 inThisBuild(Seq(
   version := "0.1.0-SNAPSHOT",
 
@@ -101,6 +102,20 @@ lazy val rx = project
     )
   )
 
+lazy val zio = project
+  .enablePlugins(ScalaJSPlugin)
+  .dependsOn(colibri)
+  .in(file("zio"))
+  .settings(commonSettings, jsSettings)
+  .settings(
+    name := "colibri-zio",
+
+    libraryDependencies ++= Seq(
+      "dev.zio" %%% "zio" % "1.0.10",
+      "dev.zio" %%% "zio-streams" % "1.0.10"
+    )
+  )
+
 lazy val root = project
   .in(file("."))
   .settings(
@@ -108,4 +123,4 @@ lazy val root = project
 
     skip in publish := true,
   )
-  .aggregate(colibri, monix, rx, router)
+  .aggregate(colibri, monix, rx, zio, router)
