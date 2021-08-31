@@ -24,7 +24,6 @@ inThisBuild(
   ),
 )
 
-
 lazy val commonSettings = Seq(
   crossScalaVersions := Seq("2.12.15", "2.13.8", "3.1.1"),
   scalaVersion := "2.13.8",
@@ -103,7 +102,8 @@ lazy val zio = project
   .settings(
     name := "colibri-zio",
     libraryDependencies ++= Seq(
+      "io.github.cquiroz" %%% "scala-java-time" % "2.3.0",
       "dev.zio" %%% "zio" % "1.0.12",
-      "io.github.cquiroz" %%% "scala-java-time" % "2.3.0"
+      "dev.zio" %%% "zio-streams" % "1.0.12"
     )
   )
