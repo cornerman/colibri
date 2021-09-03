@@ -111,8 +111,8 @@ lazy val zio = project
     name := "colibri-zio",
 
     libraryDependencies ++= Seq(
-      "dev.zio" %%% "zio" % "1.0.10",
-      "dev.zio" %%% "zio-streams" % "1.0.10"
+      "dev.zio" %%% "zio" % "1.0.11",
+      "dev.zio" %%% "zio-streams" % "1.0.11"
     )
   )
 

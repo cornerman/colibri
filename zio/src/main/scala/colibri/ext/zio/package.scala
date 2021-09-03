@@ -1,7 +1,7 @@
 package colibri.ext
 
 import _root_.zio.stream.{Stream, UStream, ZSink, ZStream}
-import _root_.zio.{Chunk, Ref, Runtime, UIO, ZEnv, ZIO, URIO}
+import _root_.zio.{Fiber, Chunk, Ref, Runtime, UIO, ZEnv, ZIO, URIO}
 import colibri._
 
 package object zio {
@@ -41,15 +41,10 @@ package object zio {
   }
 
   implicit object zioStreamLiftSource extends LiftSource[TStream] {
-    override def lift[G[_] : Source, A](source: G[A]): TStream[A] = Stream.effectAsyncInterrupt { register =>
+    override def lift[G[_] : Source, A](source: G[A]): TStream[A] = Stream.effectAsyncInterrupt { emit =>
       val cancelable = Source[G].subscribe(source)(new Observer[A] {
-        override def onNext(value: A): Unit = {
-          register(UIO(Chunk(value))); ()
-        }
-
-        override def onError(error: Throwable): Unit = {
-          register(ZIO.fail(Some(error))); ()
-        }
+        override def onNext(value: A): Unit = { emit.single(value); () }
+        override def onError(error: Throwable): Unit = { emit.fail(error); () }
       })
       Left(URIO(cancelable.cancel()))
     }
