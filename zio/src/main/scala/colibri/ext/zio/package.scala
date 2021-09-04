@@ -1,7 +1,7 @@
 package colibri.ext
 
 import _root_.zio.stream.{Stream, UStream, ZSink, ZStream}
-import _root_.zio.{Fiber, Chunk, Ref, Runtime, UIO, ZEnv, ZIO, URIO}
+import _root_.zio.{Ref, Runtime, UIO, ZEnv, URIO}
 import colibri._
 
 package object zio {
