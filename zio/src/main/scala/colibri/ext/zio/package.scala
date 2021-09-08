@@ -28,16 +28,14 @@ package object zio {
   type TStream[A] = ZStream[Any, Throwable, A]
 
   implicit def zioStreamSource(implicit runtime: Runtime[ZEnv]): Source[TStream] = new Source[TStream] {
-    def subscribe[G[_] : Sink, A](source: TStream[A])(sink: G[_ >: A]): Cancelable =
-      runtime.unsafeRun(for {
-        running <- Ref.make[Boolean](false)
-        valueFn = Sink[G].onNext(sink)_
-        errorFn = Sink[G].onError(sink)_
-        consumer = ZSink.foreachWhile[Any, Throwable, A](
-          value => UIO(valueFn(value)) *> running.get
-        ).foldM[Any, Throwable, A, A, Unit](error => ZSink.fromEffect(UIO(errorFn(error))), _ => ZSink.drain)
-        _ <- source.run(consumer)
-      } yield Cancelable(() => runtime.unsafeRun(running.set(false))))
+    def subscribe[G[_] : Sink, A](source: TStream[A])(sink: G[_ >: A]): Cancelable = {
+      val canceler = runtime.unsafeRunToFuture(
+        source
+          .onError(cause => UIO(Sink[G].onError(sink)(cause.squash)))
+          .foreach(value => UIO(Sink[G].onNext(sink)(value)))
+      )
+      Cancelable(() => canceler.cancel())
+    }
   }
 
   implicit object zioStreamLiftSource extends LiftSource[TStream] {
