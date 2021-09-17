@@ -43,10 +43,12 @@ lazy val commonSettings = Seq(
 
 lazy val jsSettings = Seq(
   scalacOptions += {
-    val local = baseDirectory.value.toURI
-    val remote = s"https://raw.githubusercontent.com/cornerman/colibri/${git.gitHeadCommit.value.get}/"
-    s"-P:scalajs:mapSourceURI:$local->$remote"
-  }
+    val githubRepo    = "cornerman/colibri"
+    val local         = baseDirectory.value.toURI
+    val subProjectDir = baseDirectory.value.getName
+    val remote        = s"https://raw.githubusercontent.com/${githubRepo}/${git.gitHeadCommit.value.get}"
+    s"-P:scalajs:mapSourceURI:$local->$remote/${subProjectDir}"
+  },
 )
 
 lazy val colibri = project
