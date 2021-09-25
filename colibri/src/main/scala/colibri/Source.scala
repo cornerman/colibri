@@ -8,7 +8,7 @@ object Source {
 }
 
 trait LiftSource[+F[_]] {
-  def lift[G[_] : Source, A](source: G[A]): F[A]
+  def lift[H[_] : Source, A](source: H[A]): F[A]
 }
 object LiftSource {
   @inline def apply[F[_]](implicit source: LiftSource[F]): LiftSource[F] = source

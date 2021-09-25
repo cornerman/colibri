@@ -119,10 +119,10 @@ object Observer {
     def onError(error: Throwable): Unit = f(error)
   }
 
-  def redirect[G[_] : Sink, S[_] : Source, A, B](sink: G[_ >: A])(transform: Observable[B] => S[A]): Connectable[B] = {
+  def redirect[G[_] : Sink, H[_] : Source, A, B](sink: G[_ >: A])(transform: Observable[B] => S[A]): Connectable[B] = {
     val handler = Subject.publish[B]
     val source = transform(handler)
-    connectable(handler, () => Source[S].subscribe(source)(sink))
+    connectable(handler, () => Source[H].subscribe(source)(sink))
   }
 
   implicit object liftSink extends LiftSink[Observer] {
@@ -155,7 +155,7 @@ object Observer {
     @inline def contrascan[B](seed: A)(f: (A, B) => A): Observer[B] = Observer.contrascan(observer)(seed)(f)
     @inline def doOnError(f: Throwable => Unit): Observer[A] = Observer.doOnError(observer)(f)
     @inline def combine[G[_] : Sink](sink: G[A]): Observer[A] = Observer.combine(observer, Observer.lift(sink))
-    @inline def redirect[G[_] : Source, B](f: Observable[B] => G[A]): Observer.Connectable[B] = Observer.redirect(observer)(f)
+    @inline def redirect[H[_] : Source, B](f: Observable[B] => H[A]): Observer.Connectable[B] = Observer.redirect(observer)(f)
   }
 
   private def recovered(action: => Unit, onError: Throwable => Unit): Unit = try action catch { case NonFatal(t) => onError(t) }
