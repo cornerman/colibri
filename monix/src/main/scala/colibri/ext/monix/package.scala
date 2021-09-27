@@ -55,8 +55,8 @@ package object monix {
   }
 
   implicit object monixObservableLiftSource extends LiftSource[Observable] {
-    def lift[G[_] : Source, A](source: G[A]): Observable[A] = Observable.create[A](OverflowStrategy.Unbounded) { observer =>
-      val sub = Source[G].subscribe(source)(observer)
+    def lift[H[_] : Source, A](source: H[A]): Observable[A] = Observable.create[A](OverflowStrategy.Unbounded) { observer =>
+      val sub = Source[H].subscribe(source)(observer)
       Cancelable(() => sub.cancel())
     }
   }
