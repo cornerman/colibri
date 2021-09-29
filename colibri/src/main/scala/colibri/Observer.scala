@@ -119,7 +119,7 @@ object Observer {
     def onError(error: Throwable): Unit = f(error)
   }
 
-  def redirect[G[_] : Sink, H[_] : Source, A, B](sink: G[_ >: A])(transform: Observable[B] => S[A]): Connectable[B] = {
+  def redirect[G[_] : Sink, H[_] : Source, A, B](sink: G[_ >: A])(transform: Observable[B] => H[A]): Connectable[B] = {
     val handler = Subject.publish[B]
     val source = transform(handler)
     connectable(handler, () => Source[H].subscribe(source)(sink))

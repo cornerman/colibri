@@ -86,6 +86,6 @@ package object monix {
   }
 
   implicit object monixCreateProSubject extends CreateProSubject[MonixProSubject] {
-    @inline def from[SI[_] : Sink, SO[_] : Source, I,O](sink: SI[I], source: SO[O]): MonixProSubject[I, O] = MonixProSubject.from(LiftSink[Observer].lift(sink), LiftSource[Observable].lift(source))
+    @inline def from[SI[_] : Sink, HO[_] : Source, I,O](sink: SI[I], source: HO[O]): MonixProSubject[I, O] = MonixProSubject.from(LiftSink[Observer].lift(sink), LiftSource[Observable].lift(source))
   }
 }

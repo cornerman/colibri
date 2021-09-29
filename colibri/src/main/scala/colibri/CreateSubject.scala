@@ -10,7 +10,7 @@ object CreateSubject {
 }
 
 trait CreateProSubject[+F[_,_]] {
-  def from[SI[_] : Sink, SO[_] : Source, I,O](sink: SI[I], source: SO[O]): F[I, O]
+  def from[SI[_] : Sink, HO[_] : Source, I,O](sink: SI[I], source: HO[O]): F[I, O]
 }
 object CreateProSubject {
   @inline def apply[F[_,_]](implicit handler: CreateProSubject[F]): CreateProSubject[F] = handler
