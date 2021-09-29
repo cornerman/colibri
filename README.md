@@ -21,16 +21,21 @@ libraryDependencies += "com.github.cornerman.colibri" %%% "colibri-rx" % "master
 This library includes a minimal frp library and typeclasses for streaming.
 
 We have prepared typeclasses for integrating other streaming libaries:
-- `Sink[F[_]]` can send values and errors into `F` has an `onNext` and `onError` method.
-- `Source[F[_]]` can subscribe to `F` with a `Sink` (returns a cancelable subscription)
+- `Sink[G[_]]` can send values and errors into `G` has an `onNext` and `onError` method.
+- `Source[H[_]]` can subscribe to `H` with a `Sink` (returns a cancelable subscription)
 - `CanCancel[T]` can cancel `T` to stop a subscription
 - `SubscriptionOwner[T]` can let type `T` own a subscription
-- `LiftSink[F[_]]` can lift a `Sink` into type `F`
-- `LiftSource[F[_]]` can lift a `Source` into type `F`
-- `CreateHandler[F[_]]` how to create subject in `F`
-- `CreateProHandler[F[_,_]]` how to create subject in `F` which has differnt input/output types.
+- `LiftSink[G[_]]` can lift a `Sink` into type `G`
+- `LiftSource[H[_]]` can lift a `Source` into type `H`
+- `CreateSubject[GH[_]]` how to create subject in `GH`
+- `CreateProHandler[GH[_,_]]` how to create subject in `GH` which has differnt input/output types.
 
 Most important here are `Sink` and `Source`. `Source` is a typeclass for Observables, `Sink` is a typeclass for Observers.
+
+Throughout the library the type parameters for the `Sink` and `Source` typeclasses are named consistenly to avoid naming ambiguity when working with `F[_]` in the same context:
+- `F[_] : Effect`
+- `G[_] : Sink`
+- `F[_] : Source`
 
 Source Code: [Source.scala](colibri/src/main/scala/colibri/Source.scala), [Sink.scala](colibri/src/main/scala/colibri/Sink.scala)
 
