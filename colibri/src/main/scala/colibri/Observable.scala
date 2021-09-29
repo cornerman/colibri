@@ -53,7 +53,7 @@ object Observable {
   }
 
   implicit object createProSubject extends CreateProSubject[ProSubject] {
-    @inline def from[SI[_] : Sink, HO[_] : Source, I,O](sink: SI[I], source: HO[O]): ProSubject[I, O] = ProSubject.from(sink, source)
+    @inline def from[GI[_] : Sink, HO[_] : Source, I,O](sink: GI[I], source: HO[O]): ProSubject[I, O] = ProSubject.from(sink, source)
   }
 
   trait Connectable[+A] extends Observable[A] {
@@ -197,7 +197,7 @@ object Observable {
   }
 
   def via[H[_] : Source, G[_]: Sink, A](source: H[A])(sink: G[A]): Observable[A] = new Observable[A] {
-    def subscribe[GG[_]: Sink](sink2: GG[_ >: A]): Cancelable = Source[H].subscribe(source)(Observer.combine[Observer, A](Observer.lift(sink), Observer.lift(sink2)))
+    def subscribe[GG[_] : Sink](sink2: GG[_ >: A]): Cancelable = Source[H].subscribe(source)(Observer.combine[Observer, A](Observer.lift(sink), Observer.lift(sink2)))
   }
 
   def concatAsync[F[_] : Effect, T](effects: F[T]*): Observable[T] = fromIterable(effects).mapAsync(identity)
@@ -735,7 +735,7 @@ object Observable {
   }
 
   @inline def transformSink[H[_] : Source, G[_]: Sink, A, B](source: H[A])(transform: Observer[_ >: B] => G[A]): Observable[B] = new Observable[B] {
-    def subscribe[GG[_]: Sink](sink: GG[_ >: B]): Cancelable = Source[H].subscribe(source)(transform(Observer.lift(sink)))
+    def subscribe[GG[_] : Sink](sink: GG[_ >: B]): Cancelable = Source[H].subscribe(source)(transform(Observer.lift(sink)))
   }
 
   @inline def share[H[_] : Source, A](source: H[A]): Observable[A] = publish(source).refCount
