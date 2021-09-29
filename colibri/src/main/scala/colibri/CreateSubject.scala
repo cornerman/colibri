@@ -1,12 +1,12 @@
 package colibri
 
-trait CreateSubject[+H[_]] {
-  def publish[A]: H[A]
-  def replay[A]: H[A]
-  def behavior[A](seed: A): H[A]
+trait CreateSubject[+GH[_]] {
+  def publish[A]: GH[A]
+  def replay[A]: GH[A]
+  def behavior[A](seed: A): GH[A]
 }
 object CreateSubject {
-  @inline def apply[H[_]](implicit handler: CreateSubject[H]): CreateSubject[H] = handler
+  @inline def apply[GH[_]](implicit handler: CreateSubject[GH]): CreateSubject[GH] = handler
 }
 
 trait CreateProSubject[+GH[_,_]] {
