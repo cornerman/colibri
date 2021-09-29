@@ -1,17 +1,17 @@
 package colibri
 
-trait Sink[-F[_]] {
-  def onNext[A](sink: F[A])(value: A): Unit
-  def onError[A](sink: F[A])(error: Throwable): Unit
+trait Sink[-G[_]] {
+  def onNext[A](sink: G[A])(value: A): Unit
+  def onError[A](sink: G[A])(error: Throwable): Unit
 }
 object Sink {
-  @inline def apply[F[_]](implicit sink: Sink[F]): Sink[F] = sink
+  @inline def apply[G[_]](implicit sink: Sink[G]): Sink[G] = sink
 }
 
-trait LiftSink[+F[_]] {
-  def lift[G[_] : Sink, A](sink: G[A]): F[A]
+trait LiftSink[+G[_]] {
+  def lift[GG[_] : Sink, A](sink: GG[A]): G[A]
 }
 object LiftSink {
-  @inline def apply[F[_]](implicit sink: LiftSink[F]): LiftSink[F] = sink
+  @inline def apply[G[_]](implicit sink: LiftSink[G]): LiftSink[G] = sink
 }
 
