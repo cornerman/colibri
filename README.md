@@ -35,7 +35,7 @@ Most important here are `Sink` and `Source`. `Source` is a typeclass for Observa
 Throughout the library the type parameters for the `Sink` and `Source` typeclasses are named consistenly to avoid naming ambiguity when working with `F[_]` in the same context:
 - `F[_] : Effect`
 - `G[_] : Sink`
-- `F[_] : Source`
+- `H[_] : Source`
 
 Source Code: [Source.scala](colibri/src/main/scala/colibri/Source.scala), [Sink.scala](colibri/src/main/scala/colibri/Sink.scala)
 
