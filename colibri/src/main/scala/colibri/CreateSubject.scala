@@ -1,17 +1,17 @@
 package colibri
 
-trait CreateSubject[+F[_]] {
-  def publish[A]: F[A]
-  def replay[A]: F[A]
-  def behavior[A](seed: A): F[A]
+trait CreateSubject[+GH[_]] {
+  def publish[A]: GH[A]
+  def replay[A]: GH[A]
+  def behavior[A](seed: A): GH[A]
 }
 object CreateSubject {
-  @inline def apply[F[_]](implicit handler: CreateSubject[F]): CreateSubject[F] = handler
+  @inline def apply[GH[_]](implicit handler: CreateSubject[GH]): CreateSubject[GH] = handler
 }
 
-trait CreateProSubject[+F[_,_]] {
-  def from[SI[_] : Sink, SO[_] : Source, I,O](sink: SI[I], source: SO[O]): F[I, O]
+trait CreateProSubject[+GH[_,_]] {
+  def from[GI[_] : Sink, HO[_] : Source, I,O](sink: GI[I], source: HO[O]): GH[I, O]
 }
 object CreateProSubject {
-  @inline def apply[F[_,_]](implicit handler: CreateProSubject[F]): CreateProSubject[F] = handler
+  @inline def apply[GH[_,_]](implicit handler: CreateProSubject[GH]): CreateProSubject[GH] = handler
 }

@@ -82,7 +82,7 @@ object Subject {
 
   def publish[O]: PublishSubject[O] = new PublishSubject[O]
 
-  def from[SI[_] : Sink, SO[_] : Source, A](sink: SI[A], source: SO[A]): Subject[A] = ProSubject.from(sink, source)
+  def from[GI[_] : Sink, HO[_] : Source, A](sink: GI[A], source: HO[A]): Subject[A] = ProSubject.from(sink, source)
 
   def create[A](sinkF: A => Unit, sourceF: Observer[A] => Cancelable): Subject[A] = ProSubject.create(sinkF, sourceF)
 }
@@ -91,10 +91,10 @@ object ProSubject {
   type Value[-I,+O] = Observer[I] with Observable.Value[O]
   type MaybeValue[-I,+O] = Observer[I] with Observable.MaybeValue[O]
 
-  def from[SI[_] : Sink, SO[_] : Source, I, O](sink: SI[I], source: SO[O]): ProSubject[I, O] = new Observer[I] with Observable[O] {
-    @inline def onNext(value: I): Unit = Sink[SI].onNext(sink)(value)
-    @inline def onError(error: Throwable): Unit = Sink[SI].onError(sink)(error)
-    @inline def subscribe[G[_] : Sink](sink: G[_ >: O]): Cancelable = Source[SO].subscribe(source)(sink)
+  def from[GI[_] : Sink, HO[_] : Source, I, O](sink: GI[I], source: HO[O]): ProSubject[I, O] = new Observer[I] with Observable[O] {
+    @inline def onNext(value: I): Unit = Sink[GI].onNext(sink)(value)
+    @inline def onError(error: Throwable): Unit = Sink[GI].onError(sink)(error)
+    @inline def subscribe[G[_] : Sink](sink: G[_ >: O]): Cancelable = Source[HO].subscribe(source)(sink)
   }
 
   def create[I, O](sinkF: I => Unit, sourceF: Observer[O] => Cancelable): ProSubject[I, O] = {

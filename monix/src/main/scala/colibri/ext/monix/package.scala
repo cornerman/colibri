@@ -55,8 +55,8 @@ package object monix {
   }
 
   implicit object monixObservableLiftSource extends LiftSource[Observable] {
-    def lift[G[_] : Source, A](source: G[A]): Observable[A] = Observable.create[A](OverflowStrategy.Unbounded) { observer =>
-      val sub = Source[G].subscribe(source)(observer)
+    def lift[H[_] : Source, A](source: H[A]): Observable[A] = Observable.create[A](OverflowStrategy.Unbounded) { observer =>
+      val sub = Source[H].subscribe(source)(observer)
       Cancelable(() => sub.cancel())
     }
   }
@@ -86,6 +86,6 @@ package object monix {
   }
 
   implicit object monixCreateProSubject extends CreateProSubject[MonixProSubject] {
-    @inline def from[SI[_] : Sink, SO[_] : Source, I,O](sink: SI[I], source: SO[O]): MonixProSubject[I, O] = MonixProSubject.from(LiftSink[Observer].lift(sink), LiftSource[Observable].lift(source))
+    @inline def from[GI[_] : Sink, HO[_] : Source, I,O](sink: GI[I], source: HO[O]): MonixProSubject[I, O] = MonixProSubject.from(LiftSink[Observer].lift(sink), LiftSource[Observable].lift(source))
   }
 }
