@@ -25,7 +25,7 @@ object Observer {
     val sink: Observer[T],
     val connect: () => Cancelable
   )
-  @inline def connectable[T](sink: Observer[T], connect: () => Cancelable): Connectable[T] = {
+  @inline def connectable[F[_] : Sync, T](sink: Observer[T], connect: () => F[Cancelable]): Connectable[T] = {
     val cancelable = Cancelable.refCount(connect)
     new Connectable(sink, () => cancelable.ref())
   }
@@ -107,16 +107,16 @@ object Observer {
   }
 
   def doOnNext[G[_] : Sink, A](sink: G[_ >: A])(f: A => Unit): Observer[A] = new Observer[A] {
-    def onNext(value: A): Unit = f(value)
-    def onError(error: Throwable): Unit = Sink[G].onError(sink)(error)
+    def onNext[F[_] : Sync](value: A): F[Unit] = f(value).pure[F]
+    def onError[F[_] : Sync](error: Throwable): F[Unit] = Sink[G].onError(sink)(error)
   }
 
   def doOnError[G[_] : Sink, A](sink: G[_ >: A])(f: Throwable => Unit): Observer[A] = new Observer[A] {
-    def onNext(value: A): Unit = Sink[G].onNext(sink)(value)
-    def onError(error: Throwable): Unit = f(error)
+    def onNext[F[_] : Sync](value: A): F[Unit] = Sink[G].onNext(sink)(value)
+    def onError[F[_] : Sync](error: Throwable): F[Unit] = f(error).pure[F]
   }
 
-  def redirect[G[_] : Sink, H[_] : Source, A, B](sink: G[_ >: A])(transform: Observable[B] => H[A]): Connectable[B] = {
+  def redirect[F[_] : Sync, G[_] : Sink, H[_] : Source, A, B](sink: G[_ >: A])(transform: Observable[B] => H[A]): Connectable[B] = {
     val handler = Subject.publish[B]
     val source = transform(handler)
     connectable(handler, () => Source[H].subscribe(source)(sink))
@@ -127,8 +127,8 @@ object Observer {
   }
 
   implicit object sink extends Sink[Observer] {
-    @inline def onNext[A](sink: Observer[A])(value: A): Unit = sink.onNext(value)
-    @inline def onError[A](sink: Observer[A])(error: Throwable): Unit = sink.onError(error)
+    @inline def onNext[F[_] : Sync, A](sink: Observer[A])(value: A): F[Unit] = sink.onNext(value)
+    @inline def onError[F[_] : Sync, A](sink: Observer[A])(error: Throwable): F[Unit] = sink.onError(error)
   }
 
   implicit object monoidK extends MonoidK[Observer] {
@@ -152,7 +152,7 @@ object Observer {
     @inline def contrascan[B](seed: A)(f: (A, B) => A): Observer[B] = Observer.contrascan(observer)(seed)(f)
     @inline def doOnError(f: Throwable => Unit): Observer[A] = Observer.doOnError(observer)(f)
     @inline def combine[G[_] : Sink](sink: G[A]): Observer[A] = Observer.combine(observer, Observer.lift(sink))
-    @inline def redirect[H[_] : Source, B](f: Observable[B] => H[A]): Observer.Connectable[B] = Observer.redirect(observer)(f)
+    @inline def redirect[F[_] : Sync, H[_] : Source, B](f: Observable[B] => H[A]): Observer.Connectable[B] = Observer.redirect(observer)(f)
   }
 
   private def recovered(action: => Unit, onError: Throwable => Unit): Unit = try action catch { case NonFatal(t) => onError(t) }

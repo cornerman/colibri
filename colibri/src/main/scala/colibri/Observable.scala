@@ -1,25 +1,25 @@
 package colibri
 
 import colibri.effect._
-
-import cats.{ MonoidK, Applicative, FunctorFilter, Eq, Semigroupal }
-import cats.effect.{ Effect, IO }
+import cats.syntax.all._
+import cats.implicits._
+import cats.{Applicative, Eq, FunctorFilter, MonoidK, Semigroupal}
+import cats.effect.{Effect, IO, Sync}
 
 import scala.scalajs.js
 import org.scalajs.dom
 
 import scala.util.control.NonFatal
-import scala.concurrent.{ ExecutionContext, Future }
+import scala.concurrent.{ExecutionContext, Future}
 import scala.concurrent.duration.FiniteDuration
 
 trait Observable[+A] {
-  //TODO: def subscribe[G[_]: Sink, F[_] : Sync](sink: G[_ >: A]): F[Cancelable]
-  def subscribe[G[_] : Sink](sink: G[_ >: A]): Cancelable
+  def subscribe[F[_] : Sync, G[_] : Sink](sink: G[_ >: A]): F[Cancelable]
 }
 object Observable {
 
   implicit object source extends Source[Observable] {
-    @inline def subscribe[G[_]: Sink, A](source: Observable[A])(sink: G[_ >: A]): Cancelable = source.subscribe(sink)
+    @inline def subscribe[F[_] : Sync, G[_] : Sink, A](source: Observable[A])(sink: G[_ >: A]): F[Cancelable] = source.subscribe(sink)
   }
 
   implicit object liftSource extends LiftSource[Observable] {
@@ -74,40 +74,40 @@ object Observable {
   type HotMaybeValue[+A] = MaybeValue[A] with Cancelable
 
   final class Synchronous[+A] private[colibri](source: Observable[A]) extends Observable[A] {
-    def subscribe[G[_]: Sink](sink: G[_ >: A]): Cancelable = source.subscribe(sink)
+    def subscribe[F[_] : Sync, G[_]: Sink](sink: G[_ >: A]): F[Cancelable] = source.subscribe(sink)
   }
 
   object Empty extends Observable[Nothing] {
-    @inline def subscribe[G[_]: Sink](sink: G[_ >: Nothing]): Cancelable = Cancelable.empty
+    @inline def subscribe[F[_] : Sync, G[_]: Sink](sink: G[_ >: Nothing]): F[Cancelable] = Sync[F].delay(Cancelable.empty)
   }
 
   @inline def empty = Empty
 
   def apply[T](value: T): Observable[T] = new Observable[T] {
-    def subscribe[G[_]: Sink](sink: G[_ >: T]): Cancelable = {
-      Sink[G].onNext(sink)(value)
-      Cancelable.empty
+    def subscribe[F[_] : Sync, G[_]: Sink](sink: G[_ >: T]): F[Cancelable] = {
+      Sink[G].onNext(sink)(value) *>
+        Sync[F].delay(Cancelable.empty)
     }
   }
 
   def fromIterable[T](values: Iterable[T]): Observable[T] = new Observable[T] {
-    def subscribe[G[_]: Sink](sink: G[_ >: T]): Cancelable = {
-      values.foreach(Sink[G].onNext(sink))
-      Cancelable.empty
+    def subscribe[F[_] : Sync, G[_]: Sink](sink: G[_ >: T]): F[Cancelable] = {
+      values.toList.traverse_(Sink[G].onNext(sink)) *>
+        Sync[F].delay(Cancelable.empty)
     }
   }
 
   def lift[H[_] : Source, A](source: H[A]): Observable[A] = source match {
     case source: Observable[A@unchecked] => source
     case _ => new Observable[A] {
-      def subscribe[G[_]: Sink](sink: G[_ >: A]): Cancelable = Source[H].subscribe(source)(sink)
+      def subscribe[F[_] : Sync, G[_]: Sink](sink: G[_ >: A]): F[Cancelable] = Source[H].subscribe(source)(sink)
     }
   }
 
   @inline def create[A](produce: Observer[A] => Cancelable): Observable[A] = createLift[Observer, A](produce)
 
-  def createLift[F[_]: LiftSink, A](produce: F[_ >: A] => Cancelable): Observable[A] = new Observable[A] {
-    def subscribe[G[_]: Sink](sink: G[_ >: A]): Cancelable = produce(LiftSink[F].lift(sink))
+  def createLift[G[_]: LiftSink, A](produce: G[_ >: A] => Cancelable): Observable[A] = new Observable[A] {
+    def subscribe[F[_] : Sync, GG[_]: Sink](sink: GG[_ >: A]): F[Cancelable] = produce(LiftSink[G].lift(sink)).pure[F]
   }
 
   def fromEither[A](value: Either[Throwable, A]): Observable[A] = new Observable[A] {
