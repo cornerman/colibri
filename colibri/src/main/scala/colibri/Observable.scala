@@ -1,10 +1,11 @@
 package colibri
 
+import cats.effect.concurrent.Ref
 import colibri.effect._
 import cats.syntax.all._
 import cats.implicits._
 import cats.{Applicative, Eq, FunctorFilter, MonoidK, Semigroupal}
-import cats.effect.{Effect, IO, Sync}
+import cats.effect.{Effect, IO, LiftIO, Sync, SyncEffect}
 
 import scala.scalajs.js
 import org.scalajs.dom
@@ -111,42 +112,35 @@ object Observable {
   }
 
   def fromEither[A](value: Either[Throwable, A]): Observable[A] = new Observable[A] {
-    def subscribe[G[_]: Sink](sink: G[_ >: A]): Cancelable = {
-      value match {
+    def subscribe[F[_] : Sync, G[_]: Sink](sink: G[_ >: A]): F[Cancelable] = (value match {
         case Right(a) => Sink[G].onNext(sink)(a)
         case Left(error) => Sink[G].onError(sink)(error)
-      }
-      Cancelable.empty
-    }
+      }) *> Sync[F].delay(Cancelable.empty)
   }
 
-  def fromSync[F[_]: RunSyncEffect, A](effect: F[A]): Observable[A] = new Observable[A] {
-    def subscribe[G[_]: Sink](sink: G[_ >: A]): Cancelable = {
-      recovered(Sink[G].onNext(sink)(RunSyncEffect[F].unsafeRun(effect)), Sink[G].onError(sink)(_))
-      Cancelable.empty
-    }
+  def fromSync[F[_] : SyncEffect, A](effect: F[A]): Observable[A] = new Observable[A] {
+    def subscribe[FF[_] : Sync, G[_] : Sink](sink: G[_ >: A]): FF[Cancelable] = recoveredF(
+        SyncEffect[F].runSync[FF, A](effect) >>= Sink[G].onNext[FF, A](sink),
+        Sink[G].onError[FF, A](sink)(_)
+      ) *> Cancelable.empty.pure[FF]
   }
 
-  def fromAsync[F[_]: Effect, A](effect: F[A]): Observable[A] = new Observable[A] {
-    def subscribe[G[_]: Sink](sink: G[_ >: A]): Cancelable = {
-      //TODO: proper cancel effects?
-      var isCancel = false
-
-      Effect[F].runAsync(effect)(either => IO {
-        if (!isCancel) either match {
-          case Right(value) => Sink[G].onNext(sink)(value)
-          case Left(error)  => Sink[G].onError(sink)(error)
-        }
-      }).unsafeRunSync()
-
-      Cancelable(() => isCancel = true)
-    }
+  def fromAsync[F[_] : Effect, FF[_] : SyncEffect : LiftIO, A](effect: F[A]): Observable[A] = new Observable[A] {
+    def subscribe[FFF[_] : Sync, G[_] : Sink](sink: G[_ >: A]): FFF[Cancelable] = for {
+      isCancelled <- Ref[FFF].of(false)
+      converted = Effect[F].runAsync(effect)(either => (either match {
+        case Right(value) => Sink[G].onNext(sink)(value)
+        case Left(error) => Sink[G].onError(sink)(error)
+      })).to[FF]
+      _ <- SyncEffect[FF].runSync[FFF, Unit](converted)
+      cancelable = Cancelable.apply(() => isCancelled.set(true))
+    } yield ???
   }
 
   def fromFuture[A](future: Future[A])(implicit ec: ExecutionContext): Observable[A] = fromAsync(IO.fromFuture(IO.pure(future))(IO.contextShift(ec)))
 
   def ofEvent[EV <: dom.Event](target: dom.EventTarget, eventType: String): Synchronous[EV] = new Synchronous(new Observable[EV] {
-    def subscribe[G[_] : Sink](sink: G[_ >: EV]): Cancelable = {
+    def subscribe[F[_] : Sync, G[_] : Sink](sink: G[_ >: EV]): F[Cancelable] = {
       var isCancel = false
 
       val eventHandler: js.Function1[EV, Unit] = { v =>
@@ -163,7 +157,7 @@ object Observable {
 
       register()
 
-      Cancelable(() => unregister())
+      Cancelable(() => Sync[F].delay(unregister())).pure[F]
     }
   })
 
@@ -1063,4 +1057,5 @@ object Observable {
   }
 
   private def recovered[T](action: => Unit, onError: Throwable => Unit) = try action catch { case NonFatal(t) => onError(t) }
+  private def recoveredF[F[_] : Sync](action: => F[Unit], onError: Throwable => F[Unit]): F[Unit] = try action catch { case NonFatal(t) => onError(t) }
 }
