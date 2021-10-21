@@ -4,7 +4,7 @@ import colibri.Cancelable
 import colibri.Observable
 import colibri.Observer
 import colibri.Subject
-import org.scalajs.dom.raw.HashChangeEvent
+import org.scalajs.dom.HashChangeEvent
 import org.scalajs.dom.window
 
 import scala.scalajs.js
