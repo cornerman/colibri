@@ -5,7 +5,7 @@ inThisBuild(Seq(
 
   scalaVersion := "2.12.15",
 
-  crossScalaVersions := Seq("2.12.15", "2.13.6"),
+  crossScalaVersions := Seq("2.12.15", "2.13.7"),
 ))
 
 lazy val commonSettings = Seq(
