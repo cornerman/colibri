@@ -196,7 +196,7 @@ object Observable {
     }
   }
 
-  def via[H[_] : Source, G[_]: Sink, A](source: H[A])(sink: G[A]): Observable[A] = new Observable[A] {
+  def via[H[_] : Source, G[_]: Sink, A](source: H[A])(sink: G[_ >: A]): Observable[A] = new Observable[A] {
     def subscribe[GG[_] : Sink](sink2: GG[_ >: A]): Cancelable = Source[H].subscribe(source)(Observer.combine[Observer, A](Observer.lift(sink), Observer.lift(sink2)))
   }
 
@@ -941,7 +941,7 @@ object Observable {
   @inline implicit class Operations[A](val source: Observable[A]) extends AnyVal {
     @inline def liftSource[G[_]: LiftSource]: G[A] = LiftSource[G].lift(source)
     @inline def failed: Observable[Throwable] = Observable.failed(source)
-    @inline def via[G[_]: Sink](sink: G[A]): Observable[A] = Observable.via(source)(sink)
+    @inline def via[G[_]: Sink](sink: G[_ >: A]): Observable[A] = Observable.via(source)(sink)
     @inline def mergeMap[H[_] : Source, B](f: A => H[B]): Observable[B] = Observable.mergeMap(source)(f)
     @inline def switchMap[H[_] : Source, B](f: A => H[B]): Observable[B] = Observable.switchMap(source)(f)
     @inline def zip[H[_] : Source, B](combined: H[B]): Observable[(A,B)] = Observable.zip(source, combined)
