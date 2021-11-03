@@ -978,6 +978,7 @@ object Observable {
     @inline def scan0[B](seed: B)(f: (B, A) => B): Observable[B] = Observable.scan0(source)(seed)(f)
     @inline def recover(f: PartialFunction[Throwable, A]): Observable[A] = Observable.recover(source)(f)
     @inline def recoverOption(f: PartialFunction[Throwable, Option[A]]): Observable[A] = Observable.recoverOption(source)(f)
+    @inline def share: Observable[A] = Observable.share(source)
     @inline def publish: Observable.Connectable[A] = Observable.publish(source)
     @inline def replay: Observable.ConnectableMaybeValue[A] = Observable.replay(source)
     @inline def behavior(value: A): Observable.ConnectableValue[A] = Observable.behavior(source)(value)
