@@ -4,6 +4,16 @@ inThisBuild(Seq(
   scalaVersion := "2.12.15",
 
   crossScalaVersions := Seq("2.12.15", "2.13.6"),
+
+  licenses := Seq("MIT License" -> url("https://opensource.org/licenses/MIT")),
+
+  homepage := Some(url("https://github.com/cornerman/colibri")),
+
+  scmInfo := Some(ScmInfo(
+    url("https://github.com/cornerman/colibri"),
+    "scm:git:git@github.com:cornerman/colibri.git",
+    Some("scm:git:git@github.com:cornerman/colibri.git"))
+  )
 ))
 
 lazy val commonSettings = Seq(
