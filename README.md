@@ -4,18 +4,17 @@
 
 Usage:
 ```scala
-resolvers += "jitpack" at "https://jitpack.io"
-libraryDependencies += "com.github.cornerman.colibri" %%% "colibri" % "master-SNAPSHOT"
+libraryDependencies += "com.github.cornerman.colibri" %%% "colibri" % "0.1.0"
 ```
 
 For monix support:
 ```scala
-libraryDependencies += "com.github.cornerman.colibri" %%% "colibri-monix" % "master-SNAPSHOT"
+libraryDependencies += "com.github.cornerman.colibri" %%% "colibri-monix" % "0.1.0"
 ```
 
 For scala.rx support:
 ```scala
-libraryDependencies += "com.github.cornerman.colibri" %%% "colibri-rx" % "master-SNAPSHOT"
+libraryDependencies += "com.github.cornerman.colibri" %%% "colibri-rx" % "0.1.0"
 ```
 
 This library includes a minimal frp library and typeclasses for streaming.
