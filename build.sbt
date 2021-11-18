@@ -1,11 +1,19 @@
 inThisBuild(Seq(
-  version := "0.1.0-SNAPSHOT",
-
   organization := "com.github.cornerman",
 
   scalaVersion := "2.12.15",
 
-  crossScalaVersions := Seq("2.12.15", "2.13.7"),
+  crossScalaVersions := Seq("2.12.15", "2.13.6"),
+
+  licenses := Seq("MIT License" -> url("https://opensource.org/licenses/MIT")),
+
+  homepage := Some(url("https://github.com/cornerman/colibri")),
+
+  scmInfo := Some(ScmInfo(
+    url("https://github.com/cornerman/colibri"),
+    "scm:git:git@github.com:cornerman/colibri.git",
+    Some("scm:git:git@github.com:cornerman/colibri.git"))
+  )
 ))
 
 lazy val commonSettings = Seq(
@@ -14,16 +22,6 @@ lazy val commonSettings = Seq(
   libraryDependencies ++= Seq(
     "org.scalatest" %%% "scalatest" % "3.2.10" % Test,
   ),
-
-  publishMavenStyle := true,
-
-  publishTo := {
-    val nexus = "https://oss.sonatype.org/"
-    if (isSnapshot.value)
-        Some("snapshots" at nexus + "content/repositories/snapshots")
-    else
-        Some("releases" at nexus + "service/local/staging/deploy/maven2")
-  },
 
   resolvers ++=
       ("jitpack" at "https://jitpack.io") ::
