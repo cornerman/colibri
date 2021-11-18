@@ -1,6 +1,4 @@
 inThisBuild(Seq(
-  version := "0.1.0-SNAPSHOT",
-
   organization := "com.github.cornerman",
 
   scalaVersion := "2.12.15",
@@ -14,16 +12,6 @@ lazy val commonSettings = Seq(
   libraryDependencies ++= Seq(
     "org.scalatest" %%% "scalatest" % "3.2.10" % Test,
   ),
-
-  publishMavenStyle := true,
-
-  publishTo := {
-    val nexus = "https://oss.sonatype.org/"
-    if (isSnapshot.value)
-        Some("snapshots" at nexus + "content/repositories/snapshots")
-    else
-        Some("releases" at nexus + "service/local/staging/deploy/maven2")
-  },
 
   resolvers ++=
       ("jitpack" at "https://jitpack.io") ::
