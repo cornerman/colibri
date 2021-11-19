@@ -819,6 +819,21 @@ object Observable {
     }
   }
 
+  def headIO[H[_] : Source, A](source: H[A]): IO[A] = IO.cancelable[A] { callback =>
+    val cancelable = Cancelable.variable()
+    var isDone = false
+
+    def dispatch(value: Either[Throwable, A]) = if (!isDone) {
+      isDone = true
+      cancelable.cancel()
+      callback(value)
+    }
+
+    cancelable() = Source[H].subscribe(source)(Observer.create[A](value => dispatch(Right(value)), error => dispatch(Left(error))))
+
+    IO(cancelable.cancel())
+  }
+
   @inline def head[H[_] : Source, A](source: H[A]): Observable[A] = take(source)(1)
 
   def take[H[_] : Source, A](source: H[A])(num: Int): Observable[A] = {
@@ -992,6 +1007,7 @@ object Observable {
     @inline def prependAsync[F[_] : Effect](value: F[A]): Observable[A] = Observable.prependAsync(source)(value)
     @inline def prependFuture(value: Future[A])(implicit ec: ExecutionContext): Observable[A] = Observable.prependFuture(source)(value)
     @inline def startWith(values: Iterable[A]): Observable[A] = Observable.startWith(source)(values)
+    @inline def headIO: IO[A] = Observable.headIO(source)
     @inline def head: Observable[A] = Observable.head(source)
     @inline def take(num: Int): Observable[A] = Observable.take(source)(num)
     @inline def takeWhile(predicate: A => Boolean): Observable[A] = Observable.takeWhile(source)(predicate)
