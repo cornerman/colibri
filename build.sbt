@@ -13,7 +13,16 @@ inThisBuild(Seq(
     url("https://github.com/cornerman/colibri"),
     "scm:git:git@github.com:cornerman/colibri.git",
     Some("scm:git:git@github.com:cornerman/colibri.git"))
-  )
+  ),
+
+  pomExtra :=
+    <developers>
+        <developer>
+        <id>jk</id>
+        <name>Johannes Karoff</name>
+        <url>https://github.com/cornerman</url>
+        </developer>
+    </developers>,
 ))
 
 lazy val commonSettings = Seq(
@@ -26,17 +35,6 @@ lazy val commonSettings = Seq(
   resolvers ++=
       ("jitpack" at "https://jitpack.io") ::
       Nil,
-
-  pomExtra :=
-    <developers>
-        <developer>
-        <id>jk</id>
-        <name>Johannes Karoff</name>
-        <url>https://github.com/cornerman</url>
-        </developer>
-    </developers>,
-
-  pomIncludeRepository := { _ => false }
 )
 
 lazy val jsSettings = Seq(
