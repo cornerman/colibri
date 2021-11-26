@@ -90,6 +90,13 @@ object Observable {
     }
   }
 
+  def failure[T](error: Throwable): Observable[T] = new Observable[T] {
+    def subscribe[G[_]: Sink](sink: G[_ >: T]): Cancelable = {
+      Sink[G].onError(sink)(error)
+      Cancelable.empty
+    }
+  }
+
   def fromIterable[T](values: Iterable[T]): Observable[T] = new Observable[T] {
     def subscribe[G[_]: Sink](sink: G[_ >: T]): Cancelable = {
       values.foreach(Sink[G].onNext(sink))
