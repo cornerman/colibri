@@ -1,7 +1,9 @@
 package colibri
 
+import cats.effect.Sync
+
 trait Source[-H[_]] {
-  def subscribe[HH[_] : Sink, A](source: H[A])(sink: HH[_ >: A]): Cancelable
+  def subscribe[F[_] : Sync, HH[_] : Sink, A](source: H[A])(sink: HH[_ >: A]): F[Cancelable]
 }
 object Source {
   @inline def apply[H[_]](implicit source: Source[H]): Source[H] = source

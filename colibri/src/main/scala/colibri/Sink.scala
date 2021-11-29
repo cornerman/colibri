@@ -1,8 +1,10 @@
 package colibri
 
+import cats.effect.Sync
+
 trait Sink[-G[_]] {
-  def onNext[A](sink: G[A])(value: A): Unit
-  def onError[A](sink: G[A])(error: Throwable): Unit
+  def onNext[F[_] : Sync, A](sink: G[A])(value: A): F[Unit]
+  def onError[F[_] : Sync, A](sink: G[A])(error: Throwable): F[Unit]
 }
 object Sink {
   @inline def apply[G[_]](implicit sink: Sink[G]): Sink[G] = sink

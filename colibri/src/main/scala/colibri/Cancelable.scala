@@ -1,12 +1,15 @@
 package colibri
 
 import cats.Monoid
+import cats.effect.{Sync, SyncEffect}
 import cats.implicits._
+import cats.syntax.all._
+import colibri.effect.RunSyncEffect
 
 import scala.scalajs.js
 
 trait Cancelable {
-  def cancel(): Unit
+  def cancel[F[_] : Sync](): F[Unit]
 }
 object Cancelable {
 
@@ -16,51 +19,48 @@ object Cancelable {
   }
 
   implicit object cancelCancelable extends CanCancel[Cancelable] {
-    @inline def cancel(subscription: Cancelable): Unit = subscription.cancel()
+    @inline def cancel[F[_] : Sync](subscription: Cancelable): F[Unit] = subscription.cancel()
   }
 
   class Builder extends Cancelable {
     private var buffer = new js.Array[Cancelable]()
 
-    def +=(subscription: Cancelable): Unit =
+    def +=[F[_] : Sync : RunSyncEffect](subscription: Cancelable): Unit =
       if (buffer == null) {
-        subscription.cancel()
+        RunSyncEffect[F].unsafeRun(subscription.cancel())
       } else {
         buffer.push(subscription)
         ()
       }
 
-    def cancel(): Unit =
-      if (buffer != null) {
-        buffer.foreach(_.cancel())
-        buffer = null
-      }
+    def cancel[F[_] : Sync](): F[Unit] = (
+        buffer.toList.traverse_(_.cancel()) *>
+        { buffer = null }.pure[F]
+      ).whenA(buffer != null)
   }
 
   class Variable extends Cancelable {
     private var current: Cancelable = Cancelable.empty
 
-    def update(subscription: Cancelable): Unit =
+    def update[F[_] : Sync : RunSyncEffect](subscription: Cancelable): Unit =
       if (current == null) {
-        subscription.cancel()
+        RunSyncEffect[F].unsafeRun(subscription.cancel())
       } else {
-        current.cancel()
+        RunSyncEffect[F].unsafeRun(current.cancel())
         current = subscription
       }
 
-    def cancel(): Unit =
-      if (current != null) {
-        current.cancel()
-        current = null
-    }
+    def cancel[F[_] : Sync](): F[Unit] =
+      current.cancel() *>
+      { current = null }.pure[F]
   }
 
   class Consecutive extends Cancelable {
     private var latest: Cancelable = null
     private var subscriptions: js.Array[() => Cancelable] = new js.Array[() => Cancelable]
 
-    def switch(): Unit = if (latest != null) {
-      latest.cancel()
+    def switch[F[_] : Sync : RunSyncEffect](): Unit = if (latest != null) {
+      RunSyncEffect[F].unsafeRun(latest.cancel())
       latest = null
       if (subscriptions != null && subscriptions.nonEmpty) {
         val nextCancelable = subscriptions(0)
@@ -72,7 +72,7 @@ object Cancelable {
       }
     }
 
-    def +=(subscription: () => Cancelable): Unit = if (subscriptions != null) {
+    def +=[F[_] : Sync : RunSyncEffect](subscription: () => Cancelable): Unit = if (subscriptions != null) {
       if (latest == null) {
         val variable = Cancelable.variable()
         latest = variable
@@ -83,86 +83,86 @@ object Cancelable {
       }
     }
 
-    def cancel(): Unit = if (subscriptions != null) {
-      subscriptions = null
-      if (latest != null) {
-        latest.cancel()
-        latest = null
-      }
-    }
+    def cancel[F[_] : Sync](): F[Unit] = (
+      { subscriptions = null }.pure[F] *>
+        (
+          latest.cancel() *>
+          { latest = null }.pure[F]
+        ).whenA(latest != null)
+    ).whenA(subscriptions != null)
   }
 
   class SingleOrDrop extends Cancelable {
     private var latest: Cancelable = null
     private var isCancel = false
 
-    def done(): Unit = if (latest != null) {
-      latest.cancel()
+    def done[F[_] : Sync : RunSyncEffect](): Unit = if (latest != null) {
+      RunSyncEffect[F].unsafeRun(latest.cancel())
       latest = null
     }
 
-    def update(subscription: () => Cancelable): Unit = if (latest == null) {
+    def update[F[_] : Sync : RunSyncEffect](subscription: () => Cancelable): Unit = if (latest == null) {
       val variable = Cancelable.variable()
       latest = variable
       variable() = subscription()
     }
 
-    def cancel(): Unit = if (!isCancel) {
-      isCancel = true
-      if (latest != null) {
-        latest.cancel()
-        latest = null
-      }
-    }
+    def cancel[F[_] : Sync](): F[Unit] = (
+      { isCancel = true }.pure[F] *>
+      (
+        latest.cancel() *>
+        { latest = null }.pure[F]
+      ).whenA(latest != null)
+    ).whenA(!isCancel)
   }
 
   class RefCount(subscription: () => Cancelable) extends Cancelable {
     private var counter = 0
     private var currentCancelable: Cancelable = null
 
-    def ref(): Cancelable = if (counter == -1) Cancelable.empty else {
+    def ref[F[_] : Sync : SyncEffect : RunSyncEffect](): Cancelable = if (counter == -1) Cancelable.empty else {
       counter += 1
       if (counter == 1) {
         currentCancelable = subscription()
       }
 
-      Cancelable({ () =>
+      Cancelable({ () => Sync[F].delay {
         counter -= 1
         if (counter == 0) {
-          currentCancelable.cancel()
+          RunSyncEffect[F].unsafeRun(currentCancelable.cancel())
           currentCancelable = null
         }
-      })
+      }})
     }
 
-    def cancel(): Unit = {
-      counter = -1
-      if (currentCancelable != null) {
-        currentCancelable.cancel()
-        currentCancelable = null
-      }
-    }
+    def cancel[F[_] : Sync](): F[Unit] =
+      { counter = -1 }.pure[F] *>
+        (
+          currentCancelable.cancel() *>
+          { currentCancelable = null }.pure[F]
+        ).whenA(currentCancelable != null)
   }
 
   object Empty extends Cancelable {
-    @inline def cancel(): Unit = ()
+    def cancel[F[_] : Sync](): F[Unit] = Sync[F].delay(())
   }
 
-  @inline def empty = Empty
+  @inline def empty: Cancelable = Empty
 
-  @inline def apply(f: () => Unit): Cancelable = new Cancelable {
+  @inline def apply[F[_] : SyncEffect](f: () => F[Unit]): Cancelable = new Cancelable {
     private var isCanceled = false
-    @inline def cancel() = if (!isCanceled) {
-      isCanceled = true
-      f()
-    }
+    @inline def cancel[FF[_] : Sync](): FF[Unit] = (
+      { isCanceled = true }.pure[FF] *>
+      SyncEffect[F].runSync[FF, Unit](f())
+    ).whenA(!isCanceled)
   }
 
-  @inline def lift[T : CanCancel](subscription: T) = apply(() => CanCancel[T].cancel(subscription))
+  @inline def lift[F[_] : Sync : SyncEffect : RunSyncEffect, T : CanCancel](subscription: T) = apply(() => CanCancel[T].cancel(subscription))
 
   @inline def composite(subscriptions: Cancelable*): Cancelable = compositeFromIterable(subscriptions)
   @inline def compositeFromIterable(subscriptions: Iterable[Cancelable]): Cancelable = new Cancelable {
-    def cancel() = subscriptions.foreach(_.cancel())
+    def cancel[F[_] : Sync](): F[Unit] =
+      subscriptions.toList.traverse_(cancelable => cancelable.cancel())
   }
 
   @inline def builder(): Builder = new Builder
