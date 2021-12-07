@@ -1,14 +1,11 @@
 inThisBuild(Seq(
   organization := "com.github.cornerman",
 
-  scalaVersion := "2.12.15",
-
-  crossScalaVersions := Seq("2.12.15", "2.13.7"),
+  crossScalaVersions := Seq("2.12.15", "2.13.7", "3.1.0"),
+  scalaVersion := crossScalaVersions.value.last,
 
   licenses := Seq("MIT License" -> url("https://opensource.org/licenses/MIT")),
-
   homepage := Some(url("https://github.com/cornerman/colibri")),
-
   scmInfo := Some(ScmInfo(
     url("https://github.com/cornerman/colibri"),
     "scm:git:git@github.com:cornerman/colibri.git",
@@ -26,8 +23,6 @@ inThisBuild(Seq(
 ))
 
 lazy val commonSettings = Seq(
-  addCompilerPlugin("org.typelevel" %% "kind-projector" % "0.13.2" cross CrossVersion.full),
-
   libraryDependencies ++= Seq(
     "org.scalatest" %%% "scalatest" % "3.2.10" % Test,
   ),
@@ -38,13 +33,13 @@ lazy val commonSettings = Seq(
 )
 
 lazy val jsSettings = Seq(
-  scalacOptions += {
-    val githubRepo    = "cornerman/colibri"
-    val local         = baseDirectory.value.toURI
-    val subProjectDir = baseDirectory.value.getName
-    val remote        = s"https://raw.githubusercontent.com/${githubRepo}/${git.gitHeadCommit.value.get}"
-    s"-P:scalajs:mapSourceURI:$local->$remote/${subProjectDir}/"
-  },
+  /* scalacOptions += { */
+  /*   val githubRepo    = "cornerman/colibri" */
+  /*   val local         = baseDirectory.value.toURI */
+  /*   val subProjectDir = baseDirectory.value.getName */
+  /*   val remote        = s"https://raw.githubusercontent.com/${githubRepo}/${git.gitHeadCommit.value.get}" */
+  /*   s"-P:scalajs:mapSourceURI:$local->$remote/${subProjectDir}/" */
+  /* }, */
 )
 
 lazy val colibri = project
