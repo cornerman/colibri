@@ -13,7 +13,7 @@ import org.scalatest.matchers.should.Matchers
 import org.scalatest.flatspec.AsyncFlatSpec
 
 class MonixOpsSpec extends AsyncFlatSpec with Matchers {
-  implicit val scheduler = TrampolineScheduler(Scheduler.global, SynchronousExecution)
+  implicit val scheduler: Scheduler = TrampolineScheduler(Scheduler.global, SynchronousExecution)
 
   "Observer" should "redirect" in {
 
