@@ -18,4 +18,3 @@ object RunSyncEffect {
     @inline def unsafeRun[T](effect: Eval[T]): T = effect.value
   }
 }
-
