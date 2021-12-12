@@ -1,6 +1,6 @@
 package colibri.ext.monix
 
-import _root_.monix.execution.{Ack, Cancelable, Scheduler}
+import _root_.monix.execution.{Ack, Cancelable}
 import _root_.monix.reactive.{Observable, Observer}
 import _root_.monix.reactive.observers.Subscriber
 import _root_.monix.reactive.subjects.{ReplaySubject, BehaviorSubject, PublishSubject}
@@ -18,17 +18,6 @@ object MonixProSubject {
     override def onNext(elem: I): Future[Ack]                             = observer.onNext(elem)
     override def onError(ex: Throwable): Unit                             = observer.onError(ex)
     override def onComplete(): Unit                                       = observer.onComplete()
-    override def unsafeSubscribeFn(subscriber: Subscriber[O]): Cancelable = observable.unsafeSubscribeFn(subscriber)
-  }
-
-  def connectable[I, O](
-      observer: Observer[I] with ReactiveConnectable,
-      observable: Observable[O],
-  ): MonixProSubject[I, O] with ReactiveConnectable = new Observable[O] with Observer[I] with ReactiveConnectable {
-    override def onNext(elem: I): Future[Ack]                             = observer.onNext(elem)
-    override def onError(ex: Throwable): Unit                             = observer.onError(ex)
-    override def onComplete(): Unit                                       = observer.onComplete()
-    override def connect()(implicit scheduler: Scheduler): Cancelable     = observer.connect()
     override def unsafeSubscribeFn(subscriber: Subscriber[O]): Cancelable = observable.unsafeSubscribeFn(subscriber)
   }
 }
