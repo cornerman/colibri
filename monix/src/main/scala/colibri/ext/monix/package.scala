@@ -35,28 +35,28 @@ package object monix {
   }
 
   implicit object monixObserverLiftSink extends LiftSink[Observer.Sync] {
-    def lift[G[_] : Sink, A](sink: G[A]): Observer.Sync[A] = new Observer.Sync[A] {
+    def lift[G[_]: Sink, A](sink: G[A]): Observer.Sync[A] = new Observer.Sync[A] {
       def onNext(value: A): Ack = { Sink[G].onNext(sink)(value); Ack.Continue }
       def onError(error: Throwable): Unit = Sink[G].onError(sink)(error)
-      def onComplete(): Unit = ()
+      def onComplete(): Unit              = ()
     }
   }
 
   // Source
 
   implicit def monixObservableSource(implicit scheduler: Scheduler): Source[Observable] = new Source[Observable] {
-    def subscribe[G[_] : Sink, A](source: Observable[A])(sink: G[_ >: A]): colibri.Cancelable = {
+    def subscribe[A](source: Observable[A])(sink: colibri.Observer[A]): colibri.Cancelable = {
       val sub = source.subscribe(
-        { v => Sink[G].onNext(sink)(v); Ack.Continue },
-        Sink[G].onError(sink)
+        { v => sink.onNext(v); Ack.Continue },
+        sink.onError,
       )
       colibri.Cancelable(sub.cancel)
     }
   }
 
   implicit object monixObservableLiftSource extends LiftSource[Observable] {
-    def lift[H[_] : Source, A](source: H[A]): Observable[A] = Observable.create[A](OverflowStrategy.Unbounded) { observer =>
-      val sub = Source[H].subscribe(source)(observer)
+    def lift[H[_]: Source, A](source: H[A]): Observable[A] = Observable.create[A](OverflowStrategy.Unbounded) { observer =>
+      val sub = Source[H].subscribe(source)(colibri.Observer.lift(observer))
       Cancelable(() => sub.cancel())
     }
   }
@@ -72,20 +72,21 @@ package object monix {
 
   //TODO: add to monix?
   implicit object CancelableMonoid extends Monoid[Cancelable] {
-    def empty: Cancelable = Cancelable.empty
+    def empty: Cancelable                                 = Cancelable.empty
     def combine(x: Cancelable, y: Cancelable): Cancelable = CompositeCancelable(x, y)
   }
 
   type MonixProSubject[-I, +O] = Observable[O] with Observer[I]
-  type MonixSubject[T] = MonixProSubject[T,T]
+  type MonixSubject[T]         = MonixProSubject[T, T]
 
   implicit object monixCreateSubject extends CreateSubject[MonixSubject] {
-    def replay[A]: MonixSubject[A] = MonixSubject.replay[A]
+    def replay[A]: MonixSubject[A]            = MonixSubject.replay[A]
     def behavior[A](seed: A): MonixSubject[A] = MonixSubject.behavior[A](seed)
-    def publish[A]: MonixSubject[A] = MonixSubject.publish[A]
+    def publish[A]: MonixSubject[A]           = MonixSubject.publish[A]
   }
 
   implicit object monixCreateProSubject extends CreateProSubject[MonixProSubject] {
-    @inline def from[GI[_] : Sink, HO[_] : Source, I,O](sink: GI[I], source: HO[O]): MonixProSubject[I, O] = MonixProSubject.from(LiftSink[Observer].lift(sink), LiftSource[Observable].lift(source))
+    @inline def from[GI[_]: Sink, HO[_]: Source, I, O](sink: GI[I], source: HO[O]): MonixProSubject[I, O] =
+      MonixProSubject.from(LiftSink[Observer].lift(sink), LiftSource[Observable].lift(source))
   }
 }

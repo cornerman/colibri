@@ -7,18 +7,18 @@ import scala.concurrent.{ExecutionContext, Future}
 trait ObservableLike[-F[_]] {
   def toObservable[A](source: F[A]): Observable[A]
 }
-object ObservableLike {
+object ObservableLike       {
   @inline def apply[F[_]](implicit like: ObservableLike[F]): ObservableLike[F] = like
 
-  implicit def observableSource[H[_] : Source]: ObservableLike[H] = new ObservableLike[H] {
+  implicit def observableSource[H[_]: Source]: ObservableLike[H] = new ObservableLike[H] {
     def toObservable[A](source: H[A]): Observable[A] = Observable.lift(source)
   }
 
-  implicit def observableEffect[F[_] : Effect]: ObservableLike[F] = new ObservableLike[F] {
+  implicit def observableEffect[F[_]: Effect]: ObservableLike[F] = new ObservableLike[F] {
     def toObservable[A](effect: F[A]): Observable[A] = Observable.fromAsync(effect)
   }
 
-  implicit def observableSyncEffect[F[_] : RunSyncEffect]: ObservableLike[F] = new ObservableLike[F] {
+  implicit def observableSyncEffect[F[_]: RunSyncEffect]: ObservableLike[F] = new ObservableLike[F] {
     def toObservable[A](effect: F[A]): Observable[A] = Observable.fromSync(effect)
   }
 

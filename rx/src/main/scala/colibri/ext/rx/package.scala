@@ -16,10 +16,10 @@ package object rx {
 
   // Source
   implicit object rxRxSource extends Source[Rx] {
-    def subscribe[G[_] : Sink, A](stream: Rx[A])(sink: G[_ >: A]): Cancelable = {
+    def subscribe[A](stream: Rx[A])(sink: Observer[A]): Cancelable = {
       implicit val ctx = Ctx.Owner.Unsafe
-      Sink[G].onNext(sink)(stream.now)
-      val obs = stream.triggerLater(Sink[G].onNext(sink)(_))
+      sink.onNext(stream.now)
+      val obs          = stream.triggerLater(sink.onNext(_))
       Cancelable(() => obs.kill())
     }
   }

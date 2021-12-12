@@ -10,10 +10,11 @@ import cats.Functor
 trait SubscriptionOwner[T] {
   def own(owner: T)(subscription: () => Cancelable): T
 }
-object SubscriptionOwner {
+object SubscriptionOwner   {
   @inline def apply[T](implicit owner: SubscriptionOwner[T]): SubscriptionOwner[T] = owner
 
-  implicit def functorOwner[F[_] : Functor, T : SubscriptionOwner]: SubscriptionOwner[F[T]] = new SubscriptionOwner[F[T]] {
-    def own(owner: F[T])(subscription: () => Cancelable): F[T] = Functor[F].map(owner)(owner => SubscriptionOwner[T].own(owner)(subscription))
+  implicit def functorOwner[F[_]: Functor, T: SubscriptionOwner]: SubscriptionOwner[F[T]] = new SubscriptionOwner[F[T]] {
+    def own(owner: F[T])(subscription: () => Cancelable): F[T] =
+      Functor[F].map(owner)(owner => SubscriptionOwner[T].own(owner)(subscription))
   }
 }
