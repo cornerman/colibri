@@ -27,7 +27,6 @@ inThisBuild(
 lazy val commonSettings = Seq(
   crossScalaVersions := Seq("2.12.15", "2.13.7", "3.1.0"),
   scalaVersion := "2.13.7",
-
   libraryDependencies ++= Seq(
     "org.scalatest" %%% "scalatest" % "3.2.10" % Test,
   ),
@@ -42,7 +41,7 @@ lazy val colibri = project
     libraryDependencies ++= Seq(
       "org.scala-js"  %%% "scalajs-dom" % "2.0.0",
       "org.typelevel" %%% "cats-core"   % "2.7.0",
-      "org.typelevel" %%% "cats-effect" % "2.5.4",
+      "org.typelevel" %%% "cats-effect" % "3.3.0",
     ),
   )
 
