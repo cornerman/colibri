@@ -1,8 +1,9 @@
+// Workaround for https://github.com/sbt/sbt/issues/3465
+crossScalaVersions := Nil
+
 inThisBuild(
   Seq(
     organization := "com.github.cornerman",
-    crossScalaVersions := Seq("2.12.15", "2.13.7", "3.1.0"),
-    scalaVersion := "2.13.7",
     licenses := Seq("MIT License" -> url("https://opensource.org/licenses/MIT")),
     homepage := Some(url("https://github.com/cornerman/colibri")),
     scmInfo := Some(
@@ -24,6 +25,9 @@ inThisBuild(
 )
 
 lazy val commonSettings = Seq(
+  crossScalaVersions := Seq("2.12.15", "2.13.7", "3.1.0"),
+  scalaVersion := "2.13.7",
+
   libraryDependencies ++= Seq(
     "org.scalatest" %%% "scalatest" % "3.2.10" % Test,
   ),
@@ -73,7 +77,6 @@ lazy val rx = project
   .settings(
     name := "colibri-rx",
     crossScalaVersions := Seq("2.12.15", "2.13.7"), // no scala3, because scala.rx uses scala2 macros
-    scalaVersion := crossScalaVersions.value.last,
     libraryDependencies ++= Seq(
       "com.lihaoyi" %% "scalarx" % "0.4.3",
     ),
