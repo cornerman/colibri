@@ -27,13 +27,6 @@ lazy val commonSettings = Seq(
   libraryDependencies ++= Seq(
     "org.scalatest" %%% "scalatest" % "3.2.10" % Test,
   ),
-  resolvers ++=
-    ("jitpack" at "https://jitpack.io") ::
-      Nil,
-  scalacOptions ++= (CrossVersion.partialVersion(scalaVersion.value) match {
-    case Some((3, _)) => Seq("-Ytasty-reader")
-    case _            => Seq.empty
-  }),
 )
 
 lazy val colibri = project
