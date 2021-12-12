@@ -18,9 +18,9 @@ class ReplaySubject[A] extends Observer[A] with Observable.MaybeValue[A] {
 
   def onError(error: Throwable): Unit = state.onError(error)
 
-  def subscribe[G[_] : Sink](sink: G[_ >: A]): Cancelable = {
+  def subscribe(sink: Observer[A]): Cancelable = {
     val cancelable = state.subscribe(sink)
-    current.foreach(Sink[G].onNext(sink))
+    current.foreach(sink.onNext)
     cancelable
   }
 }
@@ -38,9 +38,9 @@ class BehaviorSubject[A](private var current: A) extends Observer[A] with Observ
 
   def onError(error: Throwable): Unit = state.onError(error)
 
-  def subscribe[G[_] : Sink](sink: G[_ >: A]): Cancelable = {
+  def subscribe(sink: Observer[A]): Cancelable = {
     val cancelable = state.subscribe(sink)
-    Sink[G].onNext(sink)(current)
+    sink.onNext(current)
     cancelable
   }
 }
@@ -48,7 +48,7 @@ class BehaviorSubject[A](private var current: A) extends Observer[A] with Observ
 class PublishSubject[A] extends Observer[A] with Observable[A] {
 
   private var subscribers = new js.Array[Observer[A]]
-  private var isRunning = false
+  private var isRunning   = false
 
   def onNext(value: A): Unit = {
     isRunning = true
@@ -62,7 +62,7 @@ class PublishSubject[A] extends Observer[A] with Observable[A] {
     isRunning = false
   }
 
-  def subscribe[G[_] : Sink](sink: G[_ >: A]): Cancelable = {
+  def subscribe(sink: Observer[A]): Cancelable = {
     val observer = Observer.lift(sink)
     subscribers.push(observer)
     Cancelable { () =>
@@ -73,7 +73,7 @@ class PublishSubject[A] extends Observer[A] with Observable[A] {
 }
 
 object Subject {
-  type Value[A] = Observer[A] with Observable.Value[A]
+  type Value[A]      = Observer[A] with Observable.Value[A]
   type MaybeValue[A] = Observer[A] with Observable.MaybeValue[A]
 
   def replay[O]: ReplaySubject[O] = new ReplaySubject[O]
@@ -82,23 +82,23 @@ object Subject {
 
   def publish[O]: PublishSubject[O] = new PublishSubject[O]
 
-  def from[GI[_] : Sink, HO[_] : Source, A](sink: GI[A], source: HO[A]): Subject[A] = ProSubject.from(sink, source)
+  def from[A](sink: Observer[A], source: Observable[A]): Subject[A] = ProSubject.from(sink, source)
 
   def create[A](sinkF: A => Unit, sourceF: Observer[A] => Cancelable): Subject[A] = ProSubject.create(sinkF, sourceF)
 }
 
 object ProSubject {
-  type Value[-I,+O] = Observer[I] with Observable.Value[O]
-  type MaybeValue[-I,+O] = Observer[I] with Observable.MaybeValue[O]
+  type Value[-I, +O]      = Observer[I] with Observable.Value[O]
+  type MaybeValue[-I, +O] = Observer[I] with Observable.MaybeValue[O]
 
-  def from[GI[_] : Sink, HO[_] : Source, I, O](sink: GI[I], source: HO[O]): ProSubject[I, O] = new Observer[I] with Observable[O] {
-    @inline def onNext(value: I): Unit = Sink[GI].onNext(sink)(value)
-    @inline def onError(error: Throwable): Unit = Sink[GI].onError(sink)(error)
-    @inline def subscribe[G[_] : Sink](sink: G[_ >: O]): Cancelable = Source[HO].subscribe(source)(sink)
+  def from[I, O](sink: Observer[I], source: Observable[O]): ProSubject[I, O] = new Observer[I] with Observable[O] {
+    @inline def onNext(value: I): Unit                   = sink.onNext(value)
+    @inline def onError(error: Throwable): Unit          = sink.onError(error)
+    @inline def subscribe(sink: Observer[O]): Cancelable = source.subscribe(sink)
   }
 
   def create[I, O](sinkF: I => Unit, sourceF: Observer[O] => Cancelable): ProSubject[I, O] = {
-    val sink = Observer.create(sinkF)
+    val sink   = Observer.create(sinkF)
     val source = Observable.create(sourceF)
     from(sink, source)
   }

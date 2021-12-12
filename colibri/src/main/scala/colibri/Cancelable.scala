@@ -5,13 +5,13 @@ import cats.implicits._
 
 import scala.scalajs.js
 
-trait Cancelable {
+trait Cancelable  {
   def cancel(): Unit
 }
 object Cancelable {
 
   implicit object monoid extends Monoid[Cancelable] {
-    @inline def empty = Cancelable.empty
+    @inline def empty                                 = Cancelable.empty
     @inline def combine(a: Cancelable, b: Cancelable) = Cancelable.composite(a, b)
   }
 
@@ -52,11 +52,11 @@ object Cancelable {
       if (current != null) {
         current.cancel()
         current = null
-    }
+      }
   }
 
   class Consecutive extends Cancelable {
-    private var latest: Cancelable = null
+    private var latest: Cancelable                        = null
     private var subscriptions: js.Array[() => Cancelable] = new js.Array[() => Cancelable]
 
     def switch(): Unit = if (latest != null) {
@@ -64,7 +64,7 @@ object Cancelable {
       latest = null
       if (subscriptions != null && subscriptions.nonEmpty) {
         val nextCancelable = subscriptions(0)
-        val variable = Cancelable.variable()
+        val variable       = Cancelable.variable()
         latest = variable
         subscriptions.splice(0, deleteCount = 1)
         variable() = nextCancelable()
@@ -94,7 +94,7 @@ object Cancelable {
 
   class SingleOrDrop extends Cancelable {
     private var latest: Cancelable = null
-    private var isCancel = false
+    private var isCancel           = false
 
     def done(): Unit = if (latest != null) {
       latest.cancel()
@@ -117,10 +117,11 @@ object Cancelable {
   }
 
   class RefCount(subscription: () => Cancelable) extends Cancelable {
-    private var counter = 0
+    private var counter                       = 0
     private var currentCancelable: Cancelable = null
 
-    def ref(): Cancelable = if (counter == -1) Cancelable.empty else {
+    def ref(): Cancelable = if (counter == -1) Cancelable.empty
+    else {
       counter += 1
       if (counter == 1) {
         currentCancelable = subscription()
@@ -152,15 +153,15 @@ object Cancelable {
 
   @inline def apply(f: () => Unit): Cancelable = new Cancelable {
     private var isCanceled = false
-    @inline def cancel() = if (!isCanceled) {
+    @inline def cancel()   = if (!isCanceled) {
       isCanceled = true
       f()
     }
   }
 
-  @inline def lift[T : CanCancel](subscription: T) = apply(() => CanCancel[T].cancel(subscription))
+  @inline def lift[T: CanCancel](subscription: T) = apply(() => CanCancel[T].cancel(subscription))
 
-  @inline def composite(subscriptions: Cancelable*): Cancelable = compositeFromIterable(subscriptions)
+  @inline def composite(subscriptions: Cancelable*): Cancelable                      = compositeFromIterable(subscriptions)
   @inline def compositeFromIterable(subscriptions: Iterable[Cancelable]): Cancelable = new Cancelable {
     def cancel() = subscriptions.foreach(_.cancel())
   }
