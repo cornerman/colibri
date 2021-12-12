@@ -11,7 +11,7 @@ import scala.scalajs.js
 
 object Router {
   val locationHash = Subject
-    .from[Observer, Observable, String](
+    .from[String](
       Observer.create(window.location.hash = _),
       Observable
         .create { (obs: Observer[String]) =>
