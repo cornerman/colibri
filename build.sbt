@@ -1,8 +1,8 @@
 inThisBuild(Seq(
   organization := "com.github.cornerman",
 
-  crossScalaVersions := Seq("2.12.15", "2.13.7", "3.1.0"),
-  scalaVersion := crossScalaVersions.value.last,
+  crossScalaVersions := Seq("2.12.15", "2.13.6", "3.1.0"),
+  scalaVersion := "2.13.6",
 
   licenses := Seq("MIT License" -> url("https://opensource.org/licenses/MIT")),
   homepage := Some(url("https://github.com/cornerman/colibri")),
@@ -30,6 +30,20 @@ lazy val commonSettings = Seq(
   resolvers ++=
       ("jitpack" at "https://jitpack.io") ::
       Nil,
+scalacOptions ++= {
+    (CrossVersion.partialVersion(scalaVersion.value) match {
+      case Some((3, _)) => Seq(
+        "-source:3.0-migration",
+        "-rewrite"
+      )
+      case _ => Seq(
+        "-deprecation",
+        "-Xfatal-warnings",
+        "-Wunused:imports,privates,locals",
+        "-Wvalue-discard"
+      )
+    })
+}
 )
 
 lazy val jsSettings = Seq(
@@ -88,6 +102,8 @@ lazy val rx = project
   .settings(commonSettings, jsSettings)
   .settings(
     name := "colibri-rx",
+    crossScalaVersions := Seq("2.12.15", "2.13.7"), // no scala3, because scala.rx uses scala2 macros
+    scalaVersion := crossScalaVersions.value.last,
 
     libraryDependencies ++= Seq(
       "com.lihaoyi" %% "scalarx" % "0.4.3"
