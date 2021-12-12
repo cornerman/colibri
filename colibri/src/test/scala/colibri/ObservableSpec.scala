@@ -448,26 +448,6 @@ class ObservableSpec extends AnyFlatSpec with Matchers {
     errors shouldBe 0
   }
 
-  it should "switchVaried" in {
-    var runEffect = 0
-    var received  = List.empty[Int]
-    var errors    = 0
-    val stream    = Observable.switchVaried(Observable.fromAsync(IO { runEffect += 1; 0 }), Observable.fromIterable(Seq(1, 2, 3)))
-
-    runEffect shouldBe 0
-
-    stream.subscribe(
-      Observer.create[Int](
-        received ::= _,
-        _ => errors += 1,
-      ),
-    )
-
-    runEffect shouldBe 1
-    received shouldBe List(3, 2, 1, 0)
-    errors shouldBe 0
-  }
-
   it should "switch" in {
     var received = List.empty[Int]
     var errors   = 0
@@ -532,26 +512,6 @@ class ObservableSpec extends AnyFlatSpec with Matchers {
     handler1.onNext(2)
 
     received shouldBe List(13, 13, 2, 0)
-    errors shouldBe 0
-  }
-
-  it should "mergeVaried" in {
-    var runEffect = 0
-    var received  = List.empty[Int]
-    var errors    = 0
-    val stream    = Observable.mergeVaried(Observable.fromAsync(IO { runEffect += 1; 0 }), Observable.fromIterable(Seq(1, 2, 3)))
-
-    runEffect shouldBe 0
-
-    stream.subscribe(
-      Observer.create[Int](
-        received ::= _,
-        _ => errors += 1,
-      ),
-    )
-
-    runEffect shouldBe 1
-    received shouldBe List(3, 2, 1, 0)
     errors shouldBe 0
   }
 
