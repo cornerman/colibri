@@ -4,17 +4,22 @@
 
 Usage:
 ```scala
-libraryDependencies += "com.github.cornerman.colibri" %%% "colibri" % "0.1.1"
+libraryDependencies += "com.github.cornerman" %%% "colibri" % "0.1.2"
 ```
 
 For monix support:
 ```scala
-libraryDependencies += "com.github.cornerman.colibri" %%% "colibri-monix" % "0.1.1"
+libraryDependencies += "com.github.cornerman" %%% "colibri-monix" % "0.1.2"
 ```
 
 For scala.rx support:
 ```scala
-libraryDependencies += "com.github.cornerman.colibri" %%% "colibri-rx" % "0.1.1"
+libraryDependencies += "com.github.cornerman" %%% "colibri-rx" % "0.1.2"
+```
+
+For airstream support:
+```scala
+libraryDependencies += "com.github.cornerman" %%% "colibri-airstream" % "0.1.2"
 ```
 
 This library includes a minimal frp library and typeclasses for streaming.

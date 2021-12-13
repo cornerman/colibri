@@ -80,3 +80,15 @@ lazy val rx = project
       "com.lihaoyi" %% "scalarx" % "0.4.3",
     ),
   )
+
+lazy val airstream = project
+  .enablePlugins(ScalaJSPlugin)
+  .dependsOn(colibri)
+  .in(file("airstream"))
+  .settings(commonSettings)
+  .settings(
+    name := "colibri-airstream",
+    libraryDependencies ++= Seq(
+      "com.raquo" %%% "airstream" % "0.14.2"
+    ),
+  )
