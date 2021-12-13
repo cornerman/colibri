@@ -39,15 +39,26 @@ lazy val colibri = project
   .settings(
     name := "colibri",
     libraryDependencies ++= Seq(
-      "org.scala-js"  %%% "scalajs-dom" % "2.0.0",
       "org.typelevel" %%% "cats-core"   % "2.7.0",
       "org.typelevel" %%% "cats-effect" % "2.5.4",
     ),
   )
 
+lazy val jsdom = project
+  .enablePlugins(ScalaJSPlugin)
+  .in(file("jsdom"))
+  .dependsOn(colibri)
+  .settings(commonSettings)
+  .settings(
+    name := "colibri-jsdom",
+    libraryDependencies ++= Seq(
+      "org.scala-js"  %%% "scalajs-dom" % "2.0.0",
+    ),
+  )
+
 lazy val router = project
   .enablePlugins(ScalaJSPlugin)
-  .dependsOn(colibri)
+  .dependsOn(jsdom)
   .in(file("router"))
   .settings(commonSettings)
   .settings(

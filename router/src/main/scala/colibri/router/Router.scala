@@ -1,27 +1,18 @@
 package colibri.router
 
-import colibri.Cancelable
-import colibri.Observable
+import colibri.jsdom.EventObservable
 import colibri.Observer
 import colibri.Subject
 import org.scalajs.dom.HashChangeEvent
 import org.scalajs.dom.window
 
-import scala.scalajs.js
-
 object Router {
   val locationHash = Subject
     .from[String](
       Observer.create(window.location.hash = _),
-      Observable
-        .create { (obs: Observer[String]) =>
-          val handler: js.Function1[HashChangeEvent, Unit] = _ => {
-            obs.onNext(window.location.hash)
-          }
-          window.addEventListener("hashchange", handler, false)
-          Cancelable(() => window.removeEventListener("hashchange", handler, false))
-        }
-        .startWith(Seq(window.location.hash)),
+      EventObservable[HashChangeEvent](window, "hashchange")
+        .map(_ => window.location.hash)
+        .prepend(window.location.hash),
     )
     .transformSubjectSource(_.distinctOnEquals.replay.hot) // TODO: transformSink distinctOnEquals
 

@@ -6,7 +6,7 @@ import cats.{MonoidK, Applicative, FunctorFilter, Eq, Semigroupal}
 import cats.effect.{Effect, IO}
 
 import scala.scalajs.js
-import org.scalajs.dom
+import scala.scalajs.js.timers
 
 import scala.util.control.NonFatal
 import scala.concurrent.{ExecutionContext, Future}
@@ -73,10 +73,6 @@ object Observable    {
   type Hot[+A]           = Observable[A] with Cancelable
   type HotValue[+A]      = Value[A] with Cancelable
   type HotMaybeValue[+A] = MaybeValue[A] with Cancelable
-
-  final class Synchronous[+A] private[colibri] (source: Observable[A]) extends Observable[A] {
-    def subscribe(sink: Observer[A]): Cancelable = source.subscribe(sink)
-  }
 
   object Empty extends Observable[Nothing] {
     @inline def subscribe(sink: Observer[Nothing]): Cancelable = Cancelable.empty
@@ -158,28 +154,6 @@ object Observable    {
     IO.fromFuture(IO.pure(future))(IO.contextShift(ec)),
   )
 
-  def ofEvent[EV <: dom.Event](target: dom.EventTarget, eventType: String): Synchronous[EV] = new Synchronous(new Observable[EV] {
-    def subscribe(sink: Observer[EV]): Cancelable = {
-      var isCancel = false
-
-      val eventHandler: js.Function1[EV, Unit] = { v =>
-        if (!isCancel) {
-          sink.onNext(v)
-        }
-      }
-
-      def register()   = target.addEventListener(eventType, eventHandler)
-      def unregister() = if (!isCancel) {
-        isCancel = true
-        target.removeEventListener(eventType, eventHandler)
-      }
-
-      register()
-
-      Cancelable(() => unregister())
-    }
-  })
-
   @inline def interval(delay: FiniteDuration): Observable[Long] = intervalMillis(delay.toMillis.toInt)
 
   def intervalMillis(delay: Int): Observable[Long] = new Observable[Long] {
@@ -195,11 +169,11 @@ object Observable    {
 
       send()
 
-      val intervalId = dom.window.setInterval(() => if (!isCancel) send(), delay.toDouble)
+      val intervalId = timers.setInterval(delay.toDouble) { if (!isCancel) send() }
 
       Cancelable { () =>
         isCancel = true
-        dom.window.clearInterval(intervalId)
+        timers.clearInterval(intervalId)
       }
     }
   }
@@ -727,24 +701,23 @@ object Observable    {
 
     def debounceMillis(duration: Int): Observable[A] = new Observable[A] {
       def subscribe(sink: Observer[A]): Cancelable = {
-        var lastTimeout: js.UndefOr[Int] = js.undefined
-        var isCancel                     = false
+        var lastTimeout: js.UndefOr[timers.SetTimeoutHandle] = js.undefined
+        var isCancel                                         = false
 
         Cancelable.composite(
           Cancelable { () =>
             isCancel = true
-            lastTimeout.foreach(dom.window.clearTimeout)
+            lastTimeout.foreach(timers.clearTimeout)
           },
           source.subscribe(
             Observer.create[A](
               { value =>
                 lastTimeout.foreach { id =>
-                  dom.window.clearTimeout(id)
+                  timers.clearTimeout(id)
                 }
-                lastTimeout = dom.window.setTimeout(
-                  () => if (!isCancel) sink.onNext(value),
-                  duration.toDouble,
-                )
+                lastTimeout = timers.setTimeout(duration.toDouble) {
+                  if (!isCancel) sink.onNext(value)
+                }
               },
               sink.onError,
             ),
@@ -765,12 +738,12 @@ object Observable    {
           lastValue = None
         }
 
-        val intervalId = dom.window.setInterval(() => if (!isCancel) send(), duration.toDouble)
+        val intervalId = timers.setInterval(duration.toDouble) { if (!isCancel) send() }
 
         Cancelable.composite(
           Cancelable { () =>
             isCancel = true
-            dom.window.clearInterval(intervalId)
+            timers.clearInterval(intervalId)
           },
           source.subscribe(
             Observer.unsafeCreate(
@@ -789,23 +762,22 @@ object Observable    {
 
     def delayMillis(duration: Int): Observable[A] = new Observable[A] {
       def subscribe(sink: Observer[A]): Cancelable = {
-        var lastTimeout: js.UndefOr[Int] = js.undefined
-        var isCancel                     = false
+        var lastTimeout: js.UndefOr[timers.SetTimeoutHandle] = js.undefined
+        var isCancel                                         = false
 
         // TODO: we onyl actually cancel the last timeout. The check isCancel
         // makes sure that cancelled subscription is really respected.
         Cancelable.composite(
           Cancelable { () =>
             isCancel = true
-            lastTimeout.foreach(dom.window.clearTimeout)
+            lastTimeout.foreach(timers.clearTimeout)
           },
           source.subscribe(
             Observer.create[A](
               { value =>
-                lastTimeout = dom.window.setTimeout(
-                  () => if (!isCancel) sink.onNext(value),
-                  duration.toDouble,
-                )
+                lastTimeout = timers.setTimeout(duration.toDouble) {
+                  if (!isCancel) sink.onNext(value)
+                }
               },
               sink.onError,
             ),
@@ -1079,14 +1051,6 @@ object Observable    {
       def now()                                    = source.now()
       def subscribe(sink: Observer[A]): Cancelable = source.subscribe(sink)
     }
-  }
-
-  @inline implicit class SyncEventOperations[EV <: dom.Event](val source: Synchronous[EV]) extends AnyVal {
-    @inline private def withOperator(newOperator: EV => Unit): Synchronous[EV] = new Synchronous(source.map { ev => newOperator(ev); ev })
-
-    @inline def preventDefault: Synchronous[EV]           = withOperator(_.preventDefault())
-    @inline def stopPropagation: Synchronous[EV]          = withOperator(_.stopPropagation())
-    @inline def stopImmediatePropagation: Synchronous[EV] = withOperator(_.stopImmediatePropagation())
   }
 
   @inline implicit class SubjectValueOperations[A](val handler: Subject.Value[A]) extends AnyVal {
