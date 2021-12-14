@@ -46,3 +46,6 @@ Source Code: [Source.scala](colibri/src/main/scala/colibri/Source.scala), [Sink.
 [Implmentation for Monix](monix/src/main/scala/colibri/ext/monix/package.scala)
 
 [Implmentation for Rx](rx/src/main/scala/colibri/ext/rx/package.scala)
+
+[Implmentation for Airstream](airstream/src/main/scala/colibri/ext/airstream/package.scala)
+
