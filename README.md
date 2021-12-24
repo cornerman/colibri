@@ -12,7 +12,7 @@ For monix support:
 libraryDependencies += "com.github.cornerman" %%% "colibri-monix" % "0.1.2"
 ```
 
-For scala.rx support:
+For scala.rx support (only Scala 2.x):
 ```scala
 libraryDependencies += "com.github.cornerman" %%% "colibri-rx" % "0.1.2"
 ```
