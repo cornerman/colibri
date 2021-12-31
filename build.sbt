@@ -52,7 +52,7 @@ lazy val jsdom = project
   .settings(
     name := "colibri-jsdom",
     libraryDependencies ++= Seq(
-      "org.scala-js"  %%% "scalajs-dom" % "2.0.0",
+      "org.scala-js"  %%% "scalajs-dom" % "2.1.0",
     ),
   )
 
