@@ -780,16 +780,17 @@ object Observable    {
       }
     }
 
-    def distinct(implicit equality: Eq[A]): Observable[A] = new Observable[A] {
+    def distinctBy[B](f: A => B)(implicit equality: Eq[B]): Observable[A] = new Observable[A] {
       def subscribe(sink: Observer[A]): Cancelable = {
-        var lastValue: Option[A] = None
+        var lastValue: Option[B] = None
 
         source.subscribe(
           Observer.unsafeCreate(
             { value =>
-              val shouldSend = lastValue.forall(lastValue => !equality.eqv(lastValue, value))
+              val valueB = f(value)
+              val shouldSend = lastValue.forall(lastValue => !equality.eqv(lastValue, valueB))
               if (shouldSend) {
-                lastValue = Some(value)
+                lastValue = Some(valueB)
                 sink.onNext(value)
               }
             },
@@ -799,6 +800,9 @@ object Observable    {
       }
     }
 
+    @inline def distinct(implicit equality: Eq[A]): Observable[A] = distinctBy(identity)
+
+    @inline def distinctByOnEquals[B](f: A => B): Observable[A] = distinctBy(f)(Eq.fromUniversalEquals)
     @inline def distinctOnEquals: Observable[A] = distinct(Eq.fromUniversalEquals)
 
     def withDefaultSubscription(sink: Observer[A]): Observable[A] = new Observable[A] {
