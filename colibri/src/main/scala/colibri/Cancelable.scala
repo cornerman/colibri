@@ -159,11 +159,18 @@ object Cancelable {
     }
   }
 
-  @inline def lift[T: CanCancel](subscription: T) = apply(() => CanCancel[T].cancel(subscription))
+  @inline def lift[T: CanCancel](subscription: T): Cancelable = subscription match {
+    case cancelable: Cancelable => cancelable
+    case _ => apply(() => CanCancel[T].cancel(subscription))
+  }
 
   @inline def composite(subscriptions: Cancelable*): Cancelable                      = compositeFromIterable(subscriptions)
-  @inline def compositeFromIterable(subscriptions: Iterable[Cancelable]): Cancelable = new Cancelable {
-    def cancel() = subscriptions.foreach(_.cancel())
+  @inline def compositeFromIterable(subscriptions: Iterable[Cancelable]): Cancelable = {
+    val nonEmptySubscriptions = subscriptions.filter(_ != Cancelable.empty)
+    if (nonEmptySubscriptions.isEmpty) Cancelable.empty
+    else new Cancelable {
+      def cancel() = nonEmptySubscriptions.foreach(_.cancel())
+    }
   }
 
   @inline def builder(): Builder = new Builder

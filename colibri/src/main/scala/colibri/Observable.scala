@@ -132,15 +132,19 @@ object Observable    {
       Effect[F]
         .runAsync(effect)(either =>
           IO {
-            if (!isCancel) either match {
+            if (!isCancel) {
+              isCancel = true
+              either match {
               case Right(value) => sink.onNext(value)
               case Left(error)  => sink.onError(error)
+            }
             }
           },
         )
         .unsafeRunSync()
 
-      Cancelable(() => isCancel = true)
+      if (isCancel) Cancelable.empty
+      else Cancelable(() => isCancel = true)
     }
   }
 
@@ -191,6 +195,7 @@ object Observable    {
         .runAsync(effect)(either =>
           IO {
             if (!isCancel) {
+              isCancel = true
               either match {
                 case Right(value) => sink.onNext(value)
                 case Left(error)  => sink.onError(error)
@@ -385,6 +390,7 @@ object Observable    {
                   .runAsync(effect)(either =>
                     IO {
                       if (!isCancel) {
+                        isCancel = true
                         either match {
                           case Right(value) => sink.onNext(value)
                           case Left(error)  => sink.onError(error)
@@ -424,6 +430,7 @@ object Observable    {
                   .runAsync(effect)(either =>
                     IO {
                       if (!isCancel) {
+                        isCancel = true
                         either match {
                           case Right(value) => sink.onNext(value)
                           case Left(error)  => sink.onError(error)
