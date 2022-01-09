@@ -57,18 +57,12 @@ object Observable    {
       ProSubject.from(Observer.lift(sink), Observable.lift(source))
   }
 
-  trait Connectable[+A] extends Observable[A] {
-    def connect(): Cancelable
-  }
   trait Value[+A]       extends Observable[A] {
     def now(): A
   }
   trait MaybeValue[+A]  extends Observable[A] {
     def now(): Option[A]
   }
-
-  type ConnectableValue[+A]      = Connectable[A] with Value[A]
-  type ConnectableMaybeValue[+A] = Connectable[A] with MaybeValue[A]
 
   type Hot[+A]           = Observable[A] with Cancelable
   type HotValue[+A]      = Value[A] with Cancelable
@@ -829,34 +823,28 @@ object Observable    {
       def subscribe(sink: Observer[B]): Cancelable = source.subscribe(transform(sink))
     }
 
-    @inline def publish: Observable.Connectable[A]                 = multicast(Subject.publish[A])
-    @inline def replay: Observable.ConnectableMaybeValue[A]        = multicastMaybeValue(Subject.replay[A])
-    @inline def behavior(value: A): Observable.ConnectableValue[A] = multicastValue(Subject.behavior(value))
+    @inline def publish: Connectable[Observable[A]]                  = multicast(Subject.publish[A])
+    @inline def replay: Connectable[Observable.MaybeValue[A]]        = multicastMaybeValue(Subject.replay[A])
+    @inline def behavior(value: A): Connectable[Observable.Value[A]] = multicastValue(Subject.behavior(value))
 
     @inline def publishSelector[B](f: Observable[A] => Observable[B]): Observable[B]                  = transformSource(s => f(s.publish.refCount))
     @inline def replaySelector[B](f: Observable.MaybeValue[A] => Observable[B]): Observable[B]        = transformSource(s => f(s.replay.refCount))
     @inline def behaviorSelector[B](value: A)(f: Observable.Value[A] => Observable[B]): Observable[B] =
       transformSource(s => f(s.behavior(value).refCount))
 
-    def multicast(pipe: Subject[A]): Connectable[A] = new Connectable[A] {
-      private val refCount: Cancelable.RefCount    = Cancelable.refCount(() => source.subscribe(pipe))
-      def connect(): Cancelable                    = refCount.ref()
+    def multicast(pipe: Subject[A]): Connectable[Observable[A]] = Connectable(new Observable[A] {
       def subscribe(sink: Observer[A]): Cancelable = Source[Observable].subscribe(pipe)(sink)
-    }
+    }, () => source.subscribe(pipe))
 
-    def multicastValue(pipe: Subject.Value[A]): ConnectableValue[A] = new Connectable[A] with Value[A] {
-      private val refCount: Cancelable.RefCount    = Cancelable.refCount(() => source.subscribe(pipe))
+    def multicastValue(pipe: Subject.Value[A]): Connectable[Observable.Value[A]] = Connectable(new Value[A] {
       def now(): A                                 = pipe.now()
-      def connect(): Cancelable                    = refCount.ref()
       def subscribe(sink: Observer[A]): Cancelable = pipe.subscribe(sink)
-    }
+    }, () => source.subscribe(pipe))
 
-    def multicastMaybeValue(pipe: Subject.MaybeValue[A]): ConnectableMaybeValue[A] = new Connectable[A] with MaybeValue[A] {
-      private val refCount: Cancelable.RefCount    = Cancelable.refCount(() => source.subscribe(pipe))
+    def multicastMaybeValue(pipe: Subject.MaybeValue[A]): Connectable[Observable.MaybeValue[A]] = Connectable(new MaybeValue[A] {
       def now(): Option[A]                         = pipe.now()
-      def connect(): Cancelable                    = refCount.ref()
       def subscribe(sink: Observer[A]): Cancelable = pipe.subscribe(sink)
-    }
+    }, () => source.subscribe(pipe))
 
     @inline def prependSync[F[_]: RunSyncEffect](value: F[A]): Observable[A]                  = concatSync[F, A](value, source)
     @inline def prependAsync[F[_]: Effect](value: F[A]): Observable[A]                        = concatAsync[F, A](value, source)
@@ -1011,46 +999,6 @@ object Observable    {
 
   @inline implicit class IterableOperations[A](val source: Observable[Iterable[A]]) extends AnyVal {
     @inline def flattenIterable[B]: Observable[A] = source.mapIterable(identity)
-  }
-
-  @inline implicit class ConnectableOperations[A](val source: Observable.Connectable[A])                     extends AnyVal {
-    def refCount: Observable[A] = new Observable[A] {
-      def subscribe(sink: Observer[A]): Cancelable =
-        Cancelable.composite(source.subscribe(sink), source.connect())
-    }
-
-    def hot: Observable.Hot[A] = new Observable[A] with Cancelable {
-      private val cancelable                       = source.connect()
-      def cancel()                                 = cancelable.cancel()
-      def subscribe(sink: Observer[A]): Cancelable = source.subscribe(sink)
-    }
-  }
-  @inline implicit class ConnectableValueOperations[A](val source: Observable.ConnectableValue[A])           extends AnyVal {
-    def refCount: Observable.Value[A] = new Value[A] {
-      def now()                                    = source.now()
-      def subscribe(sink: Observer[A]): Cancelable =
-        Cancelable.composite(source.subscribe(sink), source.connect())
-    }
-    def hot: Observable.HotValue[A]   = new Value[A] with Cancelable {
-      private val cancelable                       = source.connect()
-      def cancel()                                 = cancelable.cancel()
-      def now()                                    = source.now()
-      def subscribe(sink: Observer[A]): Cancelable = source.subscribe(sink)
-    }
-  }
-  @inline implicit class ConnectableMaybeValueOperations[A](val source: Observable.ConnectableMaybeValue[A]) extends AnyVal {
-
-    def refCount: Observable.MaybeValue[A] = new Observable.MaybeValue[A] {
-      def now()                                    = source.now()
-      def subscribe(sink: Observer[A]): Cancelable =
-        Cancelable.composite(source.subscribe(sink), source.connect())
-    }
-    def hot: Observable.HotMaybeValue[A]   = new Observable.MaybeValue[A] with Cancelable {
-      private val cancelable                       = source.connect()
-      def cancel()                                 = cancelable.cancel()
-      def now()                                    = source.now()
-      def subscribe(sink: Observer[A]): Cancelable = source.subscribe(sink)
-    }
   }
 
   @inline implicit class SubjectValueOperations[A](val handler: Subject.Value[A]) extends AnyVal {

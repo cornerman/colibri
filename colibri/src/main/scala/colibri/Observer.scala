@@ -18,15 +18,6 @@ object Observer    {
 
   @inline def empty = Empty
 
-  class Connectable[-T](
-      val sink: Observer[T],
-      val connect: () => Cancelable,
-  )
-  @inline def connectable[T](sink: Observer[T], connect: () => Cancelable): Connectable[T] = {
-    val cancelable = Cancelable.refCount(connect)
-    new Connectable(sink, () => cancelable.ref())
-  }
-
   def lift[G[_]: Sink, A](sink: G[A]): Observer[A] = sink match {
     case sink: Observer[A @unchecked] => sink
     case _                            =>
@@ -136,10 +127,10 @@ object Observer    {
       def onError(error: Throwable): Unit = f(error)
     }
 
-    def redirect[B](transform: Observable[B] => Observable[A]): Observer.Connectable[B] = {
+    def redirect[B](transform: Observable[B] => Observable[A]): Connectable[Observer[B]] = {
       val handler = Subject.publish[B]
       val source  = transform(handler)
-      Observer.connectable(handler, () => source.subscribe(sink))
+      Connectable(handler, () => source.subscribe(sink))
     }
   }
 
