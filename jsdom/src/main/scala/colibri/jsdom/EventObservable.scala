@@ -18,7 +18,7 @@ final class EventObservable[+EV <: dom.Event](observable: Observable[EV]) extend
 }
 
 object EventObservable {
-  def apply[EV <: dom.Event](target: dom.EventTarget, eventType: String): Observable[EV] = new EventObservable(new Observable[EV] {
+  def apply[EV <: dom.Event](target: dom.EventTarget, eventType: String): EventObservable[EV] = new EventObservable(new Observable[EV] {
     def subscribe(sink: Observer[EV]): Cancelable = {
       var isCancel = false
 
