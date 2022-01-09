@@ -135,9 +135,9 @@ object Observable    {
             if (!isCancel) {
               isCancel = true
               either match {
-              case Right(value) => sink.onNext(value)
-              case Left(error)  => sink.onError(error)
-            }
+                case Right(value) => sink.onNext(value)
+                case Left(error)  => sink.onError(error)
+              }
             }
           },
         )
@@ -1043,6 +1043,36 @@ object Observable    {
     @inline def transformSubject[A2](f: Observer[A] => Observer[A2])(g: Observable[A] => Observable[A2]): Subject[A2] =
       handler.transformProSubject(f)(g)
     @inline def imapSubject[A2](f: A2 => A)(g: A => A2): Subject[A2]                                                  = handler.transformSubject(_.contramap(f))(_.map(g))
+  }
+
+  @inline implicit class ListSubjectOperations[A](val handler: Subject[Seq[A]]) extends AnyVal {
+    def sequence: Observable[Seq[Subject.Value[A]]] = new Observable[Seq[Subject.Value[A]]] {
+      def subscribe(sink: Observer[Seq[Subject.Value[A]]]): Cancelable = {
+        handler.subscribe(Observer.create(
+          { sequence =>
+            sink.onNext(sequence.zipWithIndex.map { case (a, idx) =>
+              new Observer[A] with Observable.Value[A] {
+                def now(): A = a
+
+                def subscribe(sink: Observer[A]): Cancelable = {
+                  sink.onNext(a)
+                  Cancelable.empty
+                }
+
+                def onNext(value: A): Unit = {
+                  handler.onNext(sequence.updated(idx, value))
+                }
+
+                def onError(error: Throwable): Unit = {
+                  sink.onError(error)
+                }
+              }
+            })
+          },
+          sink.onError
+        ))
+      }
+    }
   }
 
   private def recovered[T](action: => Unit, onError: Throwable => Unit) = try action
