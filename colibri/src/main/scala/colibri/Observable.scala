@@ -259,7 +259,7 @@ object Observable    {
   @inline implicit class Operations[A](val source: Observable[A]) extends AnyVal {
     def failed: Observable[Throwable] = new Observable[Throwable] {
       def subscribe(sink: Observer[Throwable]): Cancelable =
-        source.subscribe(Observer.unsafeCreate(_ => (), sink.onError(_)))
+        source.subscribe(Observer.unsafeCreate(_ => (), sink.onNext(_)))
     }
 
     def via(sink: Observer[A]): Observable[A] = new Observable[A] {
