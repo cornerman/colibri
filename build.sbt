@@ -25,8 +25,8 @@ inThisBuild(
 )
 
 lazy val commonSettings = Seq(
-  crossScalaVersions := Seq("2.12.15", "2.13.7", "3.1.0"),
-  scalaVersion := "2.13.7",
+  crossScalaVersions := Seq("2.12.15", "2.13.8", "3.1.0"),
+  scalaVersion := "2.13.8",
   libraryDependencies ++= Seq(
     "org.scalatest" %%% "scalatest" % "3.2.10" % Test,
   ),
@@ -86,7 +86,7 @@ lazy val rx = project
   .settings(commonSettings)
   .settings(
     name := "colibri-rx",
-    crossScalaVersions := Seq("2.12.15", "2.13.7"), // no scala3, because scala.rx uses scala2 macros
+    crossScalaVersions := Seq("2.12.15", "2.13.8"), // no scala3, because scala.rx uses scala2 macros
     libraryDependencies ++= Seq(
       "com.lihaoyi" %% "scalarx" % "0.4.3",
     ),
