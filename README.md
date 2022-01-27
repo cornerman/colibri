@@ -2,6 +2,9 @@
 
 # Colibri - a simple functional reactive library for scala-js
 
+Colibri is an implementation of the `Observable`, `Observer` and `Subject` concepts. If you're new to these, here is a nice introduction: <https://rxjs.dev/guide/overview>.
+
+
 Usage:
 ```scala
 libraryDependencies += "com.github.cornerman" %%% "colibri" % "0.1.2"
