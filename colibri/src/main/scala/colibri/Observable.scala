@@ -286,6 +286,10 @@ object Observable    {
       def subscribe(sink: Observer[A]): Cancelable = source.subscribe(sink.contrafilter(f))
     }
 
+    def scanToList: Observable[List[A]] = scan(List.empty[A])((list, x) => x :: list)
+
+    def scan0ToList: Observable[List[A]] = scan0(List.empty[A])((list, x) => x :: list)
+
     def scan0[B](seed: B)(f: (B, A) => B): Observable[B] = scan(seed)(f).prepend(seed)
 
     def scan[B](seed: B)(f: (B, A) => B): Observable[B] = new Observable[B] {
