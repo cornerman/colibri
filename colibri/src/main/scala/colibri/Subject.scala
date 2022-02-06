@@ -66,7 +66,7 @@ class PublishSubject[A] extends Observer[A] with Observable[A] {
     val observer = Observer.lift(sink)
     subscribers.push(observer)
     Cancelable { () =>
-      if (isRunning) subscribers = subscribers.filter(_ != observer)
+      if (isRunning) subscribers = JSArrayHelper.removeElementCopied(subscribers)(observer)
       else JSArrayHelper.removeElement(subscribers)(observer)
     }
   }
