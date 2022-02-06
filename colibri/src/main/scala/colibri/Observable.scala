@@ -760,8 +760,31 @@ object Observable    {
       }
     }
 
-    //TODO setImmediate?
-    @inline def async: Observable[A] = delayMillis(0)
+    @inline def async: Observable[A] = new Observable[A] {
+      def subscribe(sink: Observer[A]): Cancelable = {
+        var lastTimeout: js.UndefOr[NativeTypes.SetImmediateHandle] = js.undefined
+        var isCancel                                         = false
+
+        // TODO: we only actually cancel the last timeout. The check isCancel
+        // makes sure that cancelled subscription is really respected.
+        Cancelable.composite(
+          Cancelable { () =>
+            isCancel = true
+            lastTimeout.foreach(NativeTypes.clearImmediateRef)
+          },
+          source.subscribe(
+            Observer.create[A](
+              { value =>
+                lastTimeout = NativeTypes.setImmediateRef { () =>
+                  if (!isCancel) sink.onNext(value)
+                }
+              },
+              sink.onError,
+            ),
+          ),
+        )
+      }
+    }
 
     @inline def delay(duration: FiniteDuration): Observable[A] = delayMillis(duration.toMillis.toInt)
 
@@ -770,7 +793,7 @@ object Observable    {
         var lastTimeout: js.UndefOr[timers.SetTimeoutHandle] = js.undefined
         var isCancel                                         = false
 
-        // TODO: we onyl actually cancel the last timeout. The check isCancel
+        // TODO: we only actually cancel the last timeout. The check isCancel
         // makes sure that cancelled subscription is really respected.
         Cancelable.composite(
           Cancelable { () =>
