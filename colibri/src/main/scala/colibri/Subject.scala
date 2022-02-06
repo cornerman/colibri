@@ -3,11 +3,13 @@ package colibri
 import scala.scalajs.js
 import colibri.helpers._
 
-class ReplaySubject[A] extends Observer[A] with Observable.MaybeValue[A] {
+final class ReplaySubject[A] extends Observer[A] with Observable.MaybeValue[A] {
 
   private val state = new PublishSubject[A]
 
   private var current: Option[A] = None
+
+  def hasSubscribers: Boolean = state.hasSubscribers
 
   @inline def now(): Option[A] = current
 
@@ -25,9 +27,11 @@ class ReplaySubject[A] extends Observer[A] with Observable.MaybeValue[A] {
   }
 }
 
-class BehaviorSubject[A](private var current: A) extends Observer[A] with Observable.Value[A] {
+final class BehaviorSubject[A](private var current: A) extends Observer[A] with Observable.Value[A] {
 
   private val state = new PublishSubject[A]
+
+  def hasSubscribers: Boolean = state.hasSubscribers
 
   @inline def now(): A = current
 
@@ -45,10 +49,12 @@ class BehaviorSubject[A](private var current: A) extends Observer[A] with Observ
   }
 }
 
-class PublishSubject[A] extends Observer[A] with Observable[A] {
+final class PublishSubject[A] extends Observer[A] with Observable[A] {
 
   private var subscribers = new js.Array[Observer[A]]
   private var isRunning   = false
+
+  def hasSubscribers: Boolean = subscribers.nonEmpty
 
   def onNext(value: A): Unit = {
     isRunning = true
