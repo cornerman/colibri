@@ -46,9 +46,9 @@ Throughout the library the type parameters for the `Sink` and `Source` typeclass
 
 Source Code: [Source.scala](colibri/src/main/scala/colibri/Source.scala), [Sink.scala](colibri/src/main/scala/colibri/Sink.scala)
 
-[Implmentation for Monix](monix/src/main/scala/colibri/ext/monix/package.scala)
+[Implementation for Monix](monix/src/main/scala/colibri/ext/monix/package.scala)
 
-[Implmentation for Rx](rx/src/main/scala/colibri/ext/rx/package.scala)
+[Implementation for Rx](rx/src/main/scala/colibri/ext/rx/package.scala)
 
-[Implmentation for Airstream](airstream/src/main/scala/colibri/ext/airstream/package.scala)
+[Implementation for Airstream](airstream/src/main/scala/colibri/ext/airstream/package.scala)
 
