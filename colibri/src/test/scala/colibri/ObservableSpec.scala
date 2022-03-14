@@ -24,6 +24,42 @@ class ObservableSpec extends AnyFlatSpec with Matchers {
     received shouldBe List(3, 2, 1, 3, 2, 1)
   }
 
+  it should "recover" in {
+    var recovered = List.empty[Throwable]
+    var received = List.empty[Unit]
+    var receivedErrors = List.empty[Throwable]
+    val exception = new Exception("hallo")
+    val stream   = Observable.failure(exception).recover { case t => recovered ::= t }
+
+    recovered shouldBe List.empty
+    received shouldBe List.empty
+    receivedErrors shouldBe List.empty
+
+    stream.subscribe(Observer.create[Unit](received ::= _, receivedErrors ::= _))
+
+    recovered shouldBe List(exception)
+    received shouldBe List(())
+    receivedErrors shouldBe List.empty
+  }
+
+  it should "recover after mapAsync" in {
+    var recovered = List.empty[Throwable]
+    var received = List.empty[Unit]
+    var receivedErrors = List.empty[Throwable]
+    val exception = new Exception("hallo")
+    val stream   = Observable(()).mapAsync(_ => cats.effect.IO.raiseError(exception)).recover { case t => recovered ::= t }
+
+    recovered shouldBe List.empty
+    received shouldBe List.empty
+    receivedErrors shouldBe List.empty
+
+    stream.subscribe(Observer.create[Unit](received ::= _, receivedErrors ::= _))
+
+    recovered shouldBe List(exception)
+    received shouldBe List(())
+    receivedErrors shouldBe List.empty
+  }
+
   it should "scan" in {
     var mapped   = List.empty[Int]
     var received = List.empty[Int]
