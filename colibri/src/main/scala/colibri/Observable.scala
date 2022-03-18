@@ -34,7 +34,7 @@ object Observable    {
   implicit object monadError extends MonadError[Observable, Throwable] {
     @inline def pure[A](a: A): Observable[A]                                       = Observable(a)
     @inline override def map[A, B](fa: Observable[A])(f: A => B): Observable[B]    = fa.map(f)
-    @inline def handleErrorWith[A](fa: Observable[A])(f: Throwable => Observable[A]): Observable[A] = flatMap(fa.recoverToEither)(_.fold(raiseError(_), pure(_)))
+    @inline def handleErrorWith[A](fa: Observable[A])(f: Throwable => Observable[A]): Observable[A] = flatMap(fa.attempt)(_.fold(raiseError(_), pure(_)))
     @inline def raiseError[A](e: Throwable): Observable[A] = Observable.failure(e)
     @inline def flatMap[A, B](fa: Observable[A])(f: A => Observable[B]): Observable[B] = fa.mergeMap(f)
     @inline def tailRecM[A, B](a: A)(f: A => Observable[Either[A,B]]): Observable[B] = flatMap(f(a)) {
@@ -276,6 +276,9 @@ object Observable    {
       def subscribe(sink: Observer[B]): Cancelable = source.subscribe(sink.contramap(f))
     }
 
+    def as[B](value: => B): Observable[B] = map(_ => value)
+    def asStrict[B](value: B): Observable[B] = map(_ => value)
+
     def mapFilter[B](f: A => Option[B]): Observable[B] = new Observable[B] {
       def subscribe(sink: Observer[B]): Cancelable = source.subscribe(sink.contramapFilter(f))
     }
@@ -306,7 +309,10 @@ object Observable    {
       def subscribe(sink: Observer[B]): Cancelable = source.subscribe(sink.contramapEither(f))
     }
 
-    def recoverToEither: Observable[Either[Throwable, A]] = source.map[Either[Throwable, A]](Right(_)).recover { case err => Left(err) }
+    def attempt: Observable[Either[Throwable, A]] = source.map[Either[Throwable, A]](Right(_)).recover { case err => Left(err) }
+
+    @deprecated("Use .attempt instead", "0.2.7")
+    def recoverToEither: Observable[Either[Throwable, A]] = source.attempt
 
     def recover(f: PartialFunction[Throwable, A]): Observable[A] = recoverOption(f andThen (Some(_)))
 
