@@ -1,8 +1,8 @@
 package colibri
 
 trait Sink[-G[_]] {
-  def onNext[A](sink: G[A])(value: A): Unit
-  def onError[A](sink: G[A])(error: Throwable): Unit
+  def unsafeOnNext[A](sink: G[A])(value: A): Unit
+  def unsafeOnError[A](sink: G[A])(error: Throwable): Unit
 }
 object Sink       {
   @inline def apply[G[_]](implicit sink: Sink[G]): Sink[G] = sink

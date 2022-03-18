@@ -16,19 +16,19 @@ package object monix {
   // Sink
 
   implicit object monixVariableSink extends Sink[Var] {
-    def onNext[A](sink: Var[A])(value: A): Unit = { sink := value; () }
+    def unsafeOnNext[A](sink: Var[A])(value: A): Unit = { sink := value; () }
 
-    def onError[A](sink: Var[A])(error: Throwable): Unit = UnhandledErrorReporter.errorSubject.onNext(error)
+    def unsafeOnError[A](sink: Var[A])(error: Throwable): Unit = UnhandledErrorReporter.errorSubject.unsafeOnNext(error)
   }
 
   //TODO: unsafe because of backpressure and ignored ACK
   implicit object monixObserverSink extends Sink[Observer] {
-    def onNext[A](sink: Observer[A])(value: A): Unit = {
+    def unsafeOnNext[A](sink: Observer[A])(value: A): Unit = {
       sink.onNext(value)
       ()
     }
 
-    def onError[A](sink: Observer[A])(error: Throwable): Unit = {
+    def unsafeOnError[A](sink: Observer[A])(error: Throwable): Unit = {
       sink.onError(error)
       ()
     }
@@ -36,8 +36,8 @@ package object monix {
 
   implicit object monixObserverLiftSink extends LiftSink[Observer.Sync] {
     def lift[G[_]: Sink, A](sink: G[A]): Observer.Sync[A] = new Observer.Sync[A] {
-      def onNext(value: A): Ack = { Sink[G].onNext(sink)(value); Ack.Continue }
-      def onError(error: Throwable): Unit = Sink[G].onError(sink)(error)
+      def onNext(value: A): Ack = { Sink[G].unsafeOnNext(sink)(value); Ack.Continue }
+      def onError(error: Throwable): Unit = Sink[G].unsafeOnError(sink)(error)
       def onComplete(): Unit              = ()
     }
   }
@@ -45,25 +45,25 @@ package object monix {
   // Source
 
   implicit def monixObservableSource(implicit scheduler: Scheduler): Source[Observable] = new Source[Observable] {
-    def subscribe[A](source: Observable[A])(sink: colibri.Observer[A]): colibri.Cancelable = {
-      val sub = source.subscribe(
-        { v => sink.onNext(v); Ack.Continue },
-        sink.onError,
+    def unsafeSubscribe[A](source: Observable[A])(sink: colibri.Observer[A]): colibri.Cancelable = {
+      val sub = source.unsafeSubscribe(
+        { v => sink.unsafeOnNext(v); Ack.Continue },
+        sink.unsafeOnError,
       )
-      colibri.Cancelable(sub.cancel)
+      colibri.Cancelable(sub.unsafeCancel)
     }
   }
 
   implicit object monixObservableLiftSource extends LiftSource[Observable] {
     def lift[H[_]: Source, A](source: H[A]): Observable[A] = Observable.create[A](OverflowStrategy.Unbounded) { observer =>
-      val sub = Source[H].subscribe(source)(colibri.Observer.lift(observer))
+      val sub = Source[H].unsafeSubscribe(source)(colibri.Observer.lift(observer))
       Cancelable(() => sub.cancel())
     }
   }
 
   // Cancelable
   implicit object monixCanCancel extends CanCancel[Cancelable] {
-    def cancel(subscription: Cancelable): Unit = subscription.cancel()
+    def unsafeCancel(subscription: Cancelable): Unit = subscription.cancel()
   }
 
   implicit object coeval extends RunSyncEffect[Coeval] {

@@ -16,6 +16,6 @@ object Router {
     )
     .transformSubjectSource(_.distinctOnEquals.replay.hot) // TODO: transformSink distinctOnEquals
 
-  val hashFragment = locationHash.imapSubject[String](s => s"#${s}")(_.tail)
-  val path         = hashFragment.imapSubject[Path](_.pathString)(Path(_))
+  val hashFragment: Subject[String] = locationHash.imapSubject[String](s => s"#${s}")(_.tail)
+  val path: Subject[Path]           = hashFragment.imapSubject[Path](_.pathString)(Path(_))
 }

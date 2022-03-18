@@ -1,7 +1,10 @@
 package colibri
 
 trait Source[-H[_]] {
-  def subscribe[A](source: H[A])(sink: Observer[A]): Cancelable
+  def unsafeSubscribe[A](source: H[A])(sink: Observer[A]): Cancelable
+
+  @deprecated("Use unsafeSubscribe instead", "0.2.7")
+  @inline final def subscribe[A](source: H[A])(sink: Observer[A]): Cancelable = unsafeSubscribe(source)(sink)
 }
 object Source       {
   @inline def apply[H[_]](implicit source: Source[H]): Source[H] = source
