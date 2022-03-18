@@ -15,38 +15,38 @@ object Connectable {
 
   @inline implicit class ConnectableObservableOperations[A](val source: Connectable[Observable[A]]) extends AnyVal {
     def refCount: Observable[A] = new Observable[A] {
-      def subscribe(sink: Observer[A]): Cancelable = Cancelable.composite(source.value.subscribe(sink), source.connect())
+      def unsafeSubscribe(sink: Observer[A]): Cancelable = Cancelable.composite(source.value.unsafeSubscribe(sink), source.connect())
     }
     def hot: Observable.Hot[A] = new Observable[A] with Cancelable {
       private val cancelable                       = source.connect()
-      def cancel()                                 = cancelable.cancel()
-      def subscribe(sink: Observer[A]): Cancelable = source.value.subscribe(sink)
+      def unsafeCancel()                                 = cancelable.unsafeCancel()
+      def unsafeSubscribe(sink: Observer[A]): Cancelable = source.value.unsafeSubscribe(sink)
     }
   }
 
   @inline implicit class ConnectableObservableValueOperations[A](val source: Connectable[Observable.Value[A]]) extends AnyVal {
     def refCount: Observable.Value[A] = new Observable.Value[A] {
       def now()                                    = source.value.now()
-      def subscribe(sink: Observer[A]): Cancelable = Cancelable.composite(source.value.subscribe(sink), source.connect())
+      def unsafeSubscribe(sink: Observer[A]): Cancelable = Cancelable.composite(source.value.unsafeSubscribe(sink), source.connect())
     }
     def hot: Observable.HotValue[A]   = new Observable.Value[A] with Cancelable {
       private val cancelable                       = source.connect()
-      def cancel()                                 = cancelable.cancel()
+      def unsafeCancel()                                 = cancelable.unsafeCancel()
       def now()                                    = source.value.now()
-      def subscribe(sink: Observer[A]): Cancelable = source.value.subscribe(sink)
+      def unsafeSubscribe(sink: Observer[A]): Cancelable = source.value.unsafeSubscribe(sink)
     }
   }
 
   @inline implicit class ConnectableObservableMaybeValueOperations[A](val source: Connectable[Observable.MaybeValue[A]]) extends AnyVal {
     def refCount: Observable.MaybeValue[A] = new Observable.MaybeValue[A] {
       def now()                                    = source.value.now()
-      def subscribe(sink: Observer[A]): Cancelable = Cancelable.composite(source.value.subscribe(sink), source.connect())
+      def unsafeSubscribe(sink: Observer[A]): Cancelable = Cancelable.composite(source.value.unsafeSubscribe(sink), source.connect())
     }
     def hot: Observable.HotMaybeValue[A] = new Observable.MaybeValue[A] with Cancelable {
       private val cancelable                       = source.connect()
-      def cancel()                                 = cancelable.cancel()
+      def unsafeCancel()                                 = cancelable.unsafeCancel()
       def now()                                    = source.value.now()
-      def subscribe(sink: Observer[A]): Cancelable = source.value.subscribe(sink)
+      def unsafeSubscribe(sink: Observer[A]): Cancelable = source.value.unsafeSubscribe(sink)
     }
   }
 }

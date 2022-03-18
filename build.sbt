@@ -24,12 +24,14 @@ inThisBuild(
   ),
 )
 
+
 lazy val commonSettings = Seq(
   crossScalaVersions := Seq("2.12.15", "2.13.8", "3.1.1"),
   scalaVersion := "2.13.8",
   libraryDependencies ++= Seq(
     "org.scalatest" %%% "scalatest" % "3.2.11" % Test,
   ),
+  scalacOptions --= Seq("-Xfatal-warnings"), // overwrite option from https://github.com/DavidGregory084/sbt-tpolecat
 )
 
 lazy val colibri = project
@@ -39,9 +41,8 @@ lazy val colibri = project
   .settings(
     name := "colibri",
     libraryDependencies ++= Seq(
-      "org.typelevel" %%% "cats-core"   % "2.7.0",
-      "org.typelevel" %%% "cats-effect" % "2.5.4",
-    ),
+      "org.typelevel" %%% "cats-effect" % "3.3.8",
+    )
   )
 
 lazy val jsdom = project
@@ -67,17 +68,18 @@ lazy val router = project
     ),
   )
 
-lazy val monix = project
-  .enablePlugins(ScalaJSPlugin)
-  .dependsOn(colibri)
-  .in(file("monix"))
-  .settings(commonSettings)
-  .settings(
-    name := "colibri-monix",
-    libraryDependencies ++= Seq(
-      "io.monix" %%% "monix" % "3.4.0",
-    ),
-  )
+/* lazy val monix = project */
+/*   .enablePlugins(ScalaJSPlugin) */
+/*   .dependsOn(colibri) */
+/*   .in(file("monix")) */
+/*   .settings(commonSettings, jsSettings) */
+/*   .settings( */
+/*     name := "colibri-monix", */
+
+/*     libraryDependencies ++= Seq( */
+/*       "io.monix"      %%% "monix"       % "3.4.0", */
+/*     ) */
+/*   ) */
 
 lazy val rx = project
   .enablePlugins(ScalaJSPlugin)

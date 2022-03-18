@@ -6,7 +6,7 @@ import scala.scalajs.js
 import org.scalajs.dom
 
 final class EventObservable[+EV <: dom.Event](observable: Observable[EV]) extends Observable[EV] {
-  def subscribe(sink: Observer[EV]): Cancelable = observable.subscribe(sink)
+  def unsafeSubscribe(sink: Observer[EV]): Cancelable = observable.unsafeSubscribe(sink)
 
   def filter(f: EV => Boolean): EventObservable[EV] = new EventObservable(observable.filter(f))
 
@@ -19,12 +19,12 @@ final class EventObservable[+EV <: dom.Event](observable: Observable[EV]) extend
 
 object EventObservable {
   def apply[EV <: dom.Event](target: dom.EventTarget, eventType: String): EventObservable[EV] = new EventObservable(new Observable[EV] {
-    def subscribe(sink: Observer[EV]): Cancelable = {
+    def unsafeSubscribe(sink: Observer[EV]): Cancelable = {
       var isCancel = false
 
       val eventHandler: js.Function1[EV, Unit] = { v =>
         if (!isCancel) {
-          sink.onNext(v)
+          sink.unsafeOnNext(v)
         }
       }
 
