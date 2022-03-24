@@ -49,17 +49,6 @@ object Observable {
     @inline def product[A, B](fa: Observable[A], fb: Observable[B]): Observable[(A, B)] = fa.combineLatest(fb)
   }
 
-  implicit object createSubject extends CreateSubject[Subject] {
-    @inline def publish[A]: Subject[A]           = Subject.publish[A]
-    @inline def replay[A]: Subject[A]            = Subject.replay[A]
-    @inline def behavior[A](seed: A): Subject[A] = Subject.behavior[A](seed)
-  }
-
-  implicit object createProSubject extends CreateProSubject[ProSubject] {
-    @inline def from[GI[_]: Sink, HO[_]: Source, I, O](sink: GI[I], source: HO[O]): ProSubject[I, O] =
-      ProSubject.from(Observer.lift(sink), Observable.lift(source))
-  }
-
   trait Value[+A]       extends Observable[A] {
     def now(): A
   }
