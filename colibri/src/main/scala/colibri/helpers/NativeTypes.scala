@@ -1,4 +1,4 @@
-package colibri
+package colibri.helpers
 
 import scala.scalajs.js
 

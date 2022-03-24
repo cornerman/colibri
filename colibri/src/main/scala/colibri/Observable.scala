@@ -1,6 +1,7 @@
 package colibri
 
 import cats.implicits._
+import colibri.helpers.NativeTypes
 import colibri.effect.{RunSyncEffect, RunEffect}
 import cats.{Eq, FunctorFilter, MonoidK, Semigroupal, MonadError}
 import cats.effect.{Sync, SyncIO, Async, IO}

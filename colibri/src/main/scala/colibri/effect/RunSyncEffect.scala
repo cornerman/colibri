@@ -3,7 +3,8 @@ package colibri.effect
 import cats.Eval
 import cats.implicits._
 import cats.effect.SyncIO
-import colibri.{NativeTypes, Cancelable}
+import colibri.Cancelable
+import colibri.helpers.NativeTypes
 
 trait RunSyncEffect[-F[_]] extends RunEffect[F] {
   def unsafeRun[T](effect: F[T]): Either[Throwable, T]
