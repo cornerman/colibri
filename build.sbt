@@ -68,20 +68,6 @@ lazy val router = project
     ),
   )
 
-//TODO: not compatible with cats-effect 3
-/* lazy val monix = project */
-/*   .enablePlugins(ScalaJSPlugin) */
-/*   .dependsOn(colibri) */
-/*   .in(file("monix")) */
-/*   .settings(commonSettings, jsSettings) */
-/*   .settings( */
-/*     name := "colibri-monix", */
-
-/*     libraryDependencies ++= Seq( */
-/*       "io.monix"      %%% "monix"       % "3.4.0", */
-/*     ) */
-/*   ) */
-
 lazy val rx = project
   .enablePlugins(ScalaJSPlugin)
   .dependsOn(colibri)
