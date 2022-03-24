@@ -68,6 +68,7 @@ lazy val router = project
     ),
   )
 
+//TODO: not compatible with cats-effect 3
 /* lazy val monix = project */
 /*   .enablePlugins(ScalaJSPlugin) */
 /*   .dependsOn(colibri) */
@@ -104,4 +105,17 @@ lazy val airstream = project
     libraryDependencies ++= Seq(
       "com.raquo" %%% "airstream" % "0.14.2"
     ),
+  )
+
+lazy val zio = project
+  .enablePlugins(ScalaJSPlugin)
+  .dependsOn(colibri)
+  .in(file("zio"))
+  .settings(commonSettings)
+  .settings(
+    name := "colibri-zio",
+    libraryDependencies ++= Seq(
+      "dev.zio" %%% "zio" % "1.0.12",
+      "io.github.cquiroz" %%% "scala-java-time" % "2.3.0"
+    )
   )
