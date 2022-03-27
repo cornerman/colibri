@@ -5,6 +5,7 @@ import colibri.helpers.NativeTypes
 import colibri.effect.{RunSyncEffect, RunEffect}
 import cats.{Eq, FunctorFilter, MonoidK, Semigroupal, Applicative}
 import cats.effect.{Sync, SyncIO, Async, IO}
+import sloth.types.FlatMapError
 
 import scala.scalajs.js
 import scala.scalajs.js.timers
@@ -42,6 +43,11 @@ object Observable {
 
   implicit object semigroupal extends Semigroupal[Observable] {
     @inline def product[A, B](fa: Observable[A], fb: Observable[B]): Observable[(A, B)] = fa.combineLatest(fb)
+  }
+
+  implicit object flatMapError extends FlatMapError[Observable, Throwable] {
+    def raiseError[B](failure: Throwable): Observable[B] = Observable.raiseError(failure)
+    def flatMapEither[A,B](fa: Observable[A])(f: A => Either[Throwable, B]): Observable[B] = fa.mapEither(f)
   }
 
   trait Value[+A]       extends Observable[A] {

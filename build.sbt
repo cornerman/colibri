@@ -43,6 +43,7 @@ lazy val colibri = project
     libraryDependencies ++= Seq(
       "org.typelevel" %%% "cats-core"   % "2.7.0",
       "org.typelevel" %%% "cats-effect" % "3.3.9",
+      "com.github.cornerman" %%% "sloth-types" % "0.6.3"
     ),
   )
 
