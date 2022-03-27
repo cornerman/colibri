@@ -30,13 +30,11 @@ object Cancelable {
   class Builder extends Cancelable {
     private var buffer = new js.Array[Cancelable]()
 
-    def +=(subscription: Cancelable): Unit =
-      if (buffer == null) {
-        subscription.unsafeCancel()
-      } else {
-        buffer.push(subscription)
-        ()
-      }
+    def +=(subscription: () => Cancelable): Unit = if (buffer != null) {
+      val cancelable = subscription()
+      buffer.push(cancelable)
+      ()
+    }
 
     def unsafeCancel(): Unit =
       if (buffer != null) {
@@ -48,13 +46,18 @@ object Cancelable {
   class Variable extends Cancelable {
     private var current: Cancelable = Cancelable.empty
 
-    def update(subscription: Cancelable): Unit =
-      if (current == null) {
-        subscription.unsafeCancel()
-      } else {
-        current.unsafeCancel()
-        current = subscription
+    def update(subscription: () => Cancelable): Unit = if (current != null) {
+      current.unsafeCancel()
+
+      var isCancel = false
+      current = Cancelable { () =>
+        isCancel = true
       }
+
+      val cancelable = subscription()
+      if (isCancel) cancelable.unsafeCancel()
+      else current = cancelable
+    }
 
     def unsafeCancel(): Unit =
       if (current != null) {
@@ -75,7 +78,7 @@ object Cancelable {
         val variable       = Cancelable.variable()
         latest = variable
         subscriptions.splice(0, deleteCount = 1)
-        variable() = nextCancelable()
+        variable() = nextCancelable
         ()
       }
     }
@@ -84,7 +87,7 @@ object Cancelable {
       if (latest == null) {
         val variable = Cancelable.variable()
         latest = variable
-        variable() = subscription()
+        variable() = subscription
       } else {
         subscriptions.push(subscription)
         ()
@@ -112,7 +115,7 @@ object Cancelable {
     def update(subscription: () => Cancelable): Unit = if (latest == null) {
       val variable = Cancelable.variable()
       latest = variable
-      variable() = subscription()
+      variable() = subscription
     }
 
     def unsafeCancel(): Unit = if (!isCancel) {
@@ -173,7 +176,7 @@ object Cancelable {
   }
 
   @inline def composite(subscriptions: Cancelable*): Cancelable                      = compositeFromIterable(subscriptions)
-  @inline def compositeFromIterable(subscriptions: Iterable[Cancelable]): Cancelable = {
+  def compositeFromIterable(subscriptions: Iterable[Cancelable]): Cancelable = {
     val nonEmptySubscriptions = subscriptions.filter(_ != Cancelable.empty)
     if (nonEmptySubscriptions.isEmpty) Cancelable.empty
     else new Cancelable {
