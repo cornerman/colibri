@@ -137,7 +137,7 @@ object Observer    {
     }
 
     def redirect[B](transform: Observable[B] => Observable[A]): Connectable[Observer[B]] = {
-      val handler = Subject.publish[B]
+      val handler = Subject.publish[B]()
       val source  = transform(handler)
       Connectable(handler, () => source.unsafeSubscribe(sink))
     }
