@@ -35,13 +35,14 @@ object NativeTypes {
     (callback: js.Function0[Unit]) => {
       js.Promise.resolve[Unit](())
         .`then`[Unit]((_:Unit) => callback() : Unit | js.Thenable[Unit])
-        .`catch`[Unit]({
+          .`catch`[Unit]({
             case t: Throwable =>
               js.timers.setTimeout(0)(throw t)
               ()
             case _ =>
               ()
         }: js.Function1[Any, Unit | js.Thenable[Unit]])
+
         ()
     }
   }
