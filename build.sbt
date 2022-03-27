@@ -27,6 +27,12 @@ inThisBuild(
 lazy val commonSettings = Seq(
   crossScalaVersions := Seq("2.12.15", "2.13.8", "3.1.1"),
   scalaVersion := "2.13.8",
+
+  libraryDependencies ++= (CrossVersion.partialVersion(scalaVersion.value) match {
+    case Some((3, _)) => Seq.empty
+    case _ => Seq(compilerPlugin("org.typelevel" % "kind-projector" % "0.13.2" cross CrossVersion.full))
+  }),
+
   libraryDependencies ++= Seq(
     "org.scalatest" %%% "scalatest" % "3.2.11" % Test,
   ),

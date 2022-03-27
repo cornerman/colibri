@@ -44,4 +44,21 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
     received shouldBe List(300, 200, 100)
     errors shouldBe 0
   }
+
+  it should "mapEffect RIO" in {
+    import zio.duration._
+    var received = List.empty[Int]
+    var errors   = 0
+    val stream   = Observable(12).mapEffect(i => ZIO.sleep(100.millis).as(i))
+
+    stream.unsafeSubscribe(
+      Observer.create[Int](
+        received ::= _,
+        _ => errors += 1,
+      ),
+    )
+
+    received shouldBe List()
+    errors shouldBe 0
+  }
 }
