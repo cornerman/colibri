@@ -689,7 +689,30 @@ object Observable {
       }
     }
 
-    @inline def async: Observable[A] = new Observable[A] {
+    def asyncMicro: Observable[A] = new Observable[A] {
+      def unsafeSubscribe(sink: Observer[A]): Cancelable = {
+        var isCancel                                         = false
+
+        Cancelable.composite(
+          Cancelable { () =>
+            isCancel = true
+          },
+          source.unsafeSubscribe(
+            Observer.create[A](
+              { value =>
+                NativeTypes.queueMicrotask { () =>
+                  if (!isCancel) sink.unsafeOnNext(value)
+                }
+              },
+              sink.unsafeOnError,
+            ),
+          ),
+        )
+      }
+    }
+
+    @inline def async: Observable[A] = asyncMacro
+    def asyncMacro: Observable[A] = new Observable[A] {
       def unsafeSubscribe(sink: Observer[A]): Cancelable = {
         var lastTimeout: js.UndefOr[NativeTypes.SetImmediateHandle] = js.undefined
         var isCancel                                         = false
