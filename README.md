@@ -7,22 +7,22 @@ Colibri is an implementation of the `Observable`, `Observer` and `Subject` conce
 
 Usage:
 ```scala
-libraryDependencies += "com.github.cornerman" %%% "colibri" % "0.1.2"
-```
-
-For monix support:
-```scala
-libraryDependencies += "com.github.cornerman" %%% "colibri-monix" % "0.1.2"
+libraryDependencies += "com.github.cornerman" %%% "colibri" % "0.3.0"
 ```
 
 For scala.rx support (only Scala 2.x):
 ```scala
-libraryDependencies += "com.github.cornerman" %%% "colibri-rx" % "0.1.2"
+libraryDependencies += "com.github.cornerman" %%% "colibri-rx" % "0.3.0"
 ```
 
 For airstream support:
 ```scala
-libraryDependencies += "com.github.cornerman" %%% "colibri-airstream" % "0.1.2"
+libraryDependencies += "com.github.cornerman" %%% "colibri-airstream" % "0.3.0"
+```
+
+For zio support (effects only):
+```scala
+libraryDependencies += "com.github.cornerman" %%% "colibri-zio" % "0.3.0"
 ```
 
 This library includes a minimal frp library and typeclasses for streaming.
@@ -34,8 +34,6 @@ We have prepared typeclasses for integrating other streaming libaries:
 - `SubscriptionOwner[T]` can let type `T` own a subscription
 - `LiftSink[G[_]]` can lift a `Sink` into type `G`
 - `LiftSource[H[_]]` can lift a `Source` into type `H`
-- `CreateSubject[GH[_]]` how to create subject in `GH`
-- `CreateProHandler[GH[_,_]]` how to create subject in `GH` which has differnt input/output types.
 
 Most important here are `Sink` and `Source`. `Source` is a typeclass for Observables, `Sink` is a typeclass for Observers.
 
@@ -46,9 +44,8 @@ Throughout the library the type parameters for the `Sink` and `Source` typeclass
 
 Source Code: [Source.scala](colibri/src/main/scala/colibri/Source.scala), [Sink.scala](colibri/src/main/scala/colibri/Sink.scala)
 
-[Implementation for Monix](monix/src/main/scala/colibri/ext/monix/package.scala)
-
 [Implementation for Rx](rx/src/main/scala/colibri/ext/rx/package.scala)
 
 [Implementation for Airstream](airstream/src/main/scala/colibri/ext/airstream/package.scala)
 
+[Implementation for ZIO](zio/src/main/scala/colibri/ext/zio/package.scala)

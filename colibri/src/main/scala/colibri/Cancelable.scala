@@ -1,12 +1,20 @@
 package colibri
 
 import cats.Monoid
+import cats.effect.{IO, Sync, SyncIO}
 import cats.implicits._
 
 import scala.scalajs.js
 
 trait Cancelable  {
-  def cancel(): Unit
+  def unsafeCancel(): Unit
+
+  @deprecated("Use unsafeCancel() instead", "0.2.7")
+  @inline final def cancel(): Unit = unsafeCancel()
+
+  final def cancelF[F[_] : Sync]: F[Unit] = Sync[F].delay(unsafeCancel())
+  final def cancelIO: IO[Unit] = cancelF[IO]
+  final def cancelSyncIO: SyncIO[Unit] = cancelF[SyncIO]
 }
 object Cancelable {
 
@@ -15,24 +23,22 @@ object Cancelable {
     @inline def combine(a: Cancelable, b: Cancelable) = Cancelable.composite(a, b)
   }
 
-  implicit object cancelCancelable extends CanCancel[Cancelable] {
-    @inline def cancel(subscription: Cancelable): Unit = subscription.cancel()
+  implicit object unsafeCancelCancelable extends CanCancel[Cancelable] {
+    @inline def unsafeCancel(subscription: Cancelable): Unit = subscription.unsafeCancel()
   }
 
   class Builder extends Cancelable {
     private var buffer = new js.Array[Cancelable]()
 
-    def +=(subscription: Cancelable): Unit =
-      if (buffer == null) {
-        subscription.cancel()
-      } else {
-        buffer.push(subscription)
-        ()
-      }
+    def +=(subscription: () => Cancelable): Unit = if (buffer != null) {
+      val cancelable = subscription()
+      buffer.push(cancelable)
+      ()
+    }
 
-    def cancel(): Unit =
+    def unsafeCancel(): Unit =
       if (buffer != null) {
-        buffer.foreach(_.cancel())
+        buffer.foreach(_.unsafeCancel())
         buffer = null
       }
   }
@@ -40,17 +46,22 @@ object Cancelable {
   class Variable extends Cancelable {
     private var current: Cancelable = Cancelable.empty
 
-    def update(subscription: Cancelable): Unit =
-      if (current == null) {
-        subscription.cancel()
-      } else {
-        current.cancel()
-        current = subscription
+    def update(subscription: () => Cancelable): Unit = if (current != null) {
+      current.unsafeCancel()
+
+      var isCancel = false
+      current = Cancelable { () =>
+        isCancel = true
       }
 
-    def cancel(): Unit =
+      val cancelable = subscription()
+      if (isCancel) cancelable.unsafeCancel()
+      else current = cancelable
+    }
+
+    def unsafeCancel(): Unit =
       if (current != null) {
-        current.cancel()
+        current.unsafeCancel()
         current = null
       }
   }
@@ -60,14 +71,14 @@ object Cancelable {
     private var subscriptions: js.Array[() => Cancelable] = new js.Array[() => Cancelable]
 
     def switch(): Unit = if (latest != null) {
-      latest.cancel()
+      latest.unsafeCancel()
       latest = null
       if (subscriptions != null && subscriptions.nonEmpty) {
         val nextCancelable = subscriptions(0)
         val variable       = Cancelable.variable()
         latest = variable
         subscriptions.splice(0, deleteCount = 1)
-        variable() = nextCancelable()
+        variable() = nextCancelable
         ()
       }
     }
@@ -76,17 +87,17 @@ object Cancelable {
       if (latest == null) {
         val variable = Cancelable.variable()
         latest = variable
-        variable() = subscription()
+        variable() = subscription
       } else {
         subscriptions.push(subscription)
         ()
       }
     }
 
-    def cancel(): Unit = if (subscriptions != null) {
+    def unsafeCancel(): Unit = if (subscriptions != null) {
       subscriptions = null
       if (latest != null) {
-        latest.cancel()
+        latest.unsafeCancel()
         latest = null
       }
     }
@@ -97,20 +108,20 @@ object Cancelable {
     private var isCancel           = false
 
     def done(): Unit = if (latest != null) {
-      latest.cancel()
+      latest.unsafeCancel()
       latest = null
     }
 
     def update(subscription: () => Cancelable): Unit = if (latest == null) {
       val variable = Cancelable.variable()
       latest = variable
-      variable() = subscription()
+      variable() = subscription
     }
 
-    def cancel(): Unit = if (!isCancel) {
+    def unsafeCancel(): Unit = if (!isCancel) {
       isCancel = true
       if (latest != null) {
-        latest.cancel()
+        latest.unsafeCancel()
         latest = null
       }
     }
@@ -130,30 +141,30 @@ object Cancelable {
       Cancelable({ () =>
         counter -= 1
         if (counter == 0) {
-          currentCancelable.cancel()
+          currentCancelable.unsafeCancel()
           currentCancelable = null
         }
       })
     }
 
-    def cancel(): Unit = {
+    def unsafeCancel(): Unit = {
       counter = -1
       if (currentCancelable != null) {
-        currentCancelable.cancel()
+        currentCancelable.unsafeCancel()
         currentCancelable = null
       }
     }
   }
 
   object Empty extends Cancelable {
-    @inline def cancel(): Unit = ()
+    @inline def unsafeCancel(): Unit = ()
   }
 
   @inline def empty = Empty
 
   @inline def apply(f: () => Unit): Cancelable = new Cancelable {
     private var isCanceled = false
-    @inline def cancel()   = if (!isCanceled) {
+    @inline def unsafeCancel()   = if (!isCanceled) {
       isCanceled = true
       f()
     }
@@ -161,15 +172,15 @@ object Cancelable {
 
   @inline def lift[T: CanCancel](subscription: T): Cancelable = subscription match {
     case cancelable: Cancelable => cancelable
-    case _ => apply(() => CanCancel[T].cancel(subscription))
+    case _ => apply(() => CanCancel[T].unsafeCancel(subscription))
   }
 
   @inline def composite(subscriptions: Cancelable*): Cancelable                      = compositeFromIterable(subscriptions)
-  @inline def compositeFromIterable(subscriptions: Iterable[Cancelable]): Cancelable = {
+  def compositeFromIterable(subscriptions: Iterable[Cancelable]): Cancelable = {
     val nonEmptySubscriptions = subscriptions.filter(_ != Cancelable.empty)
     if (nonEmptySubscriptions.isEmpty) Cancelable.empty
     else new Cancelable {
-      def cancel() = nonEmptySubscriptions.foreach(_.cancel())
+      def unsafeCancel() = nonEmptySubscriptions.foreach(_.unsafeCancel())
     }
   }
 

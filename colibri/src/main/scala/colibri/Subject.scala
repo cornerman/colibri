@@ -13,16 +13,16 @@ final class ReplaySubject[A] extends Observer[A] with Observable.MaybeValue[A] {
 
   @inline def now(): Option[A] = current
 
-  def onNext(value: A): Unit = {
+  def unsafeOnNext(value: A): Unit = {
     current = Some(value)
-    state.onNext(value)
+    state.unsafeOnNext(value)
   }
 
-  def onError(error: Throwable): Unit = state.onError(error)
+  def unsafeOnError(error: Throwable): Unit = state.unsafeOnError(error)
 
-  def subscribe(sink: Observer[A]): Cancelable = {
-    val cancelable = state.subscribe(sink)
-    current.foreach(sink.onNext)
+  def unsafeSubscribe(sink: Observer[A]): Cancelable = {
+    val cancelable = state.unsafeSubscribe(sink)
+    current.foreach(sink.unsafeOnNext)
     cancelable
   }
 }
@@ -35,16 +35,16 @@ final class BehaviorSubject[A](private var current: A) extends Observer[A] with 
 
   @inline def now(): A = current
 
-  def onNext(value: A): Unit = {
+  def unsafeOnNext(value: A): Unit = {
     current = value
-    state.onNext(value)
+    state.unsafeOnNext(value)
   }
 
-  def onError(error: Throwable): Unit = state.onError(error)
+  def unsafeOnError(error: Throwable): Unit = state.unsafeOnError(error)
 
-  def subscribe(sink: Observer[A]): Cancelable = {
-    val cancelable = state.subscribe(sink)
-    sink.onNext(current)
+  def unsafeSubscribe(sink: Observer[A]): Cancelable = {
+    val cancelable = state.unsafeSubscribe(sink)
+    sink.unsafeOnNext(current)
     cancelable
   }
 }
@@ -56,19 +56,19 @@ final class PublishSubject[A] extends Observer[A] with Observable[A] {
 
   def hasSubscribers: Boolean = subscribers.nonEmpty
 
-  def onNext(value: A): Unit = {
+  def unsafeOnNext(value: A): Unit = {
     isRunning = true
-    subscribers.foreach(_.onNext(value))
+    subscribers.foreach(_.unsafeOnNext(value))
     isRunning = false
   }
 
-  def onError(error: Throwable): Unit = {
+  def unsafeOnError(error: Throwable): Unit = {
     isRunning = true
-    subscribers.foreach(_.onError(error))
+    subscribers.foreach(_.unsafeOnError(error))
     isRunning = false
   }
 
-  def subscribe(sink: Observer[A]): Cancelable = {
+  def unsafeSubscribe(sink: Observer[A]): Cancelable = {
     val observer = Observer.lift(sink)
     subscribers.push(observer)
     Cancelable { () =>
@@ -82,11 +82,11 @@ object Subject {
   type Value[A]      = Observer[A] with Observable.Value[A]
   type MaybeValue[A] = Observer[A] with Observable.MaybeValue[A]
 
-  def replay[O]: ReplaySubject[O] = new ReplaySubject[O]
+  def replay[O](): ReplaySubject[O] = new ReplaySubject[O]
 
   def behavior[O](seed: O): BehaviorSubject[O] = new BehaviorSubject[O](seed)
 
-  def publish[O]: PublishSubject[O] = new PublishSubject[O]
+  def publish[O](): PublishSubject[O] = new PublishSubject[O]
 
   def from[A](sink: Observer[A], source: Observable[A]): Subject[A] = ProSubject.from(sink, source)
 
@@ -98,9 +98,9 @@ object ProSubject {
   type MaybeValue[-I, +O] = Observer[I] with Observable.MaybeValue[O]
 
   def from[I, O](sink: Observer[I], source: Observable[O]): ProSubject[I, O] = new Observer[I] with Observable[O] {
-    @inline def onNext(value: I): Unit                   = sink.onNext(value)
-    @inline def onError(error: Throwable): Unit          = sink.onError(error)
-    @inline def subscribe(sink: Observer[O]): Cancelable = source.subscribe(sink)
+    @inline def unsafeOnNext(value: I): Unit                   = sink.unsafeOnNext(value)
+    @inline def unsafeOnError(error: Throwable): Unit          = sink.unsafeOnError(error)
+    @inline def unsafeSubscribe(sink: Observer[O]): Cancelable = source.unsafeSubscribe(sink)
   }
 
   def create[I, O](sinkF: I => Unit, sourceF: Observer[O] => Cancelable): ProSubject[I, O] = {

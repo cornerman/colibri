@@ -24,12 +24,14 @@ inThisBuild(
   ),
 )
 
+
 lazy val commonSettings = Seq(
   crossScalaVersions := Seq("2.12.15", "2.13.8", "3.1.1"),
   scalaVersion := "2.13.8",
   libraryDependencies ++= Seq(
     "org.scalatest" %%% "scalatest" % "3.2.11" % Test,
   ),
+  /* scalacOptions --= Seq("-Xfatal-warnings"), // overwrite option from https://github.com/DavidGregory084/sbt-tpolecat */
 )
 
 lazy val colibri = project
@@ -67,18 +69,6 @@ lazy val router = project
     ),
   )
 
-lazy val monix = project
-  .enablePlugins(ScalaJSPlugin)
-  .dependsOn(colibri)
-  .in(file("monix"))
-  .settings(commonSettings)
-  .settings(
-    name := "colibri-monix",
-    libraryDependencies ++= Seq(
-      "io.monix" %%% "monix" % "3.4.0",
-    ),
-  )
-
 lazy val rx = project
   .enablePlugins(ScalaJSPlugin)
   .dependsOn(colibri)
@@ -102,4 +92,17 @@ lazy val airstream = project
     libraryDependencies ++= Seq(
       "com.raquo" %%% "airstream" % "0.14.2"
     ),
+  )
+
+lazy val zio = project
+  .enablePlugins(ScalaJSPlugin)
+  .dependsOn(colibri)
+  .in(file("zio"))
+  .settings(commonSettings)
+  .settings(
+    name := "colibri-zio",
+    libraryDependencies ++= Seq(
+      "dev.zio" %%% "zio" % "1.0.12",
+      "io.github.cquiroz" %%% "scala-java-time" % "2.3.0"
+    )
   )

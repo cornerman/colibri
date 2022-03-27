@@ -1,6 +1,7 @@
-package colibri
+package colibri.helpers
 
 import scala.scalajs.js
+import scala.scalajs.js.|
 
 object NativeTypes {
 
@@ -26,4 +27,23 @@ object NativeTypes {
       (js.Dynamic.global.setTimeout.bind(globalObject).asInstanceOf[SetImmediate], js.Dynamic.global.clearTimeout.bind(globalObject).asInstanceOf[ClearImmediate])
  }
 
+  type QueueMicrotask = js.Function1[js.Function0[Unit], Unit]
+  val queueMicrotask: QueueMicrotask = if (js.typeOf(js.Dynamic.global.queueMicrotask) != "undefined") {
+    js.Dynamic.global.queueMicrotask.bind(globalObject).asInstanceOf[QueueMicrotask]
+  } else {
+    // Taken from: https://developer.mozilla.org/en-US/docs/Web/API/queueMicrotask#when_queuemicrotask_isnt_available
+    (callback: js.Function0[Unit]) => {
+      js.Promise.resolve[Unit](())
+        .`then`[Unit]((_:Unit) => callback() : Unit | js.Thenable[Unit])
+          .`catch`[Unit]({
+            case t: Throwable =>
+              js.timers.setTimeout(0)(throw t)
+              ()
+            case _ =>
+              ()
+        }: js.Function1[Any, Unit | js.Thenable[Unit]])
+
+        ()
+    }
+  }
 }
