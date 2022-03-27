@@ -7,22 +7,22 @@ Colibri is an implementation of the `Observable`, `Observer` and `Subject` conce
 
 Usage:
 ```scala
-libraryDependencies += "com.github.cornerman" %%% "colibri" % "0.3.0"
+libraryDependencies += "com.github.cornerman" %%% "colibri" % "0.3.1"
 ```
 
 For scala.rx support (only Scala 2.x):
 ```scala
-libraryDependencies += "com.github.cornerman" %%% "colibri-rx" % "0.3.0"
+libraryDependencies += "com.github.cornerman" %%% "colibri-rx" % "0.3.1"
 ```
 
 For airstream support:
 ```scala
-libraryDependencies += "com.github.cornerman" %%% "colibri-airstream" % "0.3.0"
+libraryDependencies += "com.github.cornerman" %%% "colibri-airstream" % "0.3.1"
 ```
 
 For zio support:
 ```scala
-libraryDependencies += "com.github.cornerman" %%% "colibri-zio" % "0.3.0"
+libraryDependencies += "com.github.cornerman" %%% "colibri-zio" % "0.3.1"
 ```
 
 This library includes a minimal frp library and typeclasses for streaming.
