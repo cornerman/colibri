@@ -189,7 +189,7 @@ object Observable {
     def unsafeSubscribe(sink: Observer[A]): Cancelable = {
       val variable = Cancelable.variable()
       sources.foreach { source =>
-        variable() = source.unsafeSubscribe(sink)
+        variable() = (() => source.unsafeSubscribe(sink))
       }
 
       variable
@@ -309,7 +309,7 @@ object Observable {
           Observer.create[A](
             { value =>
               val sourceB = f(value)
-              builder += sourceB.unsafeSubscribe(sink)
+              builder += (() => sourceB.unsafeSubscribe(sink))
             },
             sink.unsafeOnError,
           ),
@@ -327,7 +327,7 @@ object Observable {
           Observer.create[A](
             { value =>
               val sourceB = f(value)
-              current() = sourceB.unsafeSubscribe(sink)
+              current() = (() => sourceB.unsafeSubscribe(sink))
             },
             sink.unsafeOnError,
           ),
@@ -847,7 +847,7 @@ object Observable {
           callback(value)
         }
 
-        cancelable() = source.unsafeSubscribe(Observer.create[A](value => dispatch(Right(value)), error => dispatch(Left(error))))
+        cancelable() = (() => source.unsafeSubscribe(Observer.create[A](value => dispatch(Right(value)), error => dispatch(Left(error)))))
 
         Some(Async[F].delay(cancelable.unsafeCancel()))
       }
@@ -864,7 +864,7 @@ object Observable {
           def unsafeSubscribe(sink: Observer[A]): Cancelable = {
             var counter      = 0
             val subscription = Cancelable.variable()
-            subscription() = source.unsafeSubscribe(sink.contrafilter { _ =>
+            subscription() = (() => source.unsafeSubscribe(sink.contrafilter { _ =>
               if (num > counter) {
                 counter += 1
                 true
@@ -872,7 +872,7 @@ object Observable {
                 subscription.unsafeCancel()
                 false
               }
-            })
+            }))
 
             subscription
           }
@@ -883,7 +883,7 @@ object Observable {
       def unsafeSubscribe(sink: Observer[A]): Cancelable = {
         var finishedTake = false
         val subscription = Cancelable.variable()
-        subscription() = source.unsafeSubscribe(sink.contrafilter { v =>
+        subscription() = (() => source.unsafeSubscribe(sink.contrafilter { v =>
           if (finishedTake) false
           else if (predicate(v)) true
           else {
@@ -891,7 +891,7 @@ object Observable {
             subscription.unsafeCancel()
             false
           }
-        })
+        }))
 
         subscription
       }
@@ -902,7 +902,7 @@ object Observable {
         var finishedTake = false
         val subscription = Cancelable.builder()
 
-        subscription += until.unsafeSubscribe(
+        subscription += (() => until.unsafeSubscribe(
           Observer.createUnrecovered[Unit](
             { _ =>
               finishedTake = true
@@ -910,9 +910,9 @@ object Observable {
             },
             sink.unsafeOnError(_),
           ),
-        )
+        ))
 
-        if (!finishedTake) subscription += source.unsafeSubscribe(sink.contrafilter(_ => !finishedTake))
+        if (!finishedTake) subscription += (() => source.unsafeSubscribe(sink.contrafilter(_ => !finishedTake)))
 
         subscription
       }
@@ -953,7 +953,7 @@ object Observable {
         var finishedDrop = false
 
         val untilCancelable = Cancelable.variable()
-        untilCancelable() = until.unsafeSubscribe(
+        untilCancelable() = (() => until.unsafeSubscribe(
           Observer.createUnrecovered[Unit](
             { _ =>
               finishedDrop = true
@@ -961,7 +961,7 @@ object Observable {
             },
             sink.unsafeOnError(_),
           ),
-        )
+        ))
 
         val subscription = source.unsafeSubscribe(sink.contrafilter(_ => finishedDrop))
 
