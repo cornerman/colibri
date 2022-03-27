@@ -3,7 +3,7 @@ package colibri
 import cats.implicits._
 import colibri.helpers.NativeTypes
 import colibri.effect.{RunSyncEffect, RunEffect}
-import cats.{Eq, FunctorFilter, MonoidK, Semigroupal, MonadError}
+import cats.{Eq, FunctorFilter, MonoidK, Semigroupal, Applicative}
 import cats.effect.{Sync, SyncIO, Async, IO}
 
 import scala.scalajs.js
@@ -29,20 +29,14 @@ object Observable {
     @inline def combineK[T](a: Observable[T], b: Observable[T]) = Observable.merge(a, b)
   }
 
-  implicit object monadError extends MonadError[Observable, Throwable] {
+  implicit object applicative extends Applicative[Observable] {
+    @inline def ap[A, B](ff: Observable[A => B])(fa: Observable[A]): Observable[B] = ff.combineLatestMap(fa)((f, a) => f(a))
     @inline def pure[A](a: A): Observable[A]                                       = Observable(a)
     @inline override def map[A, B](fa: Observable[A])(f: A => B): Observable[B]    = fa.map(f)
-    @inline def handleErrorWith[A](fa: Observable[A])(f: Throwable => Observable[A]): Observable[A] = flatMap(fa.attempt)(_.fold(raiseError(_), pure(_)))
-    @inline def raiseError[A](e: Throwable): Observable[A] = Observable.raiseError(e)
-    @inline def flatMap[A, B](fa: Observable[A])(f: A => Observable[B]): Observable[B] = fa.mergeMap(f)
-    @inline def tailRecM[A, B](a: A)(f: A => Observable[Either[A,B]]): Observable[B] = flatMap(f(a)) {
-      case Right(b) => pure(b)
-      case Left(a) => tailRecM(a)(f)
-    }
   }
 
   implicit object functorFilter extends FunctorFilter[Observable] {
-    @inline def functor                                                              = Observable.monadError
+    @inline def functor                                                              = Observable.applicative
     @inline def mapFilter[A, B](fa: Observable[A])(f: A => Option[B]): Observable[B] = fa.mapFilter(f)
   }
 
