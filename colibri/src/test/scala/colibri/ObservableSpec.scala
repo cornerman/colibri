@@ -6,7 +6,7 @@ import org.scalatest.matchers.should.Matchers
 import org.scalatest.flatspec.AsyncFlatSpec
 
 class ObservableSpec extends AsyncFlatSpec with Matchers {
-  implicit val ioRuntime = unsafe.IORuntime(
+  implicit val ioRuntime: unsafe.IORuntime = unsafe.IORuntime(
     compute = this.executionContext,
     blocking = this.executionContext,
     config = unsafe.IORuntimeConfig(),
