@@ -82,11 +82,11 @@ object Subject {
   type Value[A]      = Observer[A] with Observable.Value[A]
   type MaybeValue[A] = Observer[A] with Observable.MaybeValue[A]
 
-  def replay[O]: ReplaySubject[O] = new ReplaySubject[O]
+  def replay[O](): ReplaySubject[O] = new ReplaySubject[O]
 
   def behavior[O](seed: O): BehaviorSubject[O] = new BehaviorSubject[O](seed)
 
-  def publish[O]: PublishSubject[O] = new PublishSubject[O]
+  def publish[O](): PublishSubject[O] = new PublishSubject[O]
 
   def from[A](sink: Observer[A], source: Observable[A]): Subject[A] = ProSubject.from(sink, source)
 

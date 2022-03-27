@@ -790,8 +790,8 @@ object Observable {
       def unsafeSubscribe(sink: Observer[B]): Cancelable = source.unsafeSubscribe(transform(sink))
     }
 
-    @inline def publish: Connectable[Observable[A]]                  = multicast(Subject.publish[A])
-    @inline def replay: Connectable[Observable.MaybeValue[A]]        = multicastMaybeValue(Subject.replay[A])
+    @inline def publish: Connectable[Observable[A]]                  = multicast(Subject.publish[A]())
+    @inline def replay: Connectable[Observable.MaybeValue[A]]        = multicastMaybeValue(Subject.replay[A]())
     @inline def behavior(value: A): Connectable[Observable.Value[A]] = multicastValue(Subject.behavior(value))
 
     @inline def publishSelector[B](f: Observable[A] => Observable[B]): Observable[B]                  = transformSource(s => f(s.publish.refCount))
