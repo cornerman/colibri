@@ -41,8 +41,9 @@ lazy val colibri = project
   .settings(
     name := "colibri",
     libraryDependencies ++= Seq(
-      "org.typelevel" %%% "cats-effect" % "3.3.8",
-    )
+      "org.typelevel" %%% "cats-core"   % "2.7.0",
+      "org.typelevel" %%% "cats-effect" % "3.3.9",
+    ),
   )
 
 lazy val jsdom = project
