@@ -368,6 +368,10 @@ object Observable    {
       }
     }
 
+    def merge(sources: Observable[A]*): Observable[A] = Observable.mergeSeq(source +: sources)
+
+    def switch(sources: Observable[A]*): Observable[A] = Observable.switchSeq(source +: sources)
+
     def switchMap[B](f: A => Observable[B]): Observable[B] = new Observable[B] {
       def unsafeSubscribe(sink: Observer[B]): Cancelable = {
         val current = Cancelable.variable()
