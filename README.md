@@ -18,14 +18,26 @@ This library includes:
 libraryDependencies += "com.github.cornerman" %%% "colibri" % "0.3.2"
 ```
 
+```scala
+import colibri._
+```
+
 For scala.rx support (only Scala 2.x):
 ```scala
 libraryDependencies += "com.github.cornerman" %%% "colibri-rx" % "0.3.2"
 ```
 
+```scala
+import colibri.ext.rx._
+```
+
 For airstream support:
 ```scala
 libraryDependencies += "com.github.cornerman" %%% "colibri-airstream" % "0.3.2"
+```
+
+```scala
+import colibri.ext.airstream._
 ```
 
 For zio support:
@@ -34,10 +46,7 @@ libraryDependencies += "com.github.cornerman" %%% "colibri-zio" % "0.3.2"
 ```
 
 ```scala
-import colibri._
-import colibri.ext.rx._ //optional: colibri-rx
-import colibri.ext.airstream._ // optional: colibri-airstream
-import colibri.ext.zio._ // optional: colibri-zio
+import colibri.ext.zio._
 ```
 
 ## Subject, Observable and Observer
