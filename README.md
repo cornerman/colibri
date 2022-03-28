@@ -103,13 +103,17 @@ subject.onNextF[IO](2)
 
 We have prepared typeclasses for integrating other streaming libaries:
 - `Sink[G[_]]` can send values and errors into `G` has an `onNext` and `onError` method.
-- `Source[H[_]]` can subscribe to `H` with a `Sink` (returns a cancelable subscription)
+- `Source[H[_]]` can unsafely subscribe to `H` with a `Sink` (returns a cancelable subscription)
 - `CanCancel[T]` can cancel `T` to stop a subscription
 - `LiftSink[G[_]]` can lift a `Sink` into type `G`
 - `LiftSource[H[_]]` can lift a `Source` into type `H`
 - `SubscriptionOwner[T]` can let type `T` own a subscription
 
 Most important here are `Sink` and `Source`. `Source` is a typeclass for Observables, `Sink` is a typeclass for Observers.
+
+In order to work with effect inside our Observable, we have defined the following two typeclasses similar to `Effect` in cats-effect `2`:
+- `RunEffect[F[_]]` can unsafely run an effect `F[_]` asynchronously, potentially starting synchronously until reaching an async boundary.
+- `RunSyncEffect[F[_]]` can unsafely run an effect `F[_]` synchronously.
 
 ## Information
 
