@@ -8,8 +8,8 @@ import cats.effect.std.Dispatcher
 import scala.util.control.NonFatal
 
 trait RunEffect[-F[_]] {
-  def unsafeRunAsyncCancelable[T](effect: F[T], cb: Either[Throwable, T] => Unit): Cancelable
-  def unsafeRunSyncOrAsyncCancelable[T](effect: F[T], cb: Either[Throwable, T] => Unit): Cancelable
+  def unsafeRunAsyncCancelable[T](effect: F[T])(cb: Either[Throwable, T] => Unit): Cancelable
+  def unsafeRunSyncOrAsyncCancelable[T](effect: F[T])(cb: Either[Throwable, T] => Unit): Cancelable
 }
 
 trait RunEffectLowPrio {
@@ -28,27 +28,27 @@ object RunEffect extends RunEffectLowPrio {
 }
 
 private final class RunEffectAsyncWithDispatcher[F[_]](dispatcher: Dispatcher[F]) extends RunEffect[F] {
-  override def unsafeRunAsyncCancelable[T](effect: F[T], cb: Either[Throwable, T] => Unit): Cancelable = {
+  override def unsafeRunAsyncCancelable[T](effect: F[T])(cb: Either[Throwable, T] => Unit): Cancelable = {
     val (future, cancelRun) = dispatcher.unsafeToFutureCancelable(effect)
-    RunEffectExecution.handleFutureCancelable(future, cancelRun, cb)
+    RunEffectExecution.handleFutureCancelable(future, cancelRun)(cb)
   }
 
   // TODO: syncStep will be available for Async[F] in cats-effect 3.4.x
-  override def unsafeRunSyncOrAsyncCancelable[T](effect: F[T], cb: Either[Throwable, T] => Unit): Cancelable =
-    unsafeRunAsyncCancelable(effect, cb)
+  override def unsafeRunSyncOrAsyncCancelable[T](effect: F[T])(cb: Either[Throwable, T] => Unit): Cancelable =
+    unsafeRunAsyncCancelable(effect)(cb)
 }
 
 private final class RunEffectIOWithRuntime(ioRuntime: unsafe.IORuntime) extends RunEffect[IO] {
-  override def unsafeRunAsyncCancelable[T](effect: IO[T], cb: Either[Throwable, T] => Unit): Cancelable = {
+  override def unsafeRunAsyncCancelable[T](effect: IO[T])(cb: Either[Throwable, T] => Unit): Cancelable = {
     val (future, cancelRun) = effect.unsafeToFutureCancelable()(ioRuntime)
-    RunEffectExecution.handleFutureCancelable(future, cancelRun, cb)
+    RunEffectExecution.handleFutureCancelable(future, cancelRun)(cb)
   }
 
-  override def unsafeRunSyncOrAsyncCancelable[T](effect: IO[T], cb: Either[Throwable, T] => Unit): Cancelable = {
+  override def unsafeRunSyncOrAsyncCancelable[T](effect: IO[T])(cb: Either[Throwable, T] => Unit): Cancelable = {
     try {
       effect.syncStep.unsafeRunSync() match {
         case Left(io)           =>
-          unsafeRunAsyncCancelable(io, cb)
+          unsafeRunAsyncCancelable(io)(cb)
         case right: Right[_, T] =>
           cb(right.asInstanceOf[Right[Nothing, T]])
           Cancelable.empty
@@ -62,7 +62,7 @@ private final class RunEffectIOWithRuntime(ioRuntime: unsafe.IORuntime) extends 
 }
 
 private final class RunSyncEffectRunEffect[F[_]: RunSyncEffect] extends RunEffect[F] {
-  override def unsafeRunAsyncCancelable[T](effect: F[T], cb: Either[Throwable, T] => Unit): Cancelable = {
+  override def unsafeRunAsyncCancelable[T](effect: F[T])(cb: Either[Throwable, T] => Unit): Cancelable = {
     var isCancel = false
 
     val setImmediateHandle = NativeTypes.setImmediateRef { () =>
@@ -79,7 +79,7 @@ private final class RunSyncEffectRunEffect[F[_]: RunSyncEffect] extends RunEffec
     }
   }
 
-  override def unsafeRunSyncOrAsyncCancelable[T](effect: F[T], cb: Either[Throwable, T] => Unit): Cancelable = {
+  override def unsafeRunSyncOrAsyncCancelable[T](effect: F[T])(cb: Either[Throwable, T] => Unit): Cancelable = {
     val result = RunSyncEffect[F].unsafeRun(effect)
     cb(result)
     Cancelable.empty

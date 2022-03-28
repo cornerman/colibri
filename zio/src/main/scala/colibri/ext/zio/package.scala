@@ -68,11 +68,11 @@ private final class SourceZIOWithRuntime[Env](runtime: Runtime[Env]) extends Sou
 }
 
 private final class RunEffectZIOWithRuntime[Env](runtime: Runtime[Env]) extends RunEffect[RIO[Env, *]] {
-  override def unsafeRunAsyncCancelable[T](effect: RIO[Env, T], cb: Either[Throwable, T] => Unit): Cancelable =
-    unsafeRunSyncOrAsyncCancelable(RIO.yieldNow *> effect, cb)
+  override def unsafeRunAsyncCancelable[T](effect: RIO[Env, T])(cb: Either[Throwable, T] => Unit): Cancelable =
+    unsafeRunSyncOrAsyncCancelable(RIO.yieldNow *> effect)(cb)
 
-  override def unsafeRunSyncOrAsyncCancelable[T](effect: RIO[Env, T], cb: Either[Throwable, T] => Unit): Cancelable = {
+  override def unsafeRunSyncOrAsyncCancelable[T](effect: RIO[Env, T])(cb: Either[Throwable, T] => Unit): Cancelable = {
     val cancelableFuture = runtime.unsafeRunToFuture(effect)
-    RunEffectExecution.handleFutureCancelable(cancelableFuture, cancelableFuture.cancel, cb)
+    RunEffectExecution.handleFutureCancelable(cancelableFuture, cancelableFuture.cancel)(cb)
   }
 }

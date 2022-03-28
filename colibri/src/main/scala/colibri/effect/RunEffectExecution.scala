@@ -10,7 +10,7 @@ private[colibri] object RunEffectExecution {
     override final def reportFailure(t: Throwable): Unit = ExecutionContext.defaultReporter(t)
   }
 
-  def handleFutureCancelable[T](future: Future[T], cancelRun: () => Future[Any], cb: Either[Throwable, T] => Unit): Cancelable = {
+  def handleFutureCancelable[T](future: Future[T], cancelRun: () => Future[Any])(cb: Either[Throwable, T] => Unit): Cancelable = {
     var isCancel = false
 
     def action(value: Either[Throwable, T]): Unit = {

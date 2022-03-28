@@ -46,6 +46,10 @@ object Cancelable {
   class Variable extends Cancelable {
     private var current: Cancelable = Cancelable.empty
 
+    def updateExisting(subscription: Cancelable): Unit =
+      if (current == null) subscription.unsafeCancel()
+      else update(() => subscription)
+
     def update(subscription: () => Cancelable): Unit = if (current != null) {
       current.unsafeCancel()
 

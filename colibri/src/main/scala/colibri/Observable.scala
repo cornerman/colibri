@@ -118,7 +118,7 @@ object Observable    {
   def fromAsync[F[_]: RunEffect, A](effect: F[A]): Observable[A]    = fromEffect(effect)
   def fromEffect[F[_]: RunEffect, A](effect: F[A]): Observable[A]   = new Observable[A] {
     def unsafeSubscribe(sink: Observer[A]): Cancelable =
-      RunEffect[F].unsafeRunSyncOrAsyncCancelable[A](effect, _.fold(sink.unsafeOnError, sink.unsafeOnNext))
+      RunEffect[F].unsafeRunSyncOrAsyncCancelable[A](effect)(_.fold(sink.unsafeOnError, sink.unsafeOnNext))
   }
 
   def fromFuture[A](future: => Future[A]): Observable[A] = fromEffect(IO.fromFuture(IO(future)))
@@ -162,13 +162,10 @@ object Observable    {
     def unsafeSubscribe(sink: Observer[T]): Cancelable = {
       val consecutive = Cancelable.consecutive()
       consecutive += (() =>
-        RunEffect[F].unsafeRunSyncOrAsyncCancelable[T](
-          effect,
-          { either =>
+        RunEffect[F].unsafeRunSyncOrAsyncCancelable[T](effect) { either =>
             either.fold(sink.unsafeOnError, sink.unsafeOnNext)
             consecutive.switch()
           },
-        ),
       )
       consecutive += (() => source.unsafeSubscribe(sink))
       consecutive
@@ -229,7 +226,7 @@ object Observable    {
     }
 
     def as[B](value: B): Observable[B]        = map(_ => value)
-    def asLazy[B](value: => B): Observable[B] = map(_ => value)
+    def asDelay[B](value: => B): Observable[B] = map(_ => value)
 
     def mapFilter[B](f: A => Option[B]): Observable[B] = new Observable[B] {
       def unsafeSubscribe(sink: Observer[B]): Cancelable = source.unsafeSubscribe(sink.contramapFilter(f))
@@ -356,13 +353,10 @@ object Observable    {
             { value =>
               val effect = f(value)
               consecutive += (() =>
-                RunEffect[F].unsafeRunSyncOrAsyncCancelable[B](
-                  effect,
-                  { either =>
+                RunEffect[F].unsafeRunSyncOrAsyncCancelable[B](effect) { either =>
                     either.fold(sink.unsafeOnError, sink.unsafeOnNext)
                     consecutive.switch()
                   },
-                ),
               )
             },
             sink.unsafeOnError,
@@ -387,13 +381,10 @@ object Observable    {
               val effect = f(value)
               single() = (
                   () =>
-                    RunEffect[F].unsafeRunSyncOrAsyncCancelable[B](
-                      effect,
-                      { either =>
+                    RunEffect[F].unsafeRunSyncOrAsyncCancelable[B](effect) { either =>
                         either.fold(sink.unsafeOnError, sink.unsafeOnNext)
                         single.done()
                       },
-                    ),
               )
             },
             sink.unsafeOnError,
