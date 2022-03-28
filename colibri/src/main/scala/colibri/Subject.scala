@@ -106,9 +106,11 @@ object Subject {
   type Value[A]      = Observer[A] with Observable.Value[A]
   type MaybeValue[A] = Observer[A] with Observable.MaybeValue[A]
 
-  @deprecated("Use replayLast instead", "0.3.4")
-  def replay[O](): ReplaySubject[O]       = replayLast[O]()
-  def replayLast[O](): ReplaySubject[O]   = new ReplaySubject[O]
+  @deprecated("Use replayLatest instead", "0.3.4")
+  def replay[O](): ReplaySubject[O]       = replayLatest[O]()
+  @deprecated("Use replayLatest instead", "0.4.0")
+  def replayLast[O](): ReplaySubject[O]   = replayLatest[O]()
+  def replayLatest[O](): ReplaySubject[O] = new ReplaySubject[O]
   def replayAll[O](): ReplayAllSubject[O] = new ReplayAllSubject[O]
 
   def behavior[O](seed: O): BehaviorSubject[O] = new BehaviorSubject[O](seed)

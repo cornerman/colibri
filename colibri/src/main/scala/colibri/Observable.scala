@@ -872,16 +872,16 @@ object Observable    {
     }
 
     @inline def publish: Connectable[Observable[A]]                  = multicast(Subject.publish[A]())
-    @deprecated("Use replayLast instead", "0.3.4")
-    @inline def replay: Connectable[Observable.MaybeValue[A]]        = replayLast
-    @inline def replayLast: Connectable[Observable.MaybeValue[A]]    = multicastMaybeValue(Subject.replayLast[A]())
+    @deprecated("Use replayLatest instead", "0.3.4")
+    @inline def replay: Connectable[Observable.MaybeValue[A]]        = replayLatest
+    @inline def replayLatest: Connectable[Observable.MaybeValue[A]]    = multicastMaybeValue(Subject.replayLatest[A]())
     @inline def behavior(value: A): Connectable[Observable.Value[A]] = multicastValue(Subject.behavior(value))
 
     @inline def publishSelector[B](f: Observable[A] => Observable[B]): Observable[B]                  = transformSource(s => f(s.publish.refCount))
-    @deprecated("Use replayLastSelector instead", "0.3.4")
-    @inline def replaySelector[B](f: Observable.MaybeValue[A] => Observable[B]): Observable[B]        = replayLastSelector(f)
-    @inline def replayLastSelector[B](f: Observable.MaybeValue[A] => Observable[B]): Observable[B]    =
-      transformSource(s => f(s.replayLast.refCount))
+    @deprecated("Use replayLatestSelector instead", "0.3.4")
+    @inline def replaySelector[B](f: Observable.MaybeValue[A] => Observable[B]): Observable[B]        = replayLatestSelector(f)
+    @inline def replayLatestSelector[B](f: Observable.MaybeValue[A] => Observable[B]): Observable[B]    =
+      transformSource(s => f(s.replayLatest.refCount))
     @inline def behaviorSelector[B](value: A)(f: Observable.Value[A] => Observable[B]): Observable[B] =
       transformSource(s => f(s.behavior(value).refCount))
 
