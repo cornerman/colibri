@@ -8,8 +8,8 @@ class CancelableSpec extends AsyncFlatSpec with Matchers {
   "Cancelable Variable" should "update cancelled" in {
     val cancelable = Cancelable.variable()
 
-    var outerInit = 0
-    var innerInit = 0
+    var outerInit   = 0
+    var innerInit   = 0
     var outerCancel = 0
     var innerCancel = 0
 

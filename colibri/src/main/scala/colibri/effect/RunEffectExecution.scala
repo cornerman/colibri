@@ -11,21 +11,21 @@ private[colibri] object RunEffectExecution {
   }
 
   def handleFutureCancelable[T](future: Future[T], cancelRun: () => Future[Any], cb: Either[Throwable, T] => Unit): Cancelable = {
-      var isCancel = false
+    var isCancel = false
 
-      def action(value: Either[Throwable, T]): Unit = {
-        if (!isCancel) {
-          isCancel = true
-          cb(value)
-        }
-      }
-
-      future.onComplete(result => action(result.toEither))(parasitic)
-
-      Cancelable { () =>
+    def action(value: Either[Throwable, T]): Unit = {
+      if (!isCancel) {
         isCancel = true
-        cancelRun()
-        ()
+        cb(value)
       }
+    }
+
+    future.onComplete(result => action(result.toEither))(parasitic)
+
+    Cancelable { () =>
+      isCancel = true
+      cancelRun()
+      ()
+    }
   }
 }

@@ -28,13 +28,14 @@ object RunEffect extends RunEffectLowPrio {
 }
 
 private final class RunEffectAsyncWithDispatcher[F[_]](dispatcher: Dispatcher[F]) extends RunEffect[F] {
-    override def unsafeRunAsyncCancelable[T](effect: F[T], cb: Either[Throwable, T] => Unit): Cancelable = {
-      val (future, cancelRun) = dispatcher.unsafeToFutureCancelable(effect)
-      RunEffectExecution.handleFutureCancelable(future, cancelRun, cb)
-    }
+  override def unsafeRunAsyncCancelable[T](effect: F[T], cb: Either[Throwable, T] => Unit): Cancelable = {
+    val (future, cancelRun) = dispatcher.unsafeToFutureCancelable(effect)
+    RunEffectExecution.handleFutureCancelable(future, cancelRun, cb)
+  }
 
-    //TODO: syncStep will be available for Async[F] in cats-effect 3.4.x
-    override def unsafeRunSyncOrAsyncCancelable[T](effect: F[T], cb: Either[Throwable, T] => Unit): Cancelable = unsafeRunAsyncCancelable(effect, cb)
+  // TODO: syncStep will be available for Async[F] in cats-effect 3.4.x
+  override def unsafeRunSyncOrAsyncCancelable[T](effect: F[T], cb: Either[Throwable, T] => Unit): Cancelable =
+    unsafeRunAsyncCancelable(effect, cb)
 }
 
 private final class RunEffectIOWithRuntime(ioRuntime: unsafe.IORuntime) extends RunEffect[IO] {
@@ -44,19 +45,20 @@ private final class RunEffectIOWithRuntime(ioRuntime: unsafe.IORuntime) extends 
   }
 
   override def unsafeRunSyncOrAsyncCancelable[T](effect: IO[T], cb: Either[Throwable, T] => Unit): Cancelable = {
-      try {
-        effect.syncStep.unsafeRunSync() match {
-          case Left(io) =>
-            unsafeRunAsyncCancelable(io, cb)
-          case right: Right[_, T] =>
-            cb(right.asInstanceOf[Right[Nothing, T]])
-            Cancelable.empty
-        }
-      } catch { case NonFatal(error) =>
+    try {
+      effect.syncStep.unsafeRunSync() match {
+        case Left(io)           =>
+          unsafeRunAsyncCancelable(io, cb)
+        case right: Right[_, T] =>
+          cb(right.asInstanceOf[Right[Nothing, T]])
+          Cancelable.empty
+      }
+    } catch {
+      case NonFatal(error) =>
         cb(Left(error))
         Cancelable.empty
-      }
     }
+  }
 }
 
 private final class RunSyncEffectRunEffect[F[_]: RunSyncEffect] extends RunEffect[F] {
@@ -82,4 +84,4 @@ private final class RunSyncEffectRunEffect[F[_]: RunSyncEffect] extends RunEffec
     cb(result)
     Cancelable.empty
   }
-    }
+}

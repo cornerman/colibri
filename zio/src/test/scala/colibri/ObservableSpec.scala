@@ -8,11 +8,11 @@ import org.scalatest.flatspec.AsyncFlatSpec
 class ObservableSpec extends AsyncFlatSpec with Matchers {
 
   "Observable" should "recover after mapEffect" in {
-    var recovered = List.empty[Throwable]
-    var received = List.empty[Unit]
+    var recovered      = List.empty[Throwable]
+    var received       = List.empty[Unit]
     var receivedErrors = List.empty[Throwable]
-    val exception = new Exception("hallo")
-    val stream   = Observable(()).mapEffect(_ => Task.fail(exception)).recover { case t => recovered ::= t }
+    val exception      = new Exception("hallo")
+    val stream         = Observable(()).mapEffect(_ => Task.fail(exception)).recover { case t => recovered ::= t }
 
     recovered shouldBe List.empty
     received shouldBe List.empty

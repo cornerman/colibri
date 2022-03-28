@@ -11,7 +11,7 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
     blocking = this.executionContext,
     config = unsafe.IORuntimeConfig(),
     scheduler = unsafe.IORuntime.defaultScheduler,
-    shutdown = () => ()
+    shutdown = () => (),
   )
 
   "Observable" should "map" in {
@@ -33,11 +33,11 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
   }
 
   it should "recover" in {
-    var recovered = List.empty[Throwable]
-    var received = List.empty[Unit]
+    var recovered      = List.empty[Throwable]
+    var received       = List.empty[Unit]
     var receivedErrors = List.empty[Throwable]
-    val exception = new Exception("hallo")
-    val stream   = Observable.raiseError(exception).recover { case t => recovered ::= t }
+    val exception      = new Exception("hallo")
+    val stream         = Observable.raiseError(exception).recover { case t => recovered ::= t }
 
     recovered shouldBe List.empty
     received shouldBe List.empty
@@ -51,11 +51,11 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
   }
 
   it should "recover after mapEffect" in {
-    var recovered = List.empty[Throwable]
-    var received = List.empty[Unit]
+    var recovered      = List.empty[Throwable]
+    var received       = List.empty[Unit]
     var receivedErrors = List.empty[Throwable]
-    val exception = new Exception("hallo")
-    val stream   = Observable(()).mapEffect(_ => cats.effect.IO.raiseError(exception)).recover { case t => recovered ::= t }
+    val exception      = new Exception("hallo")
+    val stream         = Observable(()).mapEffect(_ => cats.effect.IO.raiseError(exception)).recover { case t => recovered ::= t }
 
     recovered shouldBe List.empty
     received shouldBe List.empty
@@ -475,7 +475,7 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
   it should "fromEffect" in {
     var received = List.empty[Int]
     var errors   = 0
-    val effect = IO(100)
+    val effect   = IO(100)
     val stream   = Observable.fromEffect(effect)
 
     stream.unsafeSubscribe(
@@ -492,7 +492,7 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
   it should "fromEffect cede" in {
     var received = List.empty[Int]
     var errors   = 0
-    val effect = IO(100)
+    val effect   = IO(100)
     val stream   = Observable.fromEffect(IO.cede *> effect)
 
     stream.unsafeSubscribe(
@@ -516,7 +516,7 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
   it should "fromEffect sync" in {
     var received = List.empty[Int]
     var errors   = 0
-    val effect = SyncIO(100)
+    val effect   = SyncIO(100)
     val stream   = Observable.fromEffect(effect)
 
     stream.unsafeSubscribe(

@@ -12,9 +12,9 @@ trait Cancelable  {
   @deprecated("Use unsafeCancel() instead", "0.2.7")
   @inline final def cancel(): Unit = unsafeCancel()
 
-  final def cancelF[F[_] : Sync]: F[Unit] = Sync[F].delay(unsafeCancel())
-  final def cancelIO: IO[Unit] = cancelF[IO]
-  final def cancelSyncIO: SyncIO[Unit] = cancelF[SyncIO]
+  final def cancelF[F[_]: Sync]: F[Unit] = Sync[F].delay(unsafeCancel())
+  final def cancelIO: IO[Unit]           = cancelF[IO]
+  final def cancelSyncIO: SyncIO[Unit]   = cancelF[SyncIO]
 }
 object Cancelable {
 
@@ -163,8 +163,8 @@ object Cancelable {
   @inline def empty = Empty
 
   @inline def apply(f: () => Unit): Cancelable = new Cancelable {
-    private var isCanceled = false
-    @inline def unsafeCancel()   = if (!isCanceled) {
+    private var isCanceled     = false
+    @inline def unsafeCancel() = if (!isCanceled) {
       isCanceled = true
       f()
     }
@@ -172,16 +172,17 @@ object Cancelable {
 
   @inline def lift[T: CanCancel](subscription: T): Cancelable = subscription match {
     case cancelable: Cancelable => cancelable
-    case _ => apply(() => CanCancel[T].unsafeCancel(subscription))
+    case _                      => apply(() => CanCancel[T].unsafeCancel(subscription))
   }
 
-  @inline def composite(subscriptions: Cancelable*): Cancelable                      = compositeFromIterable(subscriptions)
+  @inline def composite(subscriptions: Cancelable*): Cancelable              = compositeFromIterable(subscriptions)
   def compositeFromIterable(subscriptions: Iterable[Cancelable]): Cancelable = {
     val nonEmptySubscriptions = subscriptions.filter(_ != Cancelable.empty)
     if (nonEmptySubscriptions.isEmpty) Cancelable.empty
-    else new Cancelable {
-      def unsafeCancel() = nonEmptySubscriptions.foreach(_.unsafeCancel())
-    }
+    else
+      new Cancelable {
+        def unsafeCancel() = nonEmptySubscriptions.foreach(_.unsafeCancel())
+      }
   }
 
   @inline def builder(): Builder = new Builder

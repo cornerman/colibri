@@ -13,7 +13,7 @@ private[colibri] object JSArrayHelper {
     val index = array.indexOf(element)
     if (index != -1) {
       val newArray = js.Array[T]()
-      var i = 0
+      var i        = 0
       while (i < array.length) {
         if (i != index) newArray.push(array(i))
         i += 1

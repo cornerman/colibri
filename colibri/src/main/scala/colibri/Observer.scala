@@ -29,8 +29,14 @@ object Observer    {
   }
 
   @deprecated("Use createUnrecovered instead", "")
-  @inline def unsafeCreate[A](consume: A => Unit, failure: Throwable => Unit = UnhandledErrorReporter.errorSubject.unsafeOnNext): Observer[A] = createUnrecovered(consume, failure)
-  @inline def createUnrecovered[A](consume: A => Unit, failure: Throwable => Unit = UnhandledErrorReporter.errorSubject.unsafeOnNext): Observer[A] =
+  @inline def unsafeCreate[A](
+      consume: A => Unit,
+      failure: Throwable => Unit = UnhandledErrorReporter.errorSubject.unsafeOnNext,
+  ): Observer[A] = createUnrecovered(consume, failure)
+  @inline def createUnrecovered[A](
+      consume: A => Unit,
+      failure: Throwable => Unit = UnhandledErrorReporter.errorSubject.unsafeOnNext,
+  ): Observer[A] =
     new Observer[A] {
       def unsafeOnNext(value: A): Unit          = consume(value)
       def unsafeOnError(error: Throwable): Unit = failure(error)
@@ -112,9 +118,9 @@ object Observer    {
 
     def contraflattenIterable[B]: Observer[Iterable[A]] = contramapIterable(identity)
 
-    //TODO return effect
+    // TODO return effect
     def contrascan[B](seed: A)(f: (A, B) => A): Observer[B] = new Observer[B] {
-      private var state                   = seed
+      private var state                         = seed
       def unsafeOnNext(value: B): Unit          = recovered(
         {
           val result = f(state, value)
@@ -143,17 +149,17 @@ object Observer    {
     }
 
     @deprecated("Use unsafeOnNext instead", "")
-    def onNext(value: A): Unit = sink.unsafeOnNext(value)
+    def onNext(value: A): Unit          = sink.unsafeOnNext(value)
     @deprecated("Use unsafeOnError instead", "")
     def onError(error: Throwable): Unit = sink.unsafeOnError(error)
 
     def onNextF[F[_]: Sync](value: A): F[Unit] = Sync[F].delay(sink.unsafeOnNext(value))
-    def onNextIO(value: A): IO[Unit] = onNextF[IO](value)
-    def onNextSyncIO(value: A): SyncIO[Unit] = onNextF[SyncIO](value)
+    def onNextIO(value: A): IO[Unit]           = onNextF[IO](value)
+    def onNextSyncIO(value: A): SyncIO[Unit]   = onNextF[SyncIO](value)
 
     def onErrorF[F[_]: Sync](error: Throwable): F[Unit] = Sync[F].delay(sink.unsafeOnError(error))
-    def onErrorIO(error: Throwable): IO[Unit] = onErrorF[IO](error)
-    def onErrorSyncIO(error: Throwable): SyncIO[Unit] = onErrorF[SyncIO](error)
+    def onErrorIO(error: Throwable): IO[Unit]           = onErrorF[IO](error)
+    def onErrorSyncIO(error: Throwable): SyncIO[Unit]   = onErrorF[SyncIO](error)
   }
 
   private def recovered(action: => Unit, unsafeOnError: Throwable => Unit): Unit = try action

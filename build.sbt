@@ -4,16 +4,16 @@ crossScalaVersions := Nil
 inThisBuild(
   Seq(
     organization := "com.github.cornerman",
-    licenses := Seq("MIT License" -> url("https://opensource.org/licenses/MIT")),
-    homepage := Some(url("https://github.com/cornerman/colibri")),
-    scmInfo := Some(
+    licenses     := Seq("MIT License" -> url("https://opensource.org/licenses/MIT")),
+    homepage     := Some(url("https://github.com/cornerman/colibri")),
+    scmInfo      := Some(
       ScmInfo(
         url("https://github.com/cornerman/colibri"),
         "scm:git:git@github.com:cornerman/colibri.git",
         Some("scm:git:git@github.com:cornerman/colibri.git"),
       ),
     ),
-    pomExtra :=
+    pomExtra     :=
       <developers>
         <developer>
         <id>jk</id>
@@ -26,13 +26,11 @@ inThisBuild(
 
 lazy val commonSettings = Seq(
   crossScalaVersions := Seq("2.12.15", "2.13.8", "3.1.1"),
-  scalaVersion := "2.13.8",
-
+  scalaVersion       := "2.13.8",
   libraryDependencies ++= (CrossVersion.partialVersion(scalaVersion.value) match {
     case Some((3, _)) => Seq.empty
-    case _ => Seq(compilerPlugin("org.typelevel" % "kind-projector" % "0.13.2" cross CrossVersion.full))
+    case _            => Seq(compilerPlugin("org.typelevel" % "kind-projector" % "0.13.2" cross CrossVersion.full))
   }),
-
   libraryDependencies ++= Seq(
     "org.scalatest" %%% "scalatest" % "3.2.11" % Test,
   ),
@@ -46,9 +44,9 @@ lazy val colibri = project
   .settings(
     name := "colibri",
     libraryDependencies ++= Seq(
-      "org.typelevel" %%% "cats-core"   % "2.7.0",
-      "org.typelevel" %%% "cats-effect" % "3.3.9",
-      "com.github.cornerman" %%% "sloth-types" % "0.6.3"
+      "org.typelevel"        %%% "cats-core"   % "2.7.0",
+      "org.typelevel"        %%% "cats-effect" % "3.3.9",
+      "com.github.cornerman" %%% "sloth-types" % "0.6.3",
     ),
   )
 
@@ -60,7 +58,7 @@ lazy val jsdom = project
   .settings(
     name := "colibri-jsdom",
     libraryDependencies ++= Seq(
-      "org.scala-js"  %%% "scalajs-dom" % "2.1.0",
+      "org.scala-js" %%% "scalajs-dom" % "2.1.0",
     ),
   )
 
@@ -81,7 +79,7 @@ lazy val rx = project
   .in(file("rx"))
   .settings(commonSettings)
   .settings(
-    name := "colibri-rx",
+    name               := "colibri-rx",
     crossScalaVersions := Seq("2.12.15", "2.13.8"), // no scala3, because scala.rx uses scala2 macros
     libraryDependencies ++= Seq(
       "com.lihaoyi" %% "scalarx" % "0.4.3",
@@ -96,7 +94,7 @@ lazy val airstream = project
   .settings(
     name := "colibri-airstream",
     libraryDependencies ++= Seq(
-      "com.raquo" %%% "airstream" % "0.14.2"
+      "com.raquo" %%% "airstream" % "0.14.2",
     ),
   )
 
@@ -109,7 +107,7 @@ lazy val zio = project
     name := "colibri-zio",
     libraryDependencies ++= Seq(
       "io.github.cquiroz" %%% "scala-java-time" % "2.3.0",
-      "dev.zio" %%% "zio" % "1.0.13",
-      "dev.zio" %%% "zio-streams" % "1.0.13"
-    )
+      "dev.zio"           %%% "zio"             % "1.0.13",
+      "dev.zio"           %%% "zio-streams"     % "1.0.13",
+    ),
   )
