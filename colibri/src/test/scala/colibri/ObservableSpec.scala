@@ -32,6 +32,24 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
     received shouldBe List(3, 2, 1, 3, 2, 1)
   }
 
+  it should "discard" in {
+    var mapped   = List.empty[Int]
+    var received = List.empty[Int]
+    val stream   = Observable.fromIterable(Seq(1, 2, 3)).map { x => mapped ::= x; x }.discard
+
+    mapped shouldBe List.empty
+
+    stream.unsafeSubscribe(Observer.create[Int](received ::= _))
+
+    mapped shouldBe List(3, 2, 1)
+    received shouldBe List.empty
+
+    stream.unsafeSubscribe(Observer.create[Int](received ::= _))
+
+    mapped shouldBe List(3, 2, 1, 3, 2, 1)
+    received shouldBe List.empty
+  }
+
   it should "recover" in {
     var recovered      = List.empty[Throwable]
     var received       = List.empty[Unit]

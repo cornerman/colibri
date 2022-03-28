@@ -234,6 +234,8 @@ object Observable    {
       def unsafeSubscribe(sink: Observer[B]): Cancelable = source.unsafeSubscribe(sink.contramap(f))
     }
 
+
+    def discard: Observable[Nothing]                             = Observable.empty.subscribing(void)
     def void: Observable[Unit]                                   = map(_ => ())
     def as[B](value: B): Observable[B]                           = map(_ => value)
     def asDelay[B](value: => B): Observable[B]                   = map(_ => value)
