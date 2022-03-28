@@ -1,6 +1,6 @@
 package colibri
 
-import cats.effect.IO
+import cats.effect.{SyncIO, IO}
 import cats.effect.unsafe
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.flatspec.AsyncFlatSpec
@@ -511,6 +511,23 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
     }
 
     test.unsafeToFuture()
+  }
+
+  it should "fromEffect sync" in {
+    var received = List.empty[Int]
+    var errors   = 0
+    val effect = SyncIO(100)
+    val stream   = Observable.fromEffect(effect)
+
+    stream.unsafeSubscribe(
+      Observer.create[Int](
+        received ::= _,
+        _ => errors += 1,
+      ),
+    )
+
+    received shouldBe List(100)
+    errors shouldBe 0
   }
 
   it should "mapEffect" in {

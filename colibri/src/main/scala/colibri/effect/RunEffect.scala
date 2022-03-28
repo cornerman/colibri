@@ -1,6 +1,7 @@
 package colibri.effect
 
 import colibri.Cancelable
+import colibri.helpers.NativeTypes
 import cats.effect.{unsafe, IO, Async, Resource}
 import cats.effect.std.Dispatcher
 
@@ -12,19 +13,21 @@ trait RunEffect[-F[_]] {
 }
 
 trait RunEffectLowPrio {
-  implicit val RunEffectIO: RunEffect[IO] = new RunEffectIOWithRuntime(unsafe.IORuntime.global)
+  implicit val IORunEffect: RunEffect[IO] = new RunEffectIOWithRuntime(unsafe.IORuntime.global)
 }
 object RunEffect extends RunEffectLowPrio {
   @inline def apply[F[_]](implicit run: RunEffect[F]): RunEffect[F] = run
 
-  implicit def forIO(implicit ioRuntime: unsafe.IORuntime): RunEffect[IO] = new RunEffectIOWithRuntime(ioRuntime)
-
   def forAsync[F[_]: Async]: Resource[F, RunEffect[F]] = Dispatcher[F].map(forDispatcher(_))
 
   def forDispatcher[F[_]](dispatcher: Dispatcher[F]): RunEffect[F] = new RunEffectAsyncWithDispatcher(dispatcher)
+
+  implicit def IORunEffectRuntime(implicit ioRuntime: unsafe.IORuntime): RunEffect[IO] = new RunEffectIOWithRuntime(ioRuntime)
+
+  implicit def RunSyncEffectRunEffect[F[_]: RunSyncEffect]: RunEffect[F] = new RunSyncEffectRunEffect[F]
 }
 
-private class RunEffectAsyncWithDispatcher[F[_]](dispatcher: Dispatcher[F]) extends RunEffect[F] {
+private final class RunEffectAsyncWithDispatcher[F[_]](dispatcher: Dispatcher[F]) extends RunEffect[F] {
     override def unsafeRunAsyncCancelable[T](effect: F[T], cb: Either[Throwable, T] => Unit): Cancelable = {
       val (future, cancelRun) = dispatcher.unsafeToFutureCancelable(effect)
       RunEffectExecution.handleFutureCancelable(future, cancelRun, cb)
@@ -34,7 +37,7 @@ private class RunEffectAsyncWithDispatcher[F[_]](dispatcher: Dispatcher[F]) exte
     override def unsafeRunSyncOrAsyncCancelable[T](effect: F[T], cb: Either[Throwable, T] => Unit): Cancelable = unsafeRunAsyncCancelable(effect, cb)
 }
 
-private class RunEffectIOWithRuntime(ioRuntime: unsafe.IORuntime) extends RunEffect[IO] {
+private final class RunEffectIOWithRuntime(ioRuntime: unsafe.IORuntime) extends RunEffect[IO] {
   override def unsafeRunAsyncCancelable[T](effect: IO[T], cb: Either[Throwable, T] => Unit): Cancelable = {
     val (future, cancelRun) = effect.unsafeToFutureCancelable()(ioRuntime)
     RunEffectExecution.handleFutureCancelable(future, cancelRun, cb)
@@ -55,3 +58,28 @@ private class RunEffectIOWithRuntime(ioRuntime: unsafe.IORuntime) extends RunEff
       }
     }
 }
+
+private final class RunSyncEffectRunEffect[F[_]: RunSyncEffect] extends RunEffect[F] {
+  override def unsafeRunAsyncCancelable[T](effect: F[T], cb: Either[Throwable, T] => Unit): Cancelable = {
+    var isCancel = false
+
+    val setImmediateHandle = NativeTypes.setImmediateRef { () =>
+      if (!isCancel) {
+        isCancel = true
+        val result = RunSyncEffect[F].unsafeRun(effect)
+        cb(result)
+      }
+    }
+
+    Cancelable { () =>
+      isCancel = true
+      NativeTypes.clearImmediateRef(setImmediateHandle)
+    }
+  }
+
+  override def unsafeRunSyncOrAsyncCancelable[T](effect: F[T], cb: Either[Throwable, T] => Unit): Cancelable = {
+    val result = RunSyncEffect[F].unsafeRun(effect)
+    cb(result)
+    Cancelable.empty
+  }
+    }
