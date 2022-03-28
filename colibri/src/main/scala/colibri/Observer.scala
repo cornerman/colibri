@@ -42,6 +42,8 @@ object Observer    {
       def unsafeOnError(error: Throwable): Unit = failure(error)
     }
 
+  def foreach[A](consume: A => Unit): Observer[A] = Observer.create(consume)
+
   def create[A](consume: A => Unit, failure: Throwable => Unit = UnhandledErrorReporter.errorSubject.unsafeOnNext): Observer[A] =
     new Observer[A] {
       def unsafeOnNext(value: A): Unit          = recovered(consume(value), unsafeOnError)
