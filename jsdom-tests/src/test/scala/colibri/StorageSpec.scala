@@ -5,7 +5,7 @@ import org.scalatest.flatspec.AsyncFlatSpec
 
 import org.scalajs.dom
 import org.scalajs.dom.{EventInit, Event}
-import org.scalajs.dom.window.localStorage
+import org.scalajs.dom.window
 import scala.scalajs.js
 import scala.collection.mutable
 
@@ -14,10 +14,10 @@ import cats.effect.{IO, unsafe}
 
 trait LocalStorageMock {
   def dispatchStorageEvent(key: String, newValue: String, oldValue: String): Unit = {
-    if (key == null) localStorage.clear()
+    if (key == null) window.localStorage.clear()
     else {
-      if (newValue == null) localStorage.removeItem(key)
-      else localStorage.setItem(key, newValue)
+      if (newValue == null) window.localStorage.removeItem(key)
+      else window.localStorage.setItem(key, newValue)
     }
 
     val event = new Event(
@@ -30,7 +30,7 @@ trait LocalStorageMock {
     event.asInstanceOf[js.Dynamic].key = key
     event.asInstanceOf[js.Dynamic].newValue = newValue
     event.asInstanceOf[js.Dynamic].oldValue = oldValue
-    event.asInstanceOf[js.Dynamic].storageArea = localStorage
+    event.asInstanceOf[js.Dynamic].storageArea = window.localStorage
     dom.window.dispatchEvent(event)
     ()
   }
@@ -83,15 +83,15 @@ class StorageSpec extends AsyncFlatSpec with Matchers with LocalStorageMock {
     val key                    = "banana"
     val triggeredHandlerEvents = mutable.ArrayBuffer.empty[Option[String]]
 
-    assert(localStorage.getItem(key) == null)
+    assert(window.localStorage.getItem(key) == null)
 
     val test = IO(Storage.Local.subjectWithEvents(key)).flatMap { storageHandler =>
       storageHandler.unsafeForeach { e => triggeredHandlerEvents += e }
-      assert(localStorage.getItem(key) == null)
+      assert(window.localStorage.getItem(key) == null)
       assert(triggeredHandlerEvents.toList == List(None))
 
       storageHandler.unsafeOnNext(Some("joe"))
-      assert(localStorage.getItem(key) == "joe")
+      assert(window.localStorage.getItem(key) == "joe")
       assert(triggeredHandlerEvents.toList == List(None, Some("joe")))
 
       var initialValue: Option[String] = null
@@ -101,31 +101,31 @@ class StorageSpec extends AsyncFlatSpec with Matchers with LocalStorageMock {
         assert(initialValue == Some("joe"))
 
         storageHandler.unsafeOnNext(None)
-        assert(localStorage.getItem(key) == null)
+        assert(window.localStorage.getItem(key) == null)
         assert(triggeredHandlerEvents.toList == List(None, Some("joe"), None))
 
-        // localStorage.setItem(key, "split") from another window
+        // window.localStorage.setItem(key, "split") from another window
         dispatchStorageEvent(key, newValue = "split", null)
-        assert(localStorage.getItem(key) == "split")
+        assert(window.localStorage.getItem(key) == "split")
         assert(triggeredHandlerEvents.toList == List(None, Some("joe"), None, Some("split")))
 
-        // localStorage.removeItem(key) from another window
+        // window.localStorage.removeItem(key) from another window
         dispatchStorageEvent(key, null, "split")
-        assert(localStorage.getItem(key) == null)
+        assert(window.localStorage.getItem(key) == null)
         assert(triggeredHandlerEvents.toList == List(None, Some("joe"), None, Some("split"), None))
 
         // only trigger handler if value changed
         storageHandler.unsafeOnNext(None)
-        assert(localStorage.getItem(key) == null)
+        assert(window.localStorage.getItem(key) == null)
         assert(triggeredHandlerEvents.toList == List(None, Some("joe"), None, Some("split"), None))
 
         storageHandler.unsafeOnNext(Some("rhabarbar"))
-        assert(localStorage.getItem(key) == "rhabarbar")
+        assert(window.localStorage.getItem(key) == "rhabarbar")
         assert(triggeredHandlerEvents.toList == List(None, Some("joe"), None, Some("split"), None, Some("rhabarbar")))
 
-        // localStorage.clear() from another window
+        // window.localStorage.clear() from another window
         dispatchStorageEvent(null, null, null)
-        assert(localStorage.getItem(key) == null)
+        assert(window.localStorage.getItem(key) == null)
         assert(triggeredHandlerEvents.toList == List(None, Some("joe"), None, Some("split"), None, Some("rhabarbar"), None))
       }
     }
