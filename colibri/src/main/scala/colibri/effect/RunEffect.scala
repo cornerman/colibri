@@ -22,9 +22,9 @@ object RunEffect extends RunEffectLowPrio {
 
   def forDispatcher[F[_]](dispatcher: Dispatcher[F]): RunEffect[F] = new RunEffectAsyncWithDispatcher(dispatcher)
 
-  implicit def IORunEffectRuntime(implicit ioRuntime: unsafe.IORuntime): RunEffect[IO] = new RunEffectIOWithRuntime(ioRuntime)
+  @inline implicit def IORunEffectRuntime(implicit ioRuntime: unsafe.IORuntime): RunEffect[IO] = new RunEffectIOWithRuntime(ioRuntime)
 
-  implicit def RunSyncEffectRunEffect[F[_]: RunSyncEffect]: RunEffect[F] = new RunSyncEffectRunEffect[F]
+  @inline implicit def RunSyncEffectRunEffect[F[_]: RunSyncEffect]: RunEffect[F] = RunSyncEffect[F]
 }
 
 private final class RunEffectAsyncWithDispatcher[F[_]](dispatcher: Dispatcher[F]) extends RunEffect[F] {

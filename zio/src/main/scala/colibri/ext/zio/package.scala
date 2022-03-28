@@ -16,12 +16,12 @@ trait ZioLowPrio {
 }
 
 package object zio extends ZioLowPrio {
-  implicit def zioTaskRunEffectRuntime[Env](implicit runtime: Runtime[Env]): RunEffect[RIO[Env, *]] =
+  @inline implicit def zioTaskRunEffectRuntime[Env](implicit runtime: Runtime[Env]): RunEffect[RIO[Env, *]] =
     new RunEffectZIOWithRuntime[Env](runtime)
 
   // Sink
 
-  implicit def zioSinkSinkRuntime[Env](implicit runtime: Runtime[Env]): Sink[RSink[Env, *]] = new SinkZIOWithRuntime(runtime)
+  @inline implicit def zioSinkSinkRuntime[Env](implicit runtime: Runtime[Env]): Sink[RSink[Env, *]] = new SinkZIOWithRuntime(runtime)
 
   implicit object zioSinkLiftSink extends LiftSink[RSink[Any, *]] {
     def lift[G[_]: Sink, A](sink: G[A]): RSink[Any, A] = ZSink
@@ -31,7 +31,7 @@ package object zio extends ZioLowPrio {
 
   // Source
 
-  implicit def zioStreamSourceRuntime[Env](implicit runtime: Runtime[Env]): Source[RStream[Env, *]] = new SourceZIOWithRuntime(runtime)
+  @inline implicit def zioStreamSourceRuntime[Env](implicit runtime: Runtime[Env]): Source[RStream[Env, *]] = new SourceZIOWithRuntime(runtime)
 
   implicit object zioStreamLiftSource extends LiftSource[RStream[Any, *]] {
     override def lift[G[_]: Source, A](source: G[A]): RStream[Any, A] = Stream.effectAsyncInterrupt { emit =>
