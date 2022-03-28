@@ -51,7 +51,7 @@ lazy val colibri = project
   )
 
 lazy val jsdom = project
-  .enablePlugins(ScalaJSPlugin)
+  .enablePlugins(ScalaJSPlugin, ScalaJSBundlerPlugin)
   .in(file("jsdom"))
   .dependsOn(colibri)
   .settings(commonSettings)
@@ -60,6 +60,9 @@ lazy val jsdom = project
     libraryDependencies ++= Seq(
       "org.scala-js" %%% "scalajs-dom" % "2.1.0",
     ),
+
+    Test/requireJsDomEnv := true,
+    installJsdom/version := "13.2.0",
   )
 
 lazy val router = project
