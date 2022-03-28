@@ -134,6 +134,24 @@ object Observer    {
       def unsafeOnError(error: Throwable): Unit = sink.unsafeOnError(error)
     }
 
+    def tap(f: A => Unit): Observer[A] = new Observer[A] {
+      def unsafeOnNext(value: A): Unit          = {
+        f(value)
+        sink.unsafeOnNext(value)
+      }
+      def unsafeOnError(error: Throwable): Unit = sink.unsafeOnError(error)
+    }
+
+    def tapFailed(f: Throwable => Unit): Observer[A] = new Observer[A] {
+      def unsafeOnNext(value: A): Unit          = sink.unsafeOnNext(value)
+      def unsafeOnError(error: Throwable): Unit = {
+        f(error)
+        sink.unsafeOnError(error)
+      }
+    }
+
+    def combine(obs: Observer[A]): Observer[A] = Observer.combine(sink, obs)
+
     def doOnNext(f: A => Unit): Observer[A] = new Observer[A] {
       def unsafeOnNext(value: A): Unit          = f(value)
       def unsafeOnError(error: Throwable): Unit = sink.unsafeOnError(error)
