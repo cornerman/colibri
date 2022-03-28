@@ -45,7 +45,7 @@ import colibri.ext.zio._ // optional: colibri-zio
 The implementation follows the reactive design:
 - An observable is a stream to which you can subscribe with an Observer.
 - An observer is basically a callback which can receive a value or an error from an Observable.
-- A Subject is both an observables and an observer, receiving values and errors from the outside and distributing them to all subscribing observers.
+- A Subject is both an observable and an observer, receiving values and errors from the outside and distributing them to all subscribing observers.
 
 Observables in colibri are lazy, that means nothing starts until you call `unsafeSubscribe` on an `Observable` (or any `unsafe*` method).
 
@@ -71,6 +71,7 @@ observable.subscribeF[IO](observer)
 Example Subjects:
 ```scala
 import colibri._
+
 val subject = Subject.publish[Int]() // or Subject.behavior(seed) or Subject.replayLast or Subject.replayAll
 
 subject.unsafeForeach(println(_))
