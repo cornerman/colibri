@@ -1,8 +1,8 @@
 [![Build Status](https://travis-ci.org/cornerman/colibri.svg?branch=master)](https://travis-ci.org/cornerman/colibri)
 
-# Colibri - a simple functional reactive library for scala-js
+# Colibri
 
-Colibri is an implementation of the `Observable`, `Observer` and `Subject` reactive concepts.
+A simple functional reactive library for scala-js. Colibri is an implementation of the `Observable`, `Observer` and `Subject` reactive concepts.
 
 If you're new to these, here is a nice introduction for rx.js: <https://rxjs.dev/guide/overview>.
 
@@ -42,10 +42,43 @@ import colibri.ext.zio._ // optional: colibri-zio
 
 ## Subject, Observable and Observer
 
-The implementation follows the reactive design.
-An observable is a stream to which you can subscribe with an Observer.
-An observer is basically a callback which can receive a value or an error from an Observable.
-A Subject is both an observables and an observer, receving values from the outside and distributing it all subscribing observers.
+The implementation follows the reactive design:
+- An observable is a stream to which you can subscribe with an Observer.
+- An observer is basically a callback which can receive a value or an error from an Observable.
+- A Subject is both an observables and an observer, receiving values and errors from the outside and distributing them to all subscribing observers.
+
+Observables in colibri are lazy, that means nothing starts until you call `unsafeSubscribe` on an `Observable` (or any `unsafe*` method).
+
+Example Observables:
+```scala
+import colibri._
+import scala.concurrent.duration._
+import cats.effect.IO
+
+val observable = Observable
+  .interval(1.second)
+  .mapEffect[IO](i => count(i)
+  .distinctOnEquals
+  .tapEffect[IO](c => log(c))
+
+val observer = Observer.foreach[Int](println(_))
+
+observable.unsafeSubscribe(observer)
+
+observable.subscribeF[IO](observer)
+```
+
+Example Subjects:
+```scala
+import colibri._
+val subject = Subject.publish[Int]() // or Subject.behavior(seed) or Subject.replayLast or Subject.replayAll
+
+subject.unsafeForeach(println(_))
+
+subject.unsafeOnNext(1)
+
+subject.onNextF[IO](2)
+```
 
 ## Typeclasses
 
