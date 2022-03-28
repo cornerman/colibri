@@ -97,7 +97,7 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
   it should "dropUntil" in {
     var received = List.empty[Int]
     val handler  = Subject.behavior[Int](0)
-    val until    = Subject.replay[Unit]()
+    val until    = Subject.replayLast[Unit]()
     val stream   = handler.dropUntil(until)
 
     stream.unsafeSubscribe(Observer.create[Int](received ::= _))
@@ -145,7 +145,7 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
   it should "takeUntil" in {
     var received = List.empty[Int]
     val handler  = Subject.behavior[Int](0)
-    val until    = Subject.replay[Unit]()
+    val until    = Subject.replayLast[Unit]()
     val stream   = handler.takeUntil(until)
 
     stream.unsafeSubscribe(Observer.create[Int](received ::= _))
@@ -307,7 +307,7 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
   it should "publish" in {
     var mapped   = List.empty[Int]
     var received = List.empty[Int]
-    val handler  = Subject.replay[Int]()
+    val handler  = Subject.replayLast[Int]()
     val stream   = Observable.merge(handler, Observable.fromIterable(Seq(1, 2, 3))).map { x => mapped ::= x; x }.publish.refCount
 
     mapped shouldBe List.empty
@@ -342,12 +342,12 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
     received shouldBe List(5, 4, 4, 3, 2, 1)
   }
 
-  it should "replay" in {
+  it should "replayLast" in {
     var mapped   = List.empty[Int]
     var received = List.empty[Int]
     var errors   = 0
-    val handler  = Subject.replay[Int]()
-    val stream   = Observable.merge(handler, Observable.fromIterable(Seq(1, 2, 3))).map { x => mapped ::= x; x }.replay.refCount
+    val handler  = Subject.replayLast[Int]()
+    val stream   = Observable.merge(handler, Observable.fromIterable(Seq(1, 2, 3))).map { x => mapped ::= x; x }.replayLast.refCount
 
     mapped shouldBe List.empty
 
@@ -576,7 +576,7 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
     var received = List.empty[Int]
     var errors   = 0
     val handler0 = Subject.behavior[Int](0)
-    val handler1 = Subject.replay[Int]()
+    val handler1 = Subject.replayLast[Int]()
     val handler2 = Subject.behavior[Int](2)
     val handlers = Array(handler0, handler1, Observable.empty, handler2)
     val stream   = Observable.fromIterable(Seq(0, 1, 2, 3)).switchMap(handlers(_))
@@ -669,7 +669,7 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
     var received = List.empty[Int]
     var errors   = 0
     val handler0 = Subject.behavior[Int](0)
-    val handler1 = Subject.replay[Int]()
+    val handler1 = Subject.replayLast[Int]()
     val handler2 = Subject.behavior[Int](2)
     val handlers = Array(handler0, handler1, handler2)
     val stream   = Observable.fromIterable(Seq(0, 1, 2)).mergeMap(handlers(_))

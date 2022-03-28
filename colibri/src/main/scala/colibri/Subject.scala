@@ -27,6 +27,30 @@ final class ReplaySubject[A] extends Observer[A] with Observable.MaybeValue[A] {
   }
 }
 
+final class ReplayAllSubject[A] extends Observer[A] {
+
+  private val state = new PublishSubject[A]
+
+  private val current = collection.mutable.ArrayBuffer[A]()
+
+  def hasSubscribers: Boolean = state.hasSubscribers
+
+  @inline def now(): Seq[A] = current.toSeq
+
+  def unsafeOnNext(value: A): Unit = {
+    current += value
+    state.unsafeOnNext(value)
+  }
+
+  def unsafeOnError(error: Throwable): Unit = state.unsafeOnError(error)
+
+  def unsafeSubscribe(sink: Observer[A]): Cancelable = {
+    val cancelable = state.unsafeSubscribe(sink)
+    current.foreach(sink.unsafeOnNext)
+    cancelable
+  }
+}
+
 final class BehaviorSubject[A](private var current: A) extends Observer[A] with Observable.Value[A] {
 
   private val state = new PublishSubject[A]
@@ -82,7 +106,10 @@ object Subject {
   type Value[A]      = Observer[A] with Observable.Value[A]
   type MaybeValue[A] = Observer[A] with Observable.MaybeValue[A]
 
-  def replay[O](): ReplaySubject[O] = new ReplaySubject[O]
+  @deprecated("Use replayLast instead", "0.3.4")
+  def replay[O](): ReplaySubject[O]       = replayLast[O]()
+  def replayLast[O](): ReplaySubject[O]   = new ReplaySubject[O]
+  def replayAll[O](): ReplayAllSubject[O] = new ReplayAllSubject[O]
 
   def behavior[O](seed: O): BehaviorSubject[O] = new BehaviorSubject[O](seed)
 

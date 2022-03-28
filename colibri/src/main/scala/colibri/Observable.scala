@@ -228,14 +228,17 @@ object Observable    {
       def unsafeSubscribe(sink2: Observer[Unit]): Cancelable = source.unsafeSubscribe(Observer.combine(sink, sink2.contramap(_ => ())))
     }
 
+    def subscribing(f: Observable[Unit]): Observable[A] = tapSubscribe(() => f.unsafeSubscribe())
+
     def map[B](f: A => B): Observable[B] = new Observable[B] {
       def unsafeSubscribe(sink: Observer[B]): Cancelable = source.unsafeSubscribe(sink.contramap(f))
     }
 
-    def as[B](value: B): Observable[B]         = map(_ => value)
-    def asDelay[B](value: => B): Observable[B] = map(_ => value)
+    def void: Observable[Unit]                                   = map(_ => ())
+    def as[B](value: B): Observable[B]                           = map(_ => value)
+    def asDelay[B](value: => B): Observable[B]                   = map(_ => value)
     def asEffect[F[_]: RunEffect, B](value: F[B]): Observable[B] = mapEffect(_ => value)
-    def asFuture[B](value: Future[B]): Observable[B] = mapFuture(_ => value)
+    def asFuture[B](value: Future[B]): Observable[B]             = mapFuture(_ => value)
 
     def mapFilter[B](f: A => Option[B]): Observable[B] = new Observable[B] {
       def unsafeSubscribe(sink: Observer[B]): Cancelable = source.unsafeSubscribe(sink.contramapFilter(f))
@@ -863,11 +866,16 @@ object Observable    {
     }
 
     @inline def publish: Connectable[Observable[A]]                  = multicast(Subject.publish[A]())
-    @inline def replay: Connectable[Observable.MaybeValue[A]]        = multicastMaybeValue(Subject.replay[A]())
+    @deprecated("Use replayLast instead", "0.3.4")
+    @inline def replay: Connectable[Observable.MaybeValue[A]]        = replayLast
+    @inline def replayLast: Connectable[Observable.MaybeValue[A]]    = multicastMaybeValue(Subject.replayLast[A]())
     @inline def behavior(value: A): Connectable[Observable.Value[A]] = multicastValue(Subject.behavior(value))
 
     @inline def publishSelector[B](f: Observable[A] => Observable[B]): Observable[B]                  = transformSource(s => f(s.publish.refCount))
-    @inline def replaySelector[B](f: Observable.MaybeValue[A] => Observable[B]): Observable[B]        = transformSource(s => f(s.replay.refCount))
+    @deprecated("Use replayLastSelector instead", "0.3.4")
+    @inline def replaySelector[B](f: Observable.MaybeValue[A] => Observable[B]): Observable[B]        = replayLastSelector(f)
+    @inline def replayLastSelector[B](f: Observable.MaybeValue[A] => Observable[B]): Observable[B]    =
+      transformSource(s => f(s.replayLast.refCount))
     @inline def behaviorSelector[B](value: A)(f: Observable.Value[A] => Observable[B]): Observable[B] =
       transformSource(s => f(s.behavior(value).refCount))
 
@@ -901,7 +909,8 @@ object Observable    {
     @inline def prependEffect[F[_]: RunEffect](value: F[A]): Observable[A]   = concatEffect[F, A](value, source)
     @inline def prependFuture(value: => Future[A]): Observable[A]            = concatFuture[A](value, source)
 
-    def prepend(value: A): Observable[A] = new Observable[A] {
+    def prepend(value: A): Observable[A]            = prependDelay(value)
+    def prependDelay(value: => A): Observable[A] = new Observable[A] {
       def unsafeSubscribe(sink: Observer[A]): Cancelable = {
         sink.unsafeOnNext(value)
         source.unsafeSubscribe(sink)
