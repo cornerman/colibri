@@ -111,3 +111,15 @@ lazy val zio = project
       "dev.zio"           %%% "zio-streams"     % "1.0.13",
     ),
   )
+
+lazy val fs2 = project
+  .enablePlugins(ScalaJSPlugin)
+  .dependsOn(colibri)
+  .in(file("fs2"))
+  .settings(commonSettings)
+  .settings(
+    name := "colibri-fs2",
+    libraryDependencies ++= Seq(
+      "co.fs2" %%% "fs2-core" % "3.2.5",
+    )
+  )

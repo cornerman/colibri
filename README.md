@@ -49,6 +49,15 @@ libraryDependencies += "com.github.cornerman" %%% "colibri-zio" % "0.4.0"
 import colibri.ext.zio._
 ```
 
+For fs2 support (`Source` only):
+```scala
+libraryDependencies += "com.github.cornerman" %%% "colibri-fs2" % "0.4.0"
+```
+
+```scala
+import colibri.ext.fs2._
+```
+
 ## Subject, Observable and Observer
 
 The implementation follows the reactive design:
