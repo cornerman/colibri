@@ -30,6 +30,10 @@ object Cancelable {
   class Builder extends Cancelable {
     private var buffer = new js.Array[Cancelable]()
 
+    def addExisting(subscription: Cancelable): Unit =
+      if (buffer == null) subscription.unsafeCancel()
+      else +=(() => subscription)
+
     def +=(subscription: () => Cancelable): Unit = if (buffer != null) {
       val cancelable = subscription()
       buffer.push(cancelable)

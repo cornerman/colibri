@@ -4,7 +4,7 @@ import cats.implicits._
 import colibri.helpers.NativeTypes
 import colibri.effect.{RunSyncEffect, RunEffect}
 import cats.{Eq, FunctorFilter, MonoidK, Semigroupal, Applicative, Functor}
-import cats.effect.{Sync, SyncIO, Async, IO}
+import cats.effect.{Sync, SyncIO, Async, IO, Resource}
 import sloth.types.FlatMapError
 
 import scala.scalajs.js
@@ -139,7 +139,7 @@ object Observable    {
             val _ = RunEffect[F].unsafeRunSyncOrAsyncCancelable(finalizer) {
               case Right(())   => ()
               case Left(error) => sink.unsafeOnError(error)
-      }
+            }
           })
 
           sink.unsafeOnNext(value)
@@ -204,17 +204,8 @@ object Observable    {
     }
   }
 
-  // def resource[F[_]: RunSyncEffect, R, S](acquire: F[R], use: R => S, release: R => F[Unit]): Observable[S] =
-  //   resourceFunction[R, S](() => RunSyncEffect[F].unsafeRun(acquire), use, r => RunSyncEffect[F].unsafeRun(release(r)))
+  @inline def interval(delay: FiniteDuration): Observable[Long] = intervalMillis(delay.toMillis.toInt)
 
-  // def resourceFunction[R, S](acquire: () => R, use: R => S, release: R => Unit): Observable[S] = new Observable[S] {
-  //   def unsafeSubscribe(sink: Observer[S]): Cancelable = {
-  //     val r = acquire()
-  //     val s = use(r)
-  //     sink.unsafeOnNext(s)
-  //     Cancelable(() => release(r))
-  //   }
-  // }
   def intervalMillis(delay: Int): Observable[Long] = new Observable[Long] {
     def unsafeSubscribe(sink: Observer[Long]): Cancelable = {
       var isCancel      = false
@@ -443,6 +434,46 @@ object Observable    {
     }
 
     @inline def mapFuture[B](f: A => Future[B]): Observable[B] = mapEffect(v => IO.fromFuture(IO(f(v))))
+
+    def mapResource[F[_]: RunEffect: Sync, B](f: A => Resource[F, B]): Observable[B] = new Observable[B] {
+      def unsafeSubscribe(sink: Observer[B]): Cancelable = {
+        val consecutive       = Cancelable.consecutive()
+        val cancelableBuilder = Cancelable.builder()
+
+        val subscription = source.unsafeSubscribe(
+          Observer.create[A](
+            { value =>
+              val resource = f(value)
+              consecutive += (() =>
+                RunEffect[F].unsafeRunSyncOrAsyncCancelable(resource.allocated) { either =>
+                  either match {
+                    case Right((value, finalizer)) =>
+                      cancelableBuilder.addExisting(Cancelable { () =>
+                        // async and forget the finalizer, we do not need to cancel it.
+                        // just pass the error to the sink.
+                        val _ = RunEffect[F].unsafeRunSyncOrAsyncCancelable(finalizer) {
+                          case Right(())   => ()
+                          case Left(error) => sink.unsafeOnError(error)
+                        }
+                      })
+
+                      sink.unsafeOnNext(value)
+
+                    case Left(error) =>
+                      sink.unsafeOnError(error)
+                  }
+
+                  consecutive.switch()
+                },
+              )
+            },
+            sink.unsafeOnError,
+          ),
+        )
+
+        Cancelable.composite(subscription, consecutive, cancelableBuilder)
+      }
+    }
 
     @deprecated("Use mapEffectSingleOrDrop instead", "0.3.0")
     def mapAsyncSingleOrDrop[F[_]: RunEffect, B](f: A => F[B]): Observable[B]  = mapEffectSingleOrDrop(f)
@@ -899,13 +930,13 @@ object Observable    {
     @inline def publish: Connectable[Observable[A]]                  = multicast(Subject.publish[A]())
     @deprecated("Use replayLatest instead", "0.3.4")
     @inline def replay: Connectable[Observable.MaybeValue[A]]        = replayLatest
-    @inline def replayLatest: Connectable[Observable.MaybeValue[A]]    = multicastMaybeValue(Subject.replayLatest[A]())
+    @inline def replayLatest: Connectable[Observable.MaybeValue[A]]  = multicastMaybeValue(Subject.replayLatest[A]())
     @inline def behavior(value: A): Connectable[Observable.Value[A]] = multicastValue(Subject.behavior(value))
 
     @inline def publishSelector[B](f: Observable[A] => Observable[B]): Observable[B]                  = transformSource(s => f(s.publish.refCount))
     @deprecated("Use replayLatestSelector instead", "0.3.4")
     @inline def replaySelector[B](f: Observable.MaybeValue[A] => Observable[B]): Observable[B]        = replayLatestSelector(f)
-    @inline def replayLatestSelector[B](f: Observable.MaybeValue[A] => Observable[B]): Observable[B]    =
+    @inline def replayLatestSelector[B](f: Observable.MaybeValue[A] => Observable[B]): Observable[B]  =
       transformSource(s => f(s.replayLatest.refCount))
     @inline def behaviorSelector[B](value: A)(f: Observable.Value[A] => Observable[B]): Observable[B] =
       transformSource(s => f(s.behavior(value).refCount))
@@ -940,7 +971,7 @@ object Observable    {
     @inline def prependEffect[F[_]: RunEffect](value: F[A]): Observable[A]   = concatEffect[F, A](value, source)
     @inline def prependFuture(value: => Future[A]): Observable[A]            = concatFuture[A](value, source)
 
-    def prepend(value: A): Observable[A]            = prependDelay(value)
+    def prepend(value: A): Observable[A]         = prependDelay(value)
     def prependDelay(value: => A): Observable[A] = new Observable[A] {
       def unsafeSubscribe(sink: Observer[A]): Cancelable = {
         sink.unsafeOnNext(value)

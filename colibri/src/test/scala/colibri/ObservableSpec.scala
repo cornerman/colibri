@@ -1,7 +1,8 @@
 package colibri
 
-import cats.effect.{SyncIO, IO}
+import cats.effect.{SyncIO, IO, Resource}
 import cats.effect.unsafe
+import cats.implicits._
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.flatspec.AsyncFlatSpec
 
@@ -488,6 +489,87 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
     runEffect shouldBe List(2, 1, 0)
     received shouldBe List(2, 1, 0)
     errors shouldBe 0
+  }
+
+  it should "fromResource" in {
+    var received      = List.empty[Int]
+    var errors        = 0
+    var acquireCalls  = 0
+    var finalizeCalls = 0
+    val resource      = Resource.make(SyncIO { acquireCalls += 1 })(_ => SyncIO { finalizeCalls += 1 })
+    val stream        = Observable.fromResource(resource).map(_ => 110)
+
+    received shouldBe List.empty
+    errors shouldBe 0
+    acquireCalls shouldBe 0
+    finalizeCalls shouldBe 0
+
+    val cancelable = stream.unsafeSubscribe(
+      Observer.create[Int](
+        received ::= _,
+        _ => errors += 1,
+      ),
+    )
+
+    received shouldBe List(110)
+    errors shouldBe 0
+    acquireCalls shouldBe 1
+    finalizeCalls shouldBe 0
+
+    cancelable.unsafeCancel()
+
+    received shouldBe List(110)
+    errors shouldBe 0
+    acquireCalls shouldBe 1
+    finalizeCalls shouldBe 1
+
+    cancelable.unsafeCancel()
+
+    received shouldBe List(110)
+    errors shouldBe 0
+    acquireCalls shouldBe 1
+    finalizeCalls shouldBe 1
+  }
+
+  it should "mapResource" in {
+    var received      = List.empty[Int]
+    var acquireCalls  = List.empty[Int]
+    var finalizeCalls = List.empty[Int]
+    var errors        = 0
+
+    def resource(i: Int) = Resource.make(SyncIO { acquireCalls ::= i })(_ => SyncIO { finalizeCalls ::= i }).as(i)
+    val stream           = Observable(1, 2, 3).mapResource(resource)
+
+    received shouldBe List.empty
+    errors shouldBe 0
+    acquireCalls shouldBe List.empty
+    finalizeCalls shouldBe List.empty
+
+    val cancelable = stream.unsafeSubscribe(
+      Observer.create[Int](
+        received ::= _,
+        _ => errors += 1,
+      ),
+    )
+
+    received shouldBe List(3, 2, 1)
+    errors shouldBe 0
+    acquireCalls shouldBe List(3, 2, 1)
+    finalizeCalls shouldBe List.empty
+
+    cancelable.unsafeCancel()
+
+    received shouldBe List(3, 2, 1)
+    errors shouldBe 0
+    acquireCalls shouldBe List(3, 2, 1)
+    finalizeCalls shouldBe List(3, 2, 1)
+
+    cancelable.unsafeCancel()
+
+    received shouldBe List(3, 2, 1)
+    errors shouldBe 0
+    acquireCalls shouldBe List(3, 2, 1)
+    finalizeCalls shouldBe List(3, 2, 1)
   }
 
   it should "fromEffect" in {
