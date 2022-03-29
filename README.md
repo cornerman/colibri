@@ -4,13 +4,11 @@
 
 A simple functional reactive library for scala-js. Colibri is an implementation of the `Observable`, `Observer` and `Subject` reactive concepts.
 
-If you're new to these, here is a nice introduction for rx.js: <https://rxjs.dev/guide/overview>.
-
-Here you can find visualizations for common reactive operators: <https://rxmarbles.com/>
+If you're new to these concepts, here is a nice introduction from rx.js: <https://rxjs.dev/guide/overview>. Another good resource are these visualizations for common reactive operators: <https://rxmarbles.com/>.
 
 This library includes:
-- a (minimal) frp library based on js-native operations like `setTimeout`, `setInterval`, `setImmediate`, `queueMicrotask`
-- typeclasses for streaming to integrate with other streaming libraries
+- A (minimal) reactive library based on JavaScript native operations like `setTimeout`, `setInterval`, `setImmediate`, `queueMicrotask`
+- Typeclasses to integrate with other streaming libraries
 
 ## Usage
 
@@ -76,7 +74,7 @@ The implementation follows the reactive design:
 
 Observables in colibri are lazy, that means nothing starts until you call `unsafeSubscribe` on an `Observable` (or any `unsafe*` method).
 
-We integrate with effect types by means of typeclasses (see below). It provides you support for `cats.effect.IO`, `cats.effect.SyncIO`, `cats.Eval`, `cats.effect.Resource` (out of the box) as well as `zio.Task` (with `outwatch-zio`).
+We integrate with effect types by means of typeclasses (see below). It provides support for `cats.effect.IO`, `cats.effect.SyncIO`, `cats.Eval`, `cats.effect.Resource` (out of the box) as well as `zio.Task` (with `outwatch-zio`).
 
 Example Observables:
 ```scala
@@ -86,18 +84,19 @@ import cats.effect.IO
 
 val observable = Observable
   .interval(1.second)
-  .mapEffect[IO](i => count(i)
+  .mapEffect[IO](i => myCount(i))
   .distinctOnEquals
-  .tapEffect[IO](c => log(c))
-  .mapResource(x => resource(x))
-  .switchMap(x => observable(x))
+  .tapEffect[IO](c => myLog(c))
+  .mapResource(x => myResource(x))
+  .switchMap(x => myObservable(x))
   .debounceMillis(1000)
   
 val observer = Observer.foreach[Int](println(_))
 
-observable.unsafeSubscribe(observer)
+//TODO: what are the types?
+val subscription:??? = observable.unsafeSubscribe(observer)
 
-observable.subscribeF[IO](observer)
+val subscriptionIO:??? = observable.subscribeF[IO](observer)
 ```
 
 Example Subjects:
@@ -106,16 +105,17 @@ import colibri._
 
 val subject = Subject.publish[Int]() // or Subject.behavior(seed) or Subject.replayLast or Subject.replayAll
 
-subject.unsafeForeach(println(_))
+val subscription:??? = subject.unsafeForeach(println(_))
 
 subject.unsafeOnNext(1)
 
-subject.onNextF[IO](2)
+val myEffect:??? = subject.onNextF[IO](2)
 ```
 
 ## Typeclasses
 
-We have prepared typeclasses for integrating other streaming libaries:
+We have prepared typeclasses for integrating with other streaming libaries. The most important ones are `Sink` and `Source`. `Source` is a typeclass for Observables, `Sink` is a typeclass for Observers:
+
 - `Sink[G[_]]` can send values and errors into `G` has an `onNext` and `onError` method.
 - `Source[H[_]]` can unsafely subscribe to `H` with a `Sink` (returns a cancelable subscription)
 - `CanCancel[T]` can cancel `T` to stop a subscription
@@ -123,15 +123,13 @@ We have prepared typeclasses for integrating other streaming libaries:
 - `LiftSource[H[_]]` can lift a `Source` into type `H`
 - `SubscriptionOwner[T]` can let type `T` own a subscription
 
-Most important here are `Sink` and `Source`. `Source` is a typeclass for Observables, `Sink` is a typeclass for Observers.
-
 In order to work with effects inside our Observable, we have defined the following two typeclasses similar to `Effect` in cats-effect 2:
 - `RunEffect[F[_]]` can unsafely run an effect `F[_]` asynchronously, potentially starting synchronously until reaching an async boundary.
 - `RunSyncEffect[F[_]]` can unsafely run an effect `F[_]` synchronously.
 
 ## Information
 
-Throughout the library the type parameters for the `Sink` and `Source` typeclasses are named consistenly to avoid naming ambiguity when working with `F[_]` in the same context:
+Throughout the library, the type parameters for the `Sink` and `Source` typeclasses are named consistenly to avoid naming ambiguity when working with `F[_]` in the same context:
 - `F[_] : RunEffect`
 - `G[_] : Sink`
 - `H[_] : Source`
