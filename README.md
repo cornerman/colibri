@@ -15,16 +15,25 @@ This library includes:
 ## Usage
 
 ```scala
-libraryDependencies += "com.github.cornerman" %%% "colibri" % "0.4.0"
+libraryDependencies += "com.github.cornerman" %%% "colibri" % "0.4.1"
 ```
 
 ```scala
 import colibri._
 ```
 
+For jsdom-based operations in the browser (`EventObservable`, `Storage`):
+```scala
+libraryDependencies += "com.github.cornerman" %%% "colibri-jsdom" % "0.4.1"
+```
+
+```scala
+import colibri.jsdom._
+```
+
 For scala.rx support (only Scala 2.x):
 ```scala
-libraryDependencies += "com.github.cornerman" %%% "colibri-rx" % "0.4.0"
+libraryDependencies += "com.github.cornerman" %%% "colibri-rx" % "0.4.1"
 ```
 
 ```scala
@@ -33,7 +42,7 @@ import colibri.ext.rx._
 
 For airstream support:
 ```scala
-libraryDependencies += "com.github.cornerman" %%% "colibri-airstream" % "0.4.0"
+libraryDependencies += "com.github.cornerman" %%% "colibri-airstream" % "0.4.1"
 ```
 
 ```scala
@@ -42,7 +51,7 @@ import colibri.ext.airstream._
 
 For zio support:
 ```scala
-libraryDependencies += "com.github.cornerman" %%% "colibri-zio" % "0.4.0"
+libraryDependencies += "com.github.cornerman" %%% "colibri-zio" % "0.4.1"
 ```
 
 ```scala
@@ -51,7 +60,7 @@ import colibri.ext.zio._
 
 For fs2 support (`Source` only):
 ```scala
-libraryDependencies += "com.github.cornerman" %%% "colibri-fs2" % "0.4.0"
+libraryDependencies += "com.github.cornerman" %%% "colibri-fs2" % "0.4.1"
 ```
 
 ```scala
