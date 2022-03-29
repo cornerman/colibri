@@ -127,27 +127,28 @@ object Observable    {
 
   def fromFuture[A](future: => Future[A]): Observable[A] = fromEffect(IO.fromFuture(IO(future)))
 
-  @inline def interval(delay: FiniteDuration): Observable[Long] = intervalMillis(delay.toMillis.toInt)
+  def fromResource[F[_]: RunEffect: Sync, A](resource: Resource[F, A]): Observable[A] = new Observable[A] {
+    def unsafeSubscribe(sink: Observer[A]): Cancelable = {
+      val cancelable = Cancelable.variable()
 
-  def intervalMillis(delay: Int): Observable[Long] = new Observable[Long] {
-    def unsafeSubscribe(sink: Observer[Long]): Cancelable = {
-      var isCancel      = false
-      var counter: Long = 0
+      val cancelRun = RunEffect[F].unsafeRunSyncOrAsyncCancelable(resource.allocated) {
+        case Right((value, finalizer)) =>
+          cancelable.updateExisting(Cancelable { () =>
+            // async and forget the finalizer, we do not need to cancel it.
+            // just pass the error to the sink.
+            val _ = RunEffect[F].unsafeRunSyncOrAsyncCancelable(finalizer) {
+              case Right(())   => ()
+              case Left(error) => sink.unsafeOnError(error)
+      }
+          })
 
-      def send(): Unit = {
-        val current = counter
-        counter += 1
-        sink.unsafeOnNext(current)
+          sink.unsafeOnNext(value)
+
+        case Left(error) =>
+          sink.unsafeOnError(error)
       }
 
-      send()
-
-      val intervalId = timers.setInterval(delay.toDouble) { if (!isCancel) send() }
-
-      Cancelable { () =>
-        isCancel = true
-        timers.clearInterval(intervalId)
-      }
+      Cancelable.composite(cancelRun, cancelable)
     }
   }
 
@@ -214,6 +215,27 @@ object Observable    {
   //     Cancelable(() => release(r))
   //   }
   // }
+  def intervalMillis(delay: Int): Observable[Long] = new Observable[Long] {
+    def unsafeSubscribe(sink: Observer[Long]): Cancelable = {
+      var isCancel      = false
+      var counter: Long = 0
+
+      def send(): Unit = {
+        val current = counter
+        counter += 1
+        sink.unsafeOnNext(current)
+      }
+
+      send()
+
+      val intervalId = timers.setInterval(delay.toDouble) { if (!isCancel) send() }
+
+      Cancelable { () =>
+        isCancel = true
+        timers.clearInterval(intervalId)
+      }
+    }
+  }
 
   @inline implicit class Operations[A](val source: Observable[A]) extends AnyVal {
     def failed: Observable[Throwable] = new Observable[Throwable] {
@@ -237,7 +259,6 @@ object Observable    {
     def map[B](f: A => B): Observable[B] = new Observable[B] {
       def unsafeSubscribe(sink: Observer[B]): Cancelable = source.unsafeSubscribe(sink.contramap(f))
     }
-
 
     def discard: Observable[Nothing]                             = Observable.empty.subscribing(void)
     def void: Observable[Unit]                                   = map(_ => ())
