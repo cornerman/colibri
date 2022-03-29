@@ -455,6 +455,8 @@ object Observable    {
                 RunEffect[F].unsafeRunSyncOrAsyncCancelable(resource.allocated) { either =>
                   either match {
                     case Right((value, finalizer)) =>
+                      sink.unsafeOnNext(value)
+
                       cancelableBuilder.addExisting(Cancelable { () =>
                         // async and forget the finalizer, we do not need to cancel it.
                         // just pass the error to the sink.
@@ -463,8 +465,6 @@ object Observable    {
                           case Left(error) => sink.unsafeOnError(error)
                         }
                       })
-
-                      sink.unsafeOnNext(value)
 
                     case Left(error) =>
                       sink.unsafeOnError(error)
@@ -479,6 +479,46 @@ object Observable    {
         )
 
         Cancelable.composite(subscription, consecutive, cancelableBuilder)
+      }
+    }
+
+    def switchMapResource[F[_]: RunEffect: Sync, B](f: A => Resource[F, B]): Observable[B] = new Observable[B] {
+      def unsafeSubscribe(sink: Observer[B]): Cancelable = {
+        val consecutive       = Cancelable.consecutive()
+        val cancelableVariable = Cancelable.variable()
+
+        val subscription = source.unsafeSubscribe(
+          Observer.create[A](
+            { value =>
+              val resource = f(value)
+              consecutive += (() =>
+                RunEffect[F].unsafeRunSyncOrAsyncCancelable(resource.allocated) { either =>
+                  either match {
+                    case Right((value, finalizer)) =>
+                      sink.unsafeOnNext(value)
+
+                      cancelableVariable.updateExisting(Cancelable { () =>
+                        // async and forget the finalizer, we do not need to cancel it.
+                        // just pass the error to the sink.
+                        val _ = RunEffect[F].unsafeRunSyncOrAsyncCancelable(finalizer) {
+                          case Right(())   => ()
+                          case Left(error) => sink.unsafeOnError(error)
+                        }
+                      })
+
+                    case Left(error) =>
+                      sink.unsafeOnError(error)
+                  }
+
+                  consecutive.switch()
+                },
+              )
+            },
+            sink.unsafeOnError,
+          ),
+        )
+
+        Cancelable.composite(subscription, consecutive, cancelableVariable)
       }
     }
 

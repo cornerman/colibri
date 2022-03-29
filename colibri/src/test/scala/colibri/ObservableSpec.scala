@@ -572,6 +572,64 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
     finalizeCalls shouldBe List(3, 2, 1)
   }
 
+  it should "switchMapResource" in {
+    var received      = List.empty[Int]
+    var acquireCalls  = List.empty[Int]
+    var finalizeCalls = List.empty[Int]
+    var errors        = 0
+
+    def resource(i: Int) = Resource.make(SyncIO { acquireCalls ::= i })(_ => SyncIO { finalizeCalls ::= i }).as(i)
+    val subject          = Subject.publish[Int]()
+    val stream           = subject.switchMapResource(resource)
+
+    val cancelable = stream.unsafeSubscribe(
+      Observer.create[Int](
+        received ::= _,
+        _ => errors += 1,
+      ),
+    )
+
+    received shouldBe List.empty
+    errors shouldBe 0
+    acquireCalls shouldBe List.empty
+    finalizeCalls shouldBe List.empty
+
+    subject.unsafeOnNext(1)
+
+    received shouldBe List(1)
+    errors shouldBe 0
+    acquireCalls shouldBe List(1)
+    finalizeCalls shouldBe List.empty
+
+    subject.unsafeOnNext(2)
+
+    received shouldBe List(2, 1)
+    errors shouldBe 0
+    acquireCalls shouldBe List(2, 1)
+    finalizeCalls shouldBe List(1)
+
+    subject.unsafeOnNext(3)
+
+    received shouldBe List(3, 2, 1)
+    errors shouldBe 0
+    acquireCalls shouldBe List(3, 2, 1)
+    finalizeCalls shouldBe List(2, 1)
+
+    cancelable.unsafeCancel()
+
+    received shouldBe List(3, 2, 1)
+    errors shouldBe 0
+    acquireCalls shouldBe List(3, 2, 1)
+    finalizeCalls shouldBe List(3, 2, 1)
+
+    cancelable.unsafeCancel()
+
+    received shouldBe List(3, 2, 1)
+    errors shouldBe 0
+    acquireCalls shouldBe List(3, 2, 1)
+    finalizeCalls shouldBe List(3, 2, 1)
+  }
+
   it should "fromEffect" in {
     var received = List.empty[Int]
     var errors   = 0
