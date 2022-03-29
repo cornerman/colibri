@@ -78,6 +78,13 @@ object Observable    {
 
   @inline def apply[T](value: T, value2: T, values: T*): Observable[T] = Observable.fromIterable(value +: value2 +: values)
 
+  def delay[T](value: => T): Observable[T] = new Observable[T] {
+    def unsafeSubscribe(sink: Observer[T]): Cancelable = {
+      sink.unsafeOnNext(value)
+      Cancelable.empty
+    }
+  }
+
   @deprecated("Use Observable.raiseError instead", "0.3.0")
   def failure[T](error: Throwable): Observable[T]    = raiseError(error)
   def raiseError[T](error: Throwable): Observable[T] = new Observable[T] {
