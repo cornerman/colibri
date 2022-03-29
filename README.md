@@ -111,21 +111,23 @@ We have prepared typeclasses for integrating other streaming libaries:
 
 Most important here are `Sink` and `Source`. `Source` is a typeclass for Observables, `Sink` is a typeclass for Observers.
 
-In order to work with effect inside our Observable, we have defined the following two typeclasses similar to `Effect` in cats-effect `2`:
+In order to work with effects inside our Observable, we have defined the following two typeclasses similar to `Effect` in cats-effect 2:
 - `RunEffect[F[_]]` can unsafely run an effect `F[_]` asynchronously, potentially starting synchronously until reaching an async boundary.
 - `RunSyncEffect[F[_]]` can unsafely run an effect `F[_]` synchronously.
 
 ## Information
 
 Throughout the library the type parameters for the `Sink` and `Source` typeclasses are named consistenly to avoid naming ambiguity when working with `F[_]` in the same context:
-- `F[_] : Effect`
+- `F[_] : RunEffect`
 - `G[_] : Sink`
 - `H[_] : Source`
 
 Source Code: [Source.scala](colibri/src/main/scala/colibri/Source.scala), [Sink.scala](colibri/src/main/scala/colibri/Sink.scala)
 
-[Implementation for Rx](rx/src/main/scala/colibri/ext/rx/package.scala)
+[Implementation for rx](rx/src/main/scala/colibri/ext/rx/package.scala)
 
-[Implementation for Airstream](airstream/src/main/scala/colibri/ext/airstream/package.scala)
+[Implementation for airstream](airstream/src/main/scala/colibri/ext/airstream/package.scala)
 
-[Implementation for ZIO](zio/src/main/scala/colibri/ext/zio/package.scala)
+[Implementation for zio](zio/src/main/scala/colibri/ext/zio/package.scala)
+
+[Implementation for fs2](fs2/src/main/scala/colibri/ext/fs2/package.scala)
