@@ -93,10 +93,9 @@ val observable = Observable
   
 val observer = Observer.foreach[Int](println(_))
 
-//TODO: what are the types?
-val subscription:??? = observable.unsafeSubscribe(observer)
+val subscription: Cancelable = observable.unsafeSubscribe(observer)
 
-val subscriptionIO:??? = observable.subscribeF[IO](observer)
+val subscriptionIO: IO[Cancelable] = observable.subscribeF[IO](observer)
 ```
 
 Example Subjects:
@@ -105,11 +104,11 @@ import colibri._
 
 val subject = Subject.publish[Int]() // or Subject.behavior(seed) or Subject.replayLast or Subject.replayAll
 
-val subscription:??? = subject.unsafeForeach(println(_))
+val subscription: Cancelable = subject.unsafeForeach(println(_))
 
 subject.unsafeOnNext(1)
 
-val myEffect:??? = subject.onNextF[IO](2)
+val myEffect: IO[Unit] = subject.onNextF[IO](2)
 ```
 
 ## Typeclasses
