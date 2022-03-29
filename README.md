@@ -76,6 +76,8 @@ The implementation follows the reactive design:
 
 Observables in colibri are lazy, that means nothing starts until you call `unsafeSubscribe` on an `Observable` (or any `unsafe*` method).
 
+We integrate with effect types by means of typeclasses (see below). It provides you support for `cats.effect.IO`, `cats.effect.SyncIO`, `cats.Eval`, `cats.effect.Resource` (out of the box) as well as `zio.Task` (with `outwatch-zio`).
+
 Example Observables:
 ```scala
 import colibri._
@@ -87,7 +89,10 @@ val observable = Observable
   .mapEffect[IO](i => count(i)
   .distinctOnEquals
   .tapEffect[IO](c => log(c))
-
+  .mapResource(x => resource(x))
+  .switchMap(x => observable(x))
+  .debounceMillis(1000)
+  
 val observer = Observer.foreach[Int](println(_))
 
 observable.unsafeSubscribe(observer)
