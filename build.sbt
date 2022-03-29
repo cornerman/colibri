@@ -1,3 +1,5 @@
+Global / onChangedBuildSource := ReloadOnSourceChanges
+
 // Workaround for https://github.com/sbt/sbt/issues/3465
 crossScalaVersions := Nil
 
