@@ -134,6 +134,6 @@ lazy val fs2 = project
   .settings(
     name := "colibri-fs2",
     libraryDependencies ++= Seq(
-      "co.fs2" %%% "fs2-core" % "3.2.6",
+      "co.fs2" %%% "fs2-core" % "3.2.7",
     ),
   )
