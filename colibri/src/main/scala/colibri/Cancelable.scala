@@ -27,14 +27,19 @@ object Cancelable {
     @inline def unsafeCancel(subscription: Cancelable): Unit = subscription.unsafeCancel()
   }
 
-  class Builder extends Cancelable {
+  trait Setter extends Cancelable {
+    def add(subscription: () => Cancelable): Unit
+    def addExisting(subscription: Cancelable): Unit
+  }
+
+  class Builder extends Setter {
     private var buffer = new js.Array[Cancelable]()
 
     def addExisting(subscription: Cancelable): Unit =
       if (buffer == null) subscription.unsafeCancel()
-      else +=(() => subscription)
+      else add(() => subscription)
 
-    def +=(subscription: () => Cancelable): Unit = if (buffer != null) {
+    def add(subscription: () => Cancelable): Unit = if (buffer != null) {
       val cancelable = subscription()
       buffer.push(cancelable)
       ()
@@ -47,14 +52,14 @@ object Cancelable {
       }
   }
 
-  class Variable extends Cancelable {
+  class Variable extends Setter {
     private var current: Cancelable = Cancelable.empty
 
-    def updateExisting(subscription: Cancelable): Unit =
+    def addExisting(subscription: Cancelable): Unit =
       if (current == null) subscription.unsafeCancel()
-      else update(() => subscription)
+      else add(() => subscription)
 
-    def update(subscription: () => Cancelable): Unit = if (current != null) {
+    def add(subscription: () => Cancelable): Unit = if (current != null) {
       current.unsafeCancel()
 
       var isCancel = false
@@ -86,16 +91,16 @@ object Cancelable {
         val variable       = Cancelable.variable()
         latest = variable
         subscriptions.splice(0, deleteCount = 1)
-        variable() = nextCancelable
+        variable.add(nextCancelable)
         ()
       }
     }
 
-    def +=(subscription: () => Cancelable): Unit = if (subscriptions != null) {
+    def add(subscription: () => Cancelable): Unit = if (subscriptions != null) {
       if (latest == null) {
         val variable = Cancelable.variable()
         latest = variable
-        variable() = subscription
+        variable.add(subscription)
       } else {
         subscriptions.push(subscription)
         ()
@@ -120,10 +125,10 @@ object Cancelable {
       latest = null
     }
 
-    def update(subscription: () => Cancelable): Unit = if (latest == null) {
+    def add(subscription: () => Cancelable): Unit = if (latest == null) {
       val variable = Cancelable.variable()
       latest = variable
-      variable() = subscription
+      variable.add(subscription)
     }
 
     def unsafeCancel(): Unit = if (!isCancel) {

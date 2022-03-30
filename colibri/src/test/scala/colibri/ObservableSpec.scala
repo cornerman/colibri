@@ -545,12 +545,12 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
     acquireCalls shouldBe List.empty
     finalizeCalls shouldBe List.empty
 
-    val cancelable = stream.unsafeSubscribe(
-      Observer.create[Int](
-        received ::= _,
-        _ => errors += 1,
-      ),
+    val observer = Observer.create[Int](
+      received ::= _,
+      _ => errors += 1,
     )
+
+    val cancelable = stream.unsafeSubscribe(observer)
 
     received shouldBe List(3, 2, 1)
     errors shouldBe 0
@@ -570,6 +570,20 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
     errors shouldBe 0
     acquireCalls shouldBe List(3, 2, 1)
     finalizeCalls shouldBe List(3, 2, 1)
+
+    val cancelable2 = stream.unsafeSubscribe(observer)
+
+    received shouldBe List(3, 2, 1, 3, 2, 1)
+    errors shouldBe 0
+    acquireCalls shouldBe List(3, 2, 1, 3, 2, 1)
+    finalizeCalls shouldBe List(3, 2, 1)
+
+    cancelable2.unsafeCancel()
+
+    received shouldBe List(3, 2, 1, 3, 2, 1)
+    errors shouldBe 0
+    acquireCalls shouldBe List(3, 2, 1, 3, 2, 1)
+    finalizeCalls shouldBe List(3, 2, 1, 3, 2, 1)
   }
 
   it should "switchMapResource" in {
