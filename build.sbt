@@ -68,10 +68,10 @@ lazy val jsdomTests = project
   .dependsOn(jsdom)
   .settings(commonSettings)
   .settings(
-    publish / skip := true,
-    name := "colibri-jsdom-tests",
-    Test/requireJsDomEnv := true,
-    installJsdom/version := "13.2.0",
+    publish / skip         := true,
+    name                   := "colibri-jsdom-tests",
+    Test / requireJsDomEnv := true,
+    installJsdom / version := "13.2.0",
   )
 
 lazy val router = project
@@ -132,6 +132,6 @@ lazy val fs2 = project
   .settings(
     name := "colibri-fs2",
     libraryDependencies ++= Seq(
-      "co.fs2" %%% "fs2-core" % "3.2.5",
-    )
+      "co.fs2" %%% "fs2-core" % "3.2.6",
+    ),
   )
