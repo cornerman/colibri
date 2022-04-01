@@ -9,7 +9,7 @@ import sloth.types.FlatMapError
 
 import scala.scalajs.js
 import scala.scalajs.js.timers
-import scala.concurrent.Future
+import scala.concurrent.{ExecutionContext, Future}
 import scala.concurrent.duration.FiniteDuration
 
 trait Observable[+A] {
@@ -797,6 +797,28 @@ object Observable    {
           source.unsafeSubscribe(
             Observer.createUnrecovered(
               value => lastValue = Some(value),
+              sink.unsafeOnError,
+            ),
+          ),
+        )
+      }
+    }
+
+    def evalOn(ec: ExecutionContext): Observable[A] = new Observable[A] {
+      def unsafeSubscribe(sink: Observer[A]): Cancelable = {
+        var isCancel = false
+
+        Cancelable.composite(
+          Cancelable.ignoreIsEmpty { () =>
+            isCancel = true
+          },
+          source.unsafeSubscribe(
+            Observer.create[A](
+              { value =>
+                ec.execute { () =>
+                  if (!isCancel) sink.unsafeOnNext(value)
+                }
+              },
               sink.unsafeOnError,
             ),
           ),
