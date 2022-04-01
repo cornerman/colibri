@@ -6,6 +6,8 @@ import cats.implicits._
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.flatspec.AsyncFlatSpec
 
+// import scala.concurrent.Future
+
 class ObservableSpec extends AsyncFlatSpec with Matchers {
   implicit val ioRuntime: unsafe.IORuntime = unsafe.IORuntime(
     compute = this.executionContext,
@@ -22,15 +24,37 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
 
     mapped shouldBe List.empty
 
-    stream.unsafeSubscribe(Observer.create[Int](received ::= _))
+    val cancelable1 = stream.unsafeSubscribe(Observer.create[Int](received ::= _))
 
     mapped shouldBe List(3, 2, 1)
     received shouldBe List(3, 2, 1)
+    cancelable1.isEmpty() shouldBe true
 
-    stream.unsafeSubscribe(Observer.create[Int](received ::= _))
+    val cancelable2 = stream.unsafeSubscribe(Observer.create[Int](received ::= _))
 
     mapped shouldBe List(3, 2, 1, 3, 2, 1)
     received shouldBe List(3, 2, 1, 3, 2, 1)
+    cancelable2.isEmpty() shouldBe true
+  }
+
+  it should "filter" in {
+    var mapped   = List.empty[Int]
+    var received = List.empty[Int]
+    val stream   = Observable.fromIterable(Seq(1, 2, 3)).filter { x => mapped ::= x; x == 2 }
+
+    mapped shouldBe List.empty
+
+    val cancelable1 = stream.unsafeSubscribe(Observer.create[Int](received ::= _))
+
+    mapped shouldBe List(3, 2, 1)
+    received shouldBe List(2)
+    cancelable1.isEmpty() shouldBe true
+
+    val cancelable2 = stream.unsafeSubscribe(Observer.create[Int](received ::= _))
+
+    mapped shouldBe List(3, 2, 1, 3, 2, 1)
+    received shouldBe List(2, 2)
+    cancelable2.isEmpty() shouldBe true
   }
 
   it should "discard" in {
@@ -40,15 +64,17 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
 
     mapped shouldBe List.empty
 
-    stream.unsafeSubscribe(Observer.create[Int](received ::= _))
+    val cancelable1 = stream.unsafeSubscribe(Observer.create[Int](received ::= _))
 
     mapped shouldBe List(3, 2, 1)
     received shouldBe List.empty
+    cancelable1.isEmpty() shouldBe true
 
-    stream.unsafeSubscribe(Observer.create[Int](received ::= _))
+    val cancelable2 = stream.unsafeSubscribe(Observer.create[Int](received ::= _))
 
     mapped shouldBe List(3, 2, 1, 3, 2, 1)
     received shouldBe List.empty
+    cancelable2.isEmpty() shouldBe true
   }
 
   it should "recover" in {
@@ -62,11 +88,12 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
     received shouldBe List.empty
     receivedErrors shouldBe List.empty
 
-    stream.unsafeSubscribe(Observer.create[Unit](received ::= _, receivedErrors ::= _))
+    val cancelable = stream.unsafeSubscribe(Observer.create[Unit](received ::= _, receivedErrors ::= _))
 
     recovered shouldBe List(exception)
     received shouldBe List(())
     receivedErrors shouldBe List.empty
+    cancelable.isEmpty() shouldBe true
   }
 
   it should "recover after mapEffect" in {
@@ -80,11 +107,12 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
     received shouldBe List.empty
     receivedErrors shouldBe List.empty
 
-    stream.unsafeSubscribe(Observer.create[Unit](received ::= _, receivedErrors ::= _))
+    val cancelable = stream.unsafeSubscribe(Observer.create[Unit](received ::= _, receivedErrors ::= _))
 
     recovered shouldBe List(exception)
     received shouldBe List(())
     receivedErrors shouldBe List.empty
+    cancelable.isEmpty() shouldBe true
   }
 
   it should "scan" in {
@@ -94,10 +122,11 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
 
     mapped shouldBe List.empty
 
-    stream.unsafeSubscribe(Observer.create[Int](received ::= _))
+    val cancelable = stream.unsafeSubscribe(Observer.create[Int](received ::= _))
 
     mapped shouldBe List(3, 2, 1)
     received shouldBe List(6, 3, 1)
+    cancelable.isEmpty() shouldBe true
   }
 
   it should "dropWhile" in {
@@ -107,10 +136,11 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
 
     mapped shouldBe List.empty
 
-    stream.unsafeSubscribe(Observer.create[Int](received ::= _))
+    val cancelable = stream.unsafeSubscribe(Observer.create[Int](received ::= _))
 
     mapped shouldBe List(3, 2, 1)
     received shouldBe List(4, 3)
+    cancelable.isEmpty() shouldBe true
   }
 
   it should "dropUntil" in {
@@ -155,10 +185,11 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
 
     mapped shouldBe List.empty
 
-    stream.unsafeSubscribe(Observer.create[Int](received ::= _))
+    val cancelable = stream.unsafeSubscribe(Observer.create[Int](received ::= _))
 
     mapped shouldBe List(3, 2, 1)
     received shouldBe List(2, 1)
+    cancelable.isEmpty() shouldBe true
   }
 
   it should "takeUntil" in {
@@ -880,5 +911,76 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
 
     received shouldBe List(2, 13, 13, 1, 19, 2, 0)
     errors shouldBe 0
+  }
+
+  it should "compose isEmpty" in {
+    var received    = List.empty[Int]
+    var errors      = 0
+    val observable1 = Observable(1, 2, 3)
+      .mapEffect(x => IO(x + 1))
+      .mapEffect(x => SyncIO(x))
+      .filter(_ > 2)
+      .map(x => x + 1)
+      .prepend(0)
+
+    val observable2 = Observable.empty
+
+    val observable3 = Observable.fromEffect(IO(0)).map(_ + 1)
+
+    val stream = Observable.merge(observable1, observable2, observable3)
+
+    val cancelable = stream.unsafeSubscribe(
+      Observer.create[Int](
+        received ::= _,
+        _ => errors += 1,
+      ),
+    )
+
+    received shouldBe List(1, 5, 4, 0)
+    errors shouldBe 0
+    cancelable.isEmpty() shouldBe true
+  }
+
+  it should "compose isEmpty with async" in {
+    var received    = List.empty[Int]
+    var errors      = 0
+    val observable1 = Observable(1, 2, 3) // .async
+      .mapEffect(x => IO.cede *> IO(x + 1))
+      .filter(_ > 2)
+      // .mapFuture(x => Future(x + 1))
+      .map(_ + 1)
+      .evalOn(this.executionContext)
+      .prepend(0)
+
+    val observable2 = Observable.empty
+
+    val observable3 = Observable.fromEffect(IO.cede *> IO(0)).map(_ + 1)
+
+    val stream = Observable.merge(observable1, observable2, observable3)
+
+    val cancelable = stream.unsafeSubscribe(
+      Observer.create[Int](
+        received ::= _,
+        _ => errors += 1,
+      ),
+    )
+
+    received shouldBe List(0)
+    errors shouldBe 0
+    cancelable.isEmpty() shouldBe false
+
+    val test = IO.cede *> IO.defer {
+      received shouldBe List(1, 0)
+      errors shouldBe 0
+      cancelable.isEmpty() shouldBe false
+
+      List.fill(8)(IO.cede).sequence.map { _ =>
+        received shouldBe List(5, 4, 1, 0)
+        errors shouldBe 0
+        cancelable.isEmpty() shouldBe true
+      }
+    }
+
+    test.unsafeToFuture()
   }
 }

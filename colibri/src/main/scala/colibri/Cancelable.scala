@@ -7,6 +7,7 @@ import cats.implicits._
 import scala.scalajs.js
 
 trait Cancelable  {
+  def isEmpty(): Boolean
   def unsafeCancel(): Unit
 
   @deprecated("Use unsafeCancel() instead", "0.2.7")
@@ -30,10 +31,14 @@ object Cancelable {
   trait Setter extends Cancelable {
     def add(subscription: () => Cancelable): Unit
     def addExisting(subscription: Cancelable): Unit
+    def freeze(): Unit
   }
 
   class Builder extends Setter {
-    private var buffer = new js.Array[Cancelable]()
+    private var isFrozen = false
+    private var buffer   = new js.Array[Cancelable]()
+
+    def isEmpty() = buffer == null || isFrozen && buffer.forall(_.isEmpty())
 
     def addExisting(subscription: Cancelable): Unit =
       if (buffer == null) subscription.unsafeCancel()
@@ -45,6 +50,10 @@ object Cancelable {
       ()
     }
 
+    def freeze(): Unit = {
+      isFrozen = true
+    }
+
     def unsafeCancel(): Unit =
       if (buffer != null) {
         buffer.foreach(_.unsafeCancel())
@@ -53,7 +62,10 @@ object Cancelable {
   }
 
   class Variable extends Setter {
+    private var isFrozen            = false
     private var current: Cancelable = Cancelable.empty
+
+    def isEmpty() = current == null || isFrozen && current.isEmpty()
 
     def addExisting(subscription: Cancelable): Unit =
       if (current == null) subscription.unsafeCancel()
@@ -72,16 +84,22 @@ object Cancelable {
       else current = cancelable
     }
 
-    def unsafeCancel(): Unit =
-      if (current != null) {
-        current.unsafeCancel()
-        current = null
-      }
+    def freeze(): Unit = {
+      isFrozen = true
+    }
+
+    def unsafeCancel(): Unit = if (current != null) {
+      current.unsafeCancel()
+      current = null
+    }
   }
 
   class Consecutive extends Cancelable {
+    private var isFrozen                                  = false
     private var latest: Cancelable                        = null
     private var subscriptions: js.Array[() => Cancelable] = new js.Array[() => Cancelable]
+
+    def isEmpty() = subscriptions == null || isFrozen && (latest == null || latest.isEmpty()) && subscriptions.isEmpty
 
     def switch(): Unit = if (latest != null) {
       latest.unsafeCancel()
@@ -94,6 +112,10 @@ object Cancelable {
         variable.add(nextCancelable)
         ()
       }
+    }
+
+    def freeze(): Unit = {
+      isFrozen = true
     }
 
     def add(subscription: () => Cancelable): Unit = if (subscriptions != null) {
@@ -117,8 +139,11 @@ object Cancelable {
   }
 
   class SingleOrDrop extends Cancelable {
+    private var isFrozen           = false
     private var latest: Cancelable = null
     private var isCancel           = false
+
+    def isEmpty() = isCancel || isFrozen && (latest == null || latest.isEmpty())
 
     def done(): Unit = if (latest != null) {
       latest.unsafeCancel()
@@ -131,6 +156,10 @@ object Cancelable {
       variable.add(subscription)
     }
 
+    def freeze(): Unit = {
+      isFrozen = true
+    }
+
     def unsafeCancel(): Unit = if (!isCancel) {
       isCancel = true
       if (latest != null) {
@@ -141,8 +170,11 @@ object Cancelable {
   }
 
   class RefCount(subscription: () => Cancelable) extends Cancelable {
+    private var isFrozen                      = false
     private var counter                       = 0
     private var currentCancelable: Cancelable = null
+
+    def isEmpty() = counter == -1 || isFrozen && (currentCancelable == null || currentCancelable.isEmpty())
 
     def ref(): Cancelable = if (counter == -1) Cancelable.empty
     else {
@@ -160,6 +192,10 @@ object Cancelable {
       })
     }
 
+    def freeze(): Unit = {
+      isFrozen = true
+    }
+
     def unsafeCancel(): Unit = {
       counter = -1
       if (currentCancelable != null) {
@@ -170,32 +206,38 @@ object Cancelable {
   }
 
   object Empty extends Cancelable {
+    @inline def isEmpty()            = true
     @inline def unsafeCancel(): Unit = ()
   }
 
   @inline def empty = Empty
 
-  @inline def apply(f: () => Unit): Cancelable = new Cancelable {
-    private var isCanceled     = false
-    @inline def unsafeCancel() = if (!isCanceled) {
-      isCanceled = true
+  def apply(f: () => Unit): Cancelable = withIsEmpty(false)(f)
+
+  def ignoreIsEmptyWrap(cancelable: Cancelable): Cancelable = ignoreIsEmpty(cancelable.unsafeCancel)
+  def ignoreIsEmpty(f: () => Unit): Cancelable              = withIsEmpty(true)(f)
+
+  def withIsEmptyWrap(empty: => Boolean)(cancelable: Cancelable): Cancelable = withIsEmpty(empty)(cancelable.unsafeCancel)
+  def withIsEmpty(empty: => Boolean)(f: () => Unit): Cancelable              = new Cancelable {
+    private var isCancel = false
+
+    def isEmpty() = isCancel || empty
+
+    def unsafeCancel() = if (!isCancel) {
+      isCancel = true
       f()
     }
   }
 
-  @inline def lift[T: CanCancel](subscription: T): Cancelable = subscription match {
+  def lift[T: CanCancel](subscription: T): Cancelable = subscription match {
     case cancelable: Cancelable => cancelable
     case _                      => apply(() => CanCancel[T].unsafeCancel(subscription))
   }
 
   @inline def composite(subscriptions: Cancelable*): Cancelable              = compositeFromIterable(subscriptions)
-  def compositeFromIterable(subscriptions: Iterable[Cancelable]): Cancelable = {
-    val nonEmptySubscriptions = subscriptions.filter(_ != Cancelable.empty)
-    if (nonEmptySubscriptions.isEmpty) Cancelable.empty
-    else
-      new Cancelable {
-        def unsafeCancel() = nonEmptySubscriptions.foreach(_.unsafeCancel())
-      }
+  def compositeFromIterable(subscriptions: Iterable[Cancelable]): Cancelable = new Cancelable {
+    def isEmpty()      = subscriptions.forall(_.isEmpty())
+    def unsafeCancel() = subscriptions.foreach(_.unsafeCancel())
   }
 
   @inline def builder(): Builder = new Builder

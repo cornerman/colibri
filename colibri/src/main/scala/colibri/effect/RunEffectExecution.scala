@@ -22,7 +22,7 @@ private[colibri] object RunEffectExecution {
 
     future.onComplete(result => action(result.toEither))(parasitic)
 
-    Cancelable { () =>
+    Cancelable.withIsEmpty(isCancel) { () =>
       isCancel = true
       cancelRun()
       ()

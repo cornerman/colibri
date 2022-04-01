@@ -19,6 +19,7 @@ object Connectable                                                              
     }
     def hot: Observable.Hot[A]  = new Observable[A] with Cancelable {
       private val cancelable                             = source.connect()
+      def isEmpty()                                      = cancelable.isEmpty()
       def unsafeCancel()                                 = cancelable.unsafeCancel()
       def unsafeSubscribe(sink: Observer[A]): Cancelable = source.value.unsafeSubscribe(sink)
     }
@@ -31,6 +32,7 @@ object Connectable                                                              
     }
     def hot: Observable.HotValue[A]   = new Observable.Value[A] with Cancelable {
       private val cancelable                             = source.connect()
+      def isEmpty()                                      = cancelable.isEmpty()
       def unsafeCancel()                                 = cancelable.unsafeCancel()
       def now()                                          = source.value.now()
       def unsafeSubscribe(sink: Observer[A]): Cancelable = source.value.unsafeSubscribe(sink)
@@ -44,6 +46,7 @@ object Connectable                                                              
     }
     def hot: Observable.HotMaybeValue[A]   = new Observable.MaybeValue[A] with Cancelable {
       private val cancelable                             = source.connect()
+      def isEmpty()                                      = cancelable.isEmpty()
       def unsafeCancel()                                 = cancelable.unsafeCancel()
       def now()                                          = source.value.now()
       def unsafeSubscribe(sink: Observer[A]): Cancelable = source.value.unsafeSubscribe(sink)
