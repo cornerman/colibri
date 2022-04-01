@@ -198,7 +198,9 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
     val until    = Subject.replayLatest[Unit]()
     val stream   = handler.takeUntil(until)
 
-    stream.unsafeSubscribe(Observer.create[Int](received ::= _))
+    val cancelable = stream.unsafeSubscribe(Observer.create[Int](received ::= _))
+
+    cancelable.isEmpty() shouldBe false
 
     received shouldBe List(0)
 
@@ -229,6 +231,8 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
     handler.unsafeOnNext(5)
 
     received shouldBe List(2, 1, 0)
+
+    cancelable.isEmpty() shouldBe false
   }
 
   it should "zip" in {
@@ -238,6 +242,8 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
     val stream   = handler.zip(zipped)
 
     val sub = stream.unsafeSubscribe(Observer.create[(Int, String)](received ::= _))
+
+    sub.isEmpty() shouldBe false
 
     received shouldBe List((0, "a"))
 
@@ -267,6 +273,8 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
 
     sub.unsafeCancel()
 
+    sub.isEmpty() shouldBe true
+
     handler.unsafeOnNext(4)
 
     received shouldBe List((3, "d"), (2, "c"), (1, "b"), (0, "a"))
@@ -274,6 +282,8 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
     zipped.unsafeOnNext("e")
 
     received shouldBe List((3, "d"), (2, "c"), (1, "b"), (0, "a"))
+
+    sub.isEmpty() shouldBe true
   }
 
   it should "combineLatest" in {
@@ -283,6 +293,8 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
     val stream   = handler.combineLatest(combined)
 
     val sub = stream.unsafeSubscribe(Observer.create[(Int, String)](received ::= _))
+
+    sub.isEmpty() shouldBe false
 
     received shouldBe List((0, "a"))
 
@@ -304,6 +316,8 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
 
     sub.unsafeCancel()
 
+    sub.isEmpty() shouldBe true
+
     handler.unsafeOnNext(3)
 
     received shouldBe List((2, "c"), (2, "b"), (2, "a"), (1, "a"), (0, "a"))
@@ -311,6 +325,8 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
     combined.unsafeOnNext("d")
 
     received shouldBe List((2, "c"), (2, "b"), (2, "a"), (1, "a"), (0, "a"))
+
+    sub.isEmpty() shouldBe true
   }
 
   it should "withLatest" in {
@@ -320,6 +336,8 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
     val stream   = handler.withLatest(latest)
 
     val sub = stream.unsafeSubscribe(Observer.create[(Int, String)](received ::= _))
+
+    sub.isEmpty() shouldBe false
 
     received shouldBe List((0, "a"))
 
@@ -345,6 +363,8 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
 
     sub.unsafeCancel()
 
+    sub.isEmpty() shouldBe true
+
     handler.unsafeOnNext(3)
 
     received shouldBe List((3, "c"), (2, "a"), (1, "a"), (0, "a"))
@@ -364,10 +384,14 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
 
     val sub1 = stream.unsafeSubscribe(Observer.create[Int](received ::= _))
 
+    sub1.isEmpty() shouldBe false
+
     mapped shouldBe List(3, 2, 1)
     received shouldBe List(3, 2, 1)
 
     val sub2 = stream.unsafeSubscribe(Observer.create[Int](received ::= _))
+
+    sub2.isEmpty() shouldBe false
 
     mapped shouldBe List(3, 2, 1)
     received shouldBe List(3, 2, 1)
@@ -377,14 +401,22 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
     mapped shouldBe List(4, 3, 2, 1)
     received shouldBe List(4, 4, 3, 2, 1)
 
+    sub1.isEmpty() shouldBe false
+
     sub1.unsafeCancel()
+
+    sub1.isEmpty() shouldBe true
 
     handler.unsafeOnNext(5)
 
     mapped shouldBe List(5, 4, 3, 2, 1)
     received shouldBe List(5, 4, 4, 3, 2, 1)
 
+    sub2.isEmpty() shouldBe false
+
     sub2.unsafeCancel()
+
+    sub2.isEmpty() shouldBe true
 
     handler.unsafeOnNext(6)
 
@@ -408,6 +440,8 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
       ),
     )
 
+    sub1.isEmpty() shouldBe false
+
     mapped shouldBe List(3, 2, 1)
     received shouldBe List(3, 2, 1)
 
@@ -417,6 +451,8 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
         _ => errors += 1,
       ),
     )
+
+    sub2.isEmpty() shouldBe false
 
     mapped shouldBe List(3, 2, 1)
     received shouldBe List(3, 3, 2, 1)
@@ -428,12 +464,16 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
 
     sub1.unsafeCancel()
 
+    sub1.isEmpty() shouldBe true
+
     handler.unsafeOnNext(5)
 
     mapped shouldBe List(5, 4, 3, 2, 1)
     received shouldBe List(5, 4, 4, 3, 3, 2, 1)
 
     sub2.unsafeCancel()
+
+    sub2.isEmpty() shouldBe true
 
     handler.unsafeOnNext(6)
 
@@ -484,7 +524,7 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
 
     runEffect shouldBe 0
 
-    stream.unsafeSubscribe(
+    val sub = stream.unsafeSubscribe(
       Observer.create[Int](
         received ::= _,
         _ => errors += 1,
@@ -494,6 +534,7 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
     runEffect shouldBe 1
     received shouldBe List(3, 2, 1, 0)
     errors shouldBe 0
+    sub.isEmpty() shouldBe true
   }
 
   it should "concatEffect neverending" in {
@@ -520,6 +561,7 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
     runEffect shouldBe List(2, 1, 0)
     received shouldBe List(2, 1, 0)
     errors shouldBe 0
+    sub.isEmpty() shouldBe false
   }
 
   it should "fromResource" in {
@@ -542,6 +584,8 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
       ),
     )
 
+    cancelable.isEmpty() shouldBe false
+
     received shouldBe List(110)
     errors shouldBe 0
     acquireCalls shouldBe 1
@@ -549,12 +593,16 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
 
     cancelable.unsafeCancel()
 
+    cancelable.isEmpty() shouldBe true
+
     received shouldBe List(110)
     errors shouldBe 0
     acquireCalls shouldBe 1
     finalizeCalls shouldBe 1
 
     cancelable.unsafeCancel()
+
+    cancelable.isEmpty() shouldBe true
 
     received shouldBe List(110)
     errors shouldBe 0
@@ -583,6 +631,8 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
 
     val cancelable = stream.unsafeSubscribe(observer)
 
+    cancelable.isEmpty() shouldBe false
+
     received shouldBe List(3, 2, 1)
     errors shouldBe 0
     acquireCalls shouldBe List(3, 2, 1)
@@ -590,12 +640,16 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
 
     cancelable.unsafeCancel()
 
+    cancelable.isEmpty() shouldBe true
+
     received shouldBe List(3, 2, 1)
     errors shouldBe 0
     acquireCalls shouldBe List(3, 2, 1)
     finalizeCalls shouldBe List(3, 2, 1)
 
     cancelable.unsafeCancel()
+
+    cancelable.isEmpty() shouldBe true
 
     received shouldBe List(3, 2, 1)
     errors shouldBe 0
@@ -604,12 +658,16 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
 
     val cancelable2 = stream.unsafeSubscribe(observer)
 
+    cancelable2.isEmpty() shouldBe false
+
     received shouldBe List(3, 2, 1, 3, 2, 1)
     errors shouldBe 0
     acquireCalls shouldBe List(3, 2, 1, 3, 2, 1)
     finalizeCalls shouldBe List(3, 2, 1)
 
     cancelable2.unsafeCancel()
+
+    cancelable2.isEmpty() shouldBe true
 
     received shouldBe List(3, 2, 1, 3, 2, 1)
     errors shouldBe 0
@@ -633,6 +691,8 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
         _ => errors += 1,
       ),
     )
+
+    cancelable.isEmpty() shouldBe false
 
     received shouldBe List.empty
     errors shouldBe 0
@@ -662,12 +722,16 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
 
     cancelable.unsafeCancel()
 
+    cancelable.isEmpty() shouldBe true
+
     received shouldBe List(3, 2, 1)
     errors shouldBe 0
     acquireCalls shouldBe List(3, 2, 1)
     finalizeCalls shouldBe List(3, 2, 1)
 
     cancelable.unsafeCancel()
+
+    cancelable.isEmpty() shouldBe true
 
     received shouldBe List(3, 2, 1)
     errors shouldBe 0
@@ -681,13 +745,14 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
     val effect   = IO(100)
     val stream   = Observable.fromEffect(effect)
 
-    stream.unsafeSubscribe(
+    val cancelable = stream.unsafeSubscribe(
       Observer.create[Int](
         received ::= _,
         _ => errors += 1,
       ),
     )
 
+    cancelable.isEmpty() shouldBe true
     received shouldBe List(100)
     errors shouldBe 0
   }
@@ -698,17 +763,19 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
     val effect   = IO(100)
     val stream   = Observable.fromEffect(IO.cede *> effect)
 
-    stream.unsafeSubscribe(
+    val cancelable = stream.unsafeSubscribe(
       Observer.create[Int](
         received ::= _,
         _ => errors += 1,
       ),
     )
 
+    cancelable.isEmpty() shouldBe false
     received shouldBe Nil
     errors shouldBe 0
 
     val test = IO.cede *> IO {
+      cancelable.isEmpty() shouldBe true
       received shouldBe List(100)
       errors shouldBe 0
     }
@@ -722,13 +789,14 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
     val effect   = SyncIO(100)
     val stream   = Observable.fromEffect(effect)
 
-    stream.unsafeSubscribe(
+    val cancelable = stream.unsafeSubscribe(
       Observer.create[Int](
         received ::= _,
         _ => errors += 1,
       ),
     )
 
+    cancelable.isEmpty() shouldBe true
     received shouldBe List(100)
     errors shouldBe 0
   }
@@ -742,13 +810,14 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
     val handlers = Array(handler0, handler1, handler2)
     val stream   = Observable.fromIterable(Seq(0, 1, 2)).mapEffect(handlers(_))
 
-    stream.unsafeSubscribe(
+    val cancelable = stream.unsafeSubscribe(
       Observer.create[Int](
         received ::= _,
         _ => errors += 1,
       ),
     )
 
+    cancelable.isEmpty() shouldBe true
     received shouldBe List(300, 200, 100)
     errors shouldBe 0
   }
@@ -759,12 +828,14 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
     val handler  = Subject.behavior(0)
     val stream   = Observable.switch(handler, Observable.fromIterable(Seq(1, 2, 3)))
 
-    stream.unsafeSubscribe(
+    val cancelable = stream.unsafeSubscribe(
       Observer.create[Int](
         received ::= _,
         _ => errors += 1,
       ),
     )
+
+    cancelable.isEmpty() shouldBe false
 
     received shouldBe List(3, 2, 1, 0)
     errors shouldBe 0
@@ -784,12 +855,14 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
     val handlers = Array(handler0, handler1, Observable.empty, handler2)
     val stream   = Observable.fromIterable(Seq(0, 1, 2, 3)).switchMap(handlers(_))
 
-    stream.unsafeSubscribe(
+    val cancelable = stream.unsafeSubscribe(
       Observer.create[Int](
         received ::= _,
         _ => errors += 1,
       ),
     )
+
+    cancelable.isEmpty() shouldBe false
 
     received shouldBe List(2, 0)
     errors shouldBe 0
@@ -827,12 +900,14 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
     val handler2 = Subject.behavior(3)
     val stream   = Observable.merge(handler, handler2)
 
-    stream.unsafeSubscribe(
+    val cancelable = stream.unsafeSubscribe(
       Observer.create[Int](
         received ::= _,
         _ => errors += 1,
       ),
     )
+
+    cancelable.isEmpty() shouldBe false
 
     received shouldBe List(3, 0)
     errors shouldBe 0
@@ -877,12 +952,14 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
     val handlers = Array(handler0, handler1, handler2)
     val stream   = Observable.fromIterable(Seq(0, 1, 2)).mergeMap(handlers(_))
 
-    stream.unsafeSubscribe(
+    val cancelable = stream.unsafeSubscribe(
       Observer.create[Int](
         received ::= _,
         _ => errors += 1,
       ),
     )
+
+    cancelable.isEmpty() shouldBe false
 
     received shouldBe List(2, 0)
     errors shouldBe 0
