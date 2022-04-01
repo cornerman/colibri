@@ -27,7 +27,7 @@ final class ReplaySubject[A] extends Observer[A] with Observable.MaybeValue[A] {
   }
 }
 
-final class ReplayAllSubject[A] extends Observer[A] {
+final class ReplayAllSubject[A] extends Observer[A] with Observable[A] {
 
   private val state = new PublishSubject[A]
 

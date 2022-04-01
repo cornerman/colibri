@@ -373,15 +373,16 @@ object Observable    {
       }
     }
 
-    @inline def mergeMap[B](f: A => Observable[B]): Observable[B] = observableMapWithCancelable(f)(Cancelable.builder)
+    @inline def mergeMap[B](f: A => Observable[B]): Observable[B] = mapObservableWithCancelable(f)(Cancelable.builder)
 
     def merge(sources: Observable[A]*): Observable[A] = Observable.mergeSeq(source +: sources)
 
     def switch(sources: Observable[A]*): Observable[A] = Observable.switchSeq(source +: sources)
 
-    @inline def switchMap[B](f: A => Observable[B]): Observable[B] = observableMapWithCancelable(f)(Cancelable.variable)
+    @inline def switchMap[B](f: A => Observable[B]): Observable[B] = mapObservableWithCancelable(f)(Cancelable.variable)
 
-    private def observableMapWithCancelable[B](f: A => Observable[B])(newCancelableSetter: () => Cancelable.Setter): Observable[B] = new Observable[B] {
+    private def mapObservableWithCancelable[B](f: A => Observable[B])(newCancelableSetter: () => Cancelable.Setter): Observable[B] =
+      new Observable[B] {
       def unsafeSubscribe(sink: Observer[B]): Cancelable = {
         val setter = newCancelableSetter()
 
@@ -905,6 +906,7 @@ object Observable    {
     @inline def distinctByOnEquals[B](f: A => B): Observable[A] = distinctBy(f)(Eq.fromUniversalEquals)
     @inline def distinctOnEquals: Observable[A]                 = distinct(Eq.fromUniversalEquals)
 
+    @deprecated("Manage subscriptions directly with subscribe, to, via, etc.", "0.4.3")
     def withDefaultSubscription(sink: Observer[A]): Observable[A] = new Observable[A] {
       private var defaultSubscription = source.unsafeSubscribe(sink)
 
@@ -931,6 +933,7 @@ object Observable    {
     @deprecated("Use replayLatest instead", "0.3.4")
     @inline def replay: Connectable[Observable.MaybeValue[A]]        = replayLatest
     @inline def replayLatest: Connectable[Observable.MaybeValue[A]]  = multicastMaybeValue(Subject.replayLatest[A]())
+    @inline def replayAll: Connectable[Observable[A]]                = multicast(Subject.replayAll[A]())
     @inline def behavior(value: A): Connectable[Observable.Value[A]] = multicastValue(Subject.behavior(value))
 
     @inline def publishSelector[B](f: Observable[A] => Observable[B]): Observable[B]                  = transformSource(s => f(s.publish.refCount))
@@ -938,6 +941,8 @@ object Observable    {
     @inline def replaySelector[B](f: Observable.MaybeValue[A] => Observable[B]): Observable[B]        = replayLatestSelector(f)
     @inline def replayLatestSelector[B](f: Observable.MaybeValue[A] => Observable[B]): Observable[B]  =
       transformSource(s => f(s.replayLatest.refCount))
+    @inline def replayAllSelector[B](f: Observable[A] => Observable[B]): Observable[B]                =
+      transformSource(s => f(s.replayAll.refCount))
     @inline def behaviorSelector[B](value: A)(f: Observable.Value[A] => Observable[B]): Observable[B] =
       transformSource(s => f(s.behavior(value).refCount))
 
