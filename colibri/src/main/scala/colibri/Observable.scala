@@ -986,9 +986,7 @@ object Observable    {
       }
     }
 
-    @deprecated("Use headEffect instead", "0.3.0")
-    def headF[F[_]: Async]: F[A]      = headEffect[F]
-    def headEffect[F[_]: Async]: F[A] = Async[F].async[A] { callback =>
+    def headF[F[_]: Async]: F[A] = Async[F].async[A] { callback =>
       Async[F].delay {
         val cancelable = Cancelable.variable()
         var isDone     = false
@@ -1005,7 +1003,7 @@ object Observable    {
       }
     }
 
-    @inline def headIO: IO[A] = headEffect[IO]
+    @inline def headIO: IO[A] = headF[IO]
 
     @inline def head: Observable[A] = take(1)
 
