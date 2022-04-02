@@ -1063,4 +1063,21 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
 
     test.unsafeToFuture()
   }
+
+  it should "not be empty if has task" in {
+    var received    = List.empty[Int]
+    var errors      = 0
+    val stream = Observable(1, 2, 3).delayMillis(100)
+
+    val cancelable = stream.unsafeSubscribe(
+      Observer.create[Int](
+        received ::= _,
+        _ => errors += 1,
+      ),
+    )
+
+    received shouldBe List.empty
+    errors shouldBe 0
+    cancelable.isEmpty() shouldBe false
+  }
 }

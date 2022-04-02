@@ -774,9 +774,10 @@ object Observable    {
       def unsafeSubscribe(sink: Observer[A]): Cancelable = {
         var lastTimeout: js.UndefOr[timers.SetTimeoutHandle] = js.undefined
         var isCancel                                         = false
+        var openRuns = 0
 
         Cancelable.composite(
-          Cancelable.ignoreIsEmpty { () =>
+          Cancelable.withIsEmpty(openRuns == 0) { () =>
             isCancel = true
             lastTimeout.foreach(timers.clearTimeout)
           },
@@ -786,7 +787,9 @@ object Observable    {
                 lastTimeout.foreach { id =>
                   timers.clearTimeout(id)
                 }
+                openRuns += 1
                 lastTimeout = timers.setTimeout(duration.toDouble) {
+                  openRuns -= 1
                   if (!isCancel) sink.unsafeOnNext(value)
                 }
               },
@@ -812,7 +815,7 @@ object Observable    {
         val intervalId = timers.setInterval(duration.toDouble) { if (!isCancel) send() }
 
         Cancelable.composite(
-          Cancelable.ignoreIsEmpty { () =>
+          Cancelable { () =>
             isCancel = true
             timers.clearInterval(intervalId)
           },
@@ -829,15 +832,18 @@ object Observable    {
     def evalOn(ec: ExecutionContext): Observable[A] = new Observable[A] {
       def unsafeSubscribe(sink: Observer[A]): Cancelable = {
         var isCancel = false
+        var openRuns = 0
 
         Cancelable.composite(
-          Cancelable.ignoreIsEmpty { () =>
+          Cancelable.withIsEmpty(openRuns == 0) { () =>
             isCancel = true
           },
           source.unsafeSubscribe(
             Observer.create[A](
               { value =>
+                openRuns += 1
                 ec.execute { () =>
+                  openRuns -= 1
                   if (!isCancel) sink.unsafeOnNext(value)
                 }
               },
@@ -851,15 +857,18 @@ object Observable    {
     def asyncMicro: Observable[A] = new Observable[A] {
       def unsafeSubscribe(sink: Observer[A]): Cancelable = {
         var isCancel = false
+        var openRuns = 0
 
         Cancelable.composite(
-          Cancelable.ignoreIsEmpty { () =>
+          Cancelable.withIsEmpty(openRuns == 0) { () =>
             isCancel = true
           },
           source.unsafeSubscribe(
             Observer.create[A](
               { value =>
+                openRuns += 1
                 NativeTypes.queueMicrotask { () =>
+                  openRuns -= 1
                   if (!isCancel) sink.unsafeOnNext(value)
                 }
               },
@@ -875,18 +884,21 @@ object Observable    {
       def unsafeSubscribe(sink: Observer[A]): Cancelable = {
         var lastTimeout: js.UndefOr[NativeTypes.SetImmediateHandle] = js.undefined
         var isCancel                                                = false
+        var openRuns = 0
 
         // TODO: we only actually cancel the last timeout. The check isCancel
         // makes sure that unsafeCancelled subscription is really respected.
         Cancelable.composite(
-          Cancelable.ignoreIsEmpty { () =>
+          Cancelable.withIsEmpty(openRuns == 0) { () =>
             isCancel = true
             lastTimeout.foreach(NativeTypes.clearImmediateRef)
           },
           source.unsafeSubscribe(
             Observer.create[A](
               { value =>
+                openRuns += 1
                 lastTimeout = NativeTypes.setImmediateRef { () =>
+                  openRuns -= 1
                   if (!isCancel) sink.unsafeOnNext(value)
                 }
               },
@@ -903,18 +915,21 @@ object Observable    {
       def unsafeSubscribe(sink: Observer[A]): Cancelable = {
         var lastTimeout: js.UndefOr[timers.SetTimeoutHandle] = js.undefined
         var isCancel                                         = false
+        var openRuns = 0
 
         // TODO: we only actually cancel the last timeout. The check isCancel
         // makes sure that unsafeCancelled subscription is really respected.
         Cancelable.composite(
-          Cancelable.ignoreIsEmpty { () =>
+          Cancelable.withIsEmpty(openRuns == 0) { () =>
             isCancel = true
             lastTimeout.foreach(timers.clearTimeout)
           },
           source.unsafeSubscribe(
             Observer.create[A](
               { value =>
+                openRuns += 1
                 lastTimeout = timers.setTimeout(duration.toDouble) {
+                  openRuns -= 1
                   if (!isCancel) sink.unsafeOnNext(value)
                 }
               },
