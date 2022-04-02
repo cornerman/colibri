@@ -110,6 +110,7 @@ object Cancelable {
         latest = variable
         subscriptions.splice(0, deleteCount = 1)
         variable.add(nextCancelable)
+        variable.freeze()
         ()
       }
     }
@@ -123,6 +124,7 @@ object Cancelable {
         val variable = Cancelable.variable()
         latest = variable
         variable.add(subscription)
+        variable.freeze()
       } else {
         subscriptions.push(subscription)
         ()
@@ -154,6 +156,7 @@ object Cancelable {
       val variable = Cancelable.variable()
       latest = variable
       variable.add(subscription)
+      variable.freeze()
     }
 
     def freeze(): Unit = {

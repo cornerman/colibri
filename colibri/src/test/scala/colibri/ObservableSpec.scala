@@ -212,7 +212,9 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
 
     received shouldBe List(2, 1, 0)
 
+    cancelable.isEmpty() shouldBe false
     until.unsafeOnNext(())
+    cancelable.isEmpty() shouldBe true
 
     received shouldBe List(2, 1, 0)
 
@@ -225,6 +227,7 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
     received shouldBe List(2, 1, 0)
 
     until.unsafeOnNext(())
+    cancelable.isEmpty() shouldBe true
 
     received shouldBe List(2, 1, 0)
 
@@ -232,7 +235,7 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
 
     received shouldBe List(2, 1, 0)
 
-    cancelable.isEmpty() shouldBe false
+    cancelable.isEmpty() shouldBe true
   }
 
   it should "zip" in {
@@ -516,7 +519,7 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
     errors shouldBe 1
   }
 
-  it should "concatEffect" in {
+  it should "concatEffect foo" in {
     var runEffect = 0
     var received  = List.empty[Int]
     var errors    = 0
@@ -551,7 +554,7 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
 
     runEffect shouldBe List()
 
-    stream.unsafeSubscribe(
+    val sub = stream.unsafeSubscribe(
       Observer.create[Int](
         received ::= _,
         _ => errors += 1,
@@ -835,7 +838,7 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
       ),
     )
 
-    cancelable.isEmpty() shouldBe false
+    cancelable.isEmpty() shouldBe true
 
     received shouldBe List(3, 2, 1, 0)
     errors shouldBe 0
