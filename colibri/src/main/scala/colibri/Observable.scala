@@ -774,7 +774,7 @@ object Observable    {
       def unsafeSubscribe(sink: Observer[A]): Cancelable = {
         var lastTimeout: js.UndefOr[timers.SetTimeoutHandle] = js.undefined
         var isCancel                                         = false
-        var openRuns = 0
+        var openRuns                                         = 0
 
         Cancelable.composite(
           Cancelable.withIsEmpty(openRuns == 0) { () =>
@@ -884,7 +884,7 @@ object Observable    {
       def unsafeSubscribe(sink: Observer[A]): Cancelable = {
         var lastTimeout: js.UndefOr[NativeTypes.SetImmediateHandle] = js.undefined
         var isCancel                                                = false
-        var openRuns = 0
+        var openRuns                                                = 0
 
         // TODO: we only actually cancel the last timeout. The check isCancel
         // makes sure that unsafeCancelled subscription is really respected.
@@ -915,7 +915,7 @@ object Observable    {
       def unsafeSubscribe(sink: Observer[A]): Cancelable = {
         var lastTimeout: js.UndefOr[timers.SetTimeoutHandle] = js.undefined
         var isCancel                                         = false
-        var openRuns = 0
+        var openRuns                                         = 0
 
         // TODO: we only actually cancel the last timeout. The check isCancel
         // makes sure that unsafeCancelled subscription is really respected.
