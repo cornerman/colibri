@@ -31,7 +31,9 @@ package object zio extends ZioLowPrio {
 
   // Source
 
-  @inline implicit def zioStreamSourceRuntime[Env](implicit runtime: Runtime[Env]): Source[RStream[Env, *]] = new SourceZIOWithRuntime(runtime)
+  @inline implicit def zioStreamSourceRuntime[Env](implicit runtime: Runtime[Env]): Source[RStream[Env, *]] = new SourceZIOWithRuntime(
+    runtime,
+  )
 
   implicit object zioStreamLiftSource extends LiftSource[RStream[Any, *]] {
     override def lift[G[_]: Source, A](source: G[A]): RStream[Any, A] = Stream.effectAsyncInterrupt { emit =>

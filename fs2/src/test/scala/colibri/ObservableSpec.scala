@@ -17,11 +17,11 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
   )
 
   "Observable" should "work with pure" in {
-    var mapped   = List.empty[Int]
-    var received = List.empty[Int]
+    var mapped                    = List.empty[Int]
+    var received                  = List.empty[Int]
     val stream: Stream[Pure, Int] = Stream.emits(Seq(1, 2, 3)).map { x => mapped ::= x; x }
 
-    mapped shouldBe(List.empty)
+    mapped shouldBe (List.empty)
 
     Source[Stream[Pure, *]].unsafeSubscribe(stream)(Observer.create[Int](received ::= _))
 
@@ -35,25 +35,25 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
   }
 
   it should "work with error" in {
-    var received = List.empty[Int]
-    var receivedThrowable = List.empty[Throwable]
-    val ex = new Exception("HI")
+    var received                    = List.empty[Int]
+    var receivedThrowable           = List.empty[Throwable]
+    val ex                          = new Exception("HI")
     val stream: Stream[SyncIO, Int] = Stream.raiseError[SyncIO](ex)
 
-    Source[Stream[SyncIO, *]].unsafeSubscribe(stream)(Observer.create[Int](received ::= _, receivedThrowable ::= _ ))
+    Source[Stream[SyncIO, *]].unsafeSubscribe(stream)(Observer.create[Int](received ::= _, receivedThrowable ::= _))
 
     received shouldBe List.empty
     receivedThrowable shouldBe List(ex)
 
-    Source[Stream[SyncIO, *]].unsafeSubscribe(stream)(Observer.create[Int](received ::= _, receivedThrowable ::= _ ))
+    Source[Stream[SyncIO, *]].unsafeSubscribe(stream)(Observer.create[Int](received ::= _, receivedThrowable ::= _))
 
     received shouldBe List.empty
     receivedThrowable shouldBe List(ex, ex)
   }
 
   it should "work with effect sync" in {
-    var mapped   = List.empty[Int]
-    var received = List.empty[Int]
+    var mapped                      = List.empty[Int]
+    var received                    = List.empty[Int]
     val stream: Stream[SyncIO, Int] = Stream.eval(SyncIO(1)).map { x => mapped ::= x; x }
 
     mapped shouldBe List.empty
@@ -70,8 +70,8 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
   }
 
   it should "work with effect async" in {
-    var mapped   = List.empty[Int]
-    var received = List.empty[Int]
+    var mapped                  = List.empty[Int]
+    var received                = List.empty[Int]
     val stream: Stream[IO, Int] = Stream.eval(IO(1)).map { x => mapped ::= x; x }
 
     mapped shouldBe List.empty

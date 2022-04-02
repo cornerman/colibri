@@ -386,7 +386,7 @@ object Observable    {
 
     @inline def switchMap[B](f: A => Observable[B]): Observable[B] = mapObservableWithCancelable(f)(Cancelable.variable)
 
-    //TODO isEmpty?
+    // TODO isEmpty?
     private def mapObservableWithCancelable[B](f: A => Observable[B])(newCancelableSetter: () => Cancelable.Setter): Observable[B] =
       new Observable[B] {
         def unsafeSubscribe(sink: Observer[B]): Cancelable = {
@@ -411,7 +411,7 @@ object Observable    {
     @deprecated("Use mapEffect instead", "0.3.0")
     def mapAsync[F[_]: RunEffect, B](f: A => F[B]): Observable[B]            = mapEffect(f)
 
-    def mapEffect[F[_]: RunEffect, B](f: A => F[B]): Observable[B]           = new Observable[B] {
+    def mapEffect[F[_]: RunEffect, B](f: A => F[B]): Observable[B] = new Observable[B] {
       def unsafeSubscribe(sink: Observer[B]): Cancelable = {
         val consecutive = Cancelable.consecutive()
 
@@ -436,7 +436,7 @@ object Observable    {
 
         Cancelable.composite(
           subscription,
-          Cancelable.withIsEmptyWrap(subscription.isEmpty() && !isRunOpen)(consecutive)
+          Cancelable.withIsEmptyWrap(subscription.isEmpty() && !isRunOpen)(consecutive),
         )
       }
     }
@@ -492,7 +492,7 @@ object Observable    {
     }
 
     @deprecated("Use mapEffectSingleOrDrop instead", "0.3.0")
-    def mapAsyncSingleOrDrop[F[_]: RunEffect, B](f: A => F[B]): Observable[B]  = mapEffectSingleOrDrop(f)
+    def mapAsyncSingleOrDrop[F[_]: RunEffect, B](f: A => F[B]): Observable[B] = mapEffectSingleOrDrop(f)
 
     def mapEffectSingleOrDrop[F[_]: RunEffect, B](f: A => F[B]): Observable[B] = new Observable[B] {
       def unsafeSubscribe(sink: Observer[B]): Cancelable = {
@@ -519,7 +519,7 @@ object Observable    {
 
         Cancelable.composite(
           subscription,
-          Cancelable.withIsEmptyWrap(subscription.isEmpty() && !isRunOpen)(single)
+          Cancelable.withIsEmptyWrap(subscription.isEmpty() && !isRunOpen)(single),
         )
       }
     }
