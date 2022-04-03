@@ -208,6 +208,52 @@ object Cancelable {
     }
   }
 
+  class RefCountBuilder extends Cancelable {
+    private var isFrozen                                 = false
+    private var counter                                  = 0
+    private var buffer                                   = new js.Array[() => Cancelable]()
+    private var currentCancelables: js.Array[Cancelable] = null
+
+    def isEmpty() = buffer == null || isFrozen && (currentCancelables == null || currentCancelables.forall(_.isEmpty()))
+
+    def ref(): Cancelable = if (counter == -1) Cancelable.empty
+    else {
+      counter += 1
+      if (counter == 1) {
+        currentCancelables = buffer.map(_())
+      }
+
+      Cancelable({ () =>
+        counter -= 1
+        if (counter == 0) {
+          currentCancelables.foreach(_.unsafeCancel())
+          currentCancelables = null
+        }
+      })
+    }
+
+    def add(subscription: () => Cancelable): Unit = if (buffer != null) {
+      buffer.push(subscription)
+      if (currentCancelables != null) {
+        currentCancelables.push(subscription())
+      }
+      ()
+    }
+
+    def freeze(): Unit = {
+      isFrozen = true
+    }
+
+    def unsafeCancel(): Unit = {
+      counter = -1
+      buffer = null
+      if (currentCancelables != null) {
+        currentCancelables.foreach(_.unsafeCancel())
+        currentCancelables = null
+      }
+    }
+  }
+
   object Empty extends Cancelable {
     @inline def isEmpty()            = true
     @inline def unsafeCancel(): Unit = ()
@@ -252,4 +298,6 @@ object Cancelable {
   @inline def singleOrDrop(): SingleOrDrop = new SingleOrDrop
 
   @inline def refCount(subscription: () => Cancelable): RefCount = new RefCount(subscription)
+
+  @inline def refCountBuilder(): RefCountBuilder = new RefCountBuilder
 }

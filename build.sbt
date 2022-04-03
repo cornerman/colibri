@@ -52,6 +52,17 @@ lazy val colibri = project
     ),
   )
 
+lazy val reactive = project
+  .enablePlugins(ScalaJSPlugin)
+  .dependsOn(colibri)
+  .in(file("reactive"))
+  .settings(commonSettings)
+  .settings(
+    name := "colibri-reactive",
+    libraryDependencies ++= Seq(
+    ),
+  )
+
 lazy val jsdom = project
   .enablePlugins(ScalaJSPlugin)
   .in(file("jsdom"))
