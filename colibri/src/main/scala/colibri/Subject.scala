@@ -3,7 +3,7 @@ package colibri
 import scala.scalajs.js
 import colibri.helpers._
 
-final class ReplaySubject[A] extends Observer[A] with Observable.MaybeValue[A] {
+final class ReplayLatestSubject[A] extends Observer[A] with Observable.MaybeValue[A] {
 
   private val state = new PublishSubject[A]
 
@@ -107,11 +107,11 @@ object Subject {
   type MaybeValue[A] = Observer[A] with Observable.MaybeValue[A]
 
   @deprecated("Use replayLatest instead", "0.3.4")
-  def replay[O](): ReplaySubject[O]       = replayLatest[O]()
+  def replay[O](): ReplayLatestSubject[O]       = replayLatest[O]()
   @deprecated("Use replayLatest instead", "0.4.0")
-  def replayLast[O](): ReplaySubject[O]   = replayLatest[O]()
-  def replayLatest[O](): ReplaySubject[O] = new ReplaySubject[O]
-  def replayAll[O](): ReplayAllSubject[O] = new ReplayAllSubject[O]
+  def replayLast[O](): ReplayLatestSubject[O]   = replayLatest[O]()
+  def replayLatest[O](): ReplayLatestSubject[O] = new ReplayLatestSubject[O]
+  def replayAll[O](): ReplayAllSubject[O]       = new ReplayAllSubject[O]
 
   def behavior[O](seed: O): BehaviorSubject[O] = new BehaviorSubject[O](seed)
 
