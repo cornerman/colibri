@@ -3,7 +3,7 @@ package colibri
 import cats.implicits._
 import colibri.helpers.NativeTypes
 import colibri.effect.{RunSyncEffect, RunEffect}
-import cats.{Eq, FunctorFilter, MonoidK, Semigroupal, Applicative, Functor}
+import cats.{Eq, FunctorFilter, MonoidK, Applicative, Functor}
 import cats.effect.{Sync, SyncIO, Async, IO, Resource}
 import sloth.types.FlatMapError
 
@@ -34,15 +34,12 @@ object Observable    {
     @inline def ap[A, B](ff: Observable[A => B])(fa: Observable[A]): Observable[B] = ff.combineLatestMap(fa)((f, a) => f(a))
     @inline def pure[A](a: A): Observable[A]                                       = Observable(a)
     @inline override def map[A, B](fa: Observable[A])(f: A => B): Observable[B]    = fa.map(f)
+    @inline override def product[A, B](fa: Observable[A], fb: Observable[B]): Observable[(A, B)] = fa.combineLatest(fb)
   }
 
   implicit object functorFilter extends FunctorFilter[Observable] {
     @inline def functor                                                              = Observable.applicative
     @inline def mapFilter[A, B](fa: Observable[A])(f: A => Option[B]): Observable[B] = fa.mapFilter(f)
-  }
-
-  implicit object semigroupal extends Semigroupal[Observable] {
-    @inline def product[A, B](fa: Observable[A], fb: Observable[B]): Observable[(A, B)] = fa.combineLatest(fb)
   }
 
   implicit object flatMapError extends FlatMapError[Observable, Throwable] {
