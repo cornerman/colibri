@@ -186,13 +186,13 @@ object Cancelable {
         currentCancelable = subscription()
       }
 
-      Cancelable({ () =>
+      Cancelable { () =>
         counter -= 1
         if (counter == 0) {
           currentCancelable.unsafeCancel()
           currentCancelable = null
         }
-      })
+      }
     }
 
     def freeze(): Unit = {
@@ -223,13 +223,13 @@ object Cancelable {
         currentCancelables = buffer.map(_())
       }
 
-      Cancelable({ () =>
+      Cancelable { () =>
         counter -= 1
         if (counter == 0) {
           currentCancelables.foreach(_.unsafeCancel())
           currentCancelables = null
         }
-      })
+      }
     }
 
     def add(subscription: () => Cancelable): Unit = if (buffer != null) {
