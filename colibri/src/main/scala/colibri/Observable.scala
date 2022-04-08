@@ -584,7 +584,6 @@ object Observable    {
         )
 
         if (subscription.isEmpty()) {
-          innerCancelCheck = true
           outerCancelCheck = true
           consecutive.freeze()
         }
