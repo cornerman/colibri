@@ -594,7 +594,7 @@ object Observable    {
       }
     }
 
-    def skipSyncDuplicates: Observable[A] = new Observable[A] {
+    def skipSyncGlitches: Observable[A] = new Observable[A] {
       def unsafeSubscribe(sink: Observer[A]): Cancelable = {
         var isCancel       = false
         var runIsScheduled = false
