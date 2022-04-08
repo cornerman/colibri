@@ -168,6 +168,12 @@ object Observer    {
       Connectable(handler, () => source.unsafeSubscribe(sink))
     }
 
+    def redirectWithLatest[B](transform: Observable[B] => Observable[A]): Connectable[Observer[B]] = {
+      val handler = Subject.replayLatest[B]()
+      val source  = transform(handler)
+      Connectable(handler, () => source.unsafeSubscribe(sink))
+    }
+
     @deprecated("Use unsafeOnNext instead", "")
     def onNext(value: A): Unit          = sink.unsafeOnNext(value)
     @deprecated("Use unsafeOnError instead", "")
