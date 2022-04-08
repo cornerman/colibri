@@ -386,6 +386,8 @@ object Observable    {
 
     def switch(sources: Observable[A]*): Observable[A] = Observable.switchSeq(source +: sources)
 
+    def concat(sources: Observable[A]*): Observable[A] = Observable.concatSeq(source +: sources)
+
     @inline def switchMap[B](f: A => Observable[B]): Observable[B] = mapObservableWithCancelable(f)(Cancelable.variable)
 
     // TODO isEmpty?
@@ -1139,6 +1141,12 @@ object Observable    {
         source.unsafeSubscribe(sink)
       }
     }
+
+    @inline def appendEffect[F[_]: RunEffect](value: F[A]): Observable[A] = concat(Observable.fromEffect(value))
+    @inline def appendFuture(value: => Future[A]): Observable[A]          = concat(Observable.fromFuture(value))
+
+    @inline def append(value: A): Observable[A]         = concat(Observable(value))
+    @inline def appendDelay(value: => A): Observable[A] = concat(Observable.delay(value))
 
     def startWith(values: Iterable[A]): Observable[A] = new Observable[A] {
       def unsafeSubscribe(sink: Observer[A]): Cancelable = {
