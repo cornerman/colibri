@@ -191,9 +191,11 @@ object Observable    {
   def concatFuture[T](value: => Future[T], source: Observable[T]): Observable[T]             =
     concatEffect(IO.fromFuture(IO.pure(value)), source)
 
-  @inline def merge[A](sources: Observable[A]*): Observable[A] = mergeSeq(sources)
+  @inline def merge[A](sources: Observable[A]*): Observable[A] = mergeIterable(sources)
 
-  def mergeSeq[A](sources: Seq[Observable[A]]): Observable[A] = new Observable[A] {
+  @deprecated("Use mergeIterable instead", "0.4.5")
+  def mergeSeq[A](sources: Seq[Observable[A]]): Observable[A] = mergeIterable(sources)
+  def mergeIterable[A](sources: Iterable[Observable[A]]): Observable[A] = new Observable[A] {
     def unsafeSubscribe(sink: Observer[A]): Cancelable = {
       val subscriptions = sources.map { source =>
         source.unsafeSubscribe(sink)
@@ -203,9 +205,11 @@ object Observable    {
     }
   }
 
-  @inline def switch[A](sources: Observable[A]*): Observable[A] = switchSeq(sources)
+  @inline def switch[A](sources: Observable[A]*): Observable[A] = switchIterable(sources)
 
-  def switchSeq[A](sources: Seq[Observable[A]]): Observable[A] = new Observable[A] {
+  @deprecated("Use switchIterable instead", "0.4.5")
+  def switchSeq[A](sources: Seq[Observable[A]]): Observable[A] = switchIterable(sources)
+  def switchIterable[A](sources: Iterable[Observable[A]]): Observable[A] = new Observable[A] {
     def unsafeSubscribe(sink: Observer[A]): Cancelable = {
       val variable = Cancelable.variable()
       sources.foreach { source =>
@@ -217,10 +221,11 @@ object Observable    {
     }
   }
 
-  @inline def concat[A](sources: Observable[A]*): Observable[A] = concatSeq(sources)
+  @inline def concat[A](sources: Observable[A]*): Observable[A] = concatIterable(sources)
 
-  def concatSeq[A](sources: Seq[Observable[A]]): Observable[A] =
-    Observable.fromIterable(sources).concatMap(identity)
+  @deprecated("Use concatIterable instead", "0.4.5")
+  def concatSeq[A](sources: Seq[Observable[A]]): Observable[A] = concatIterable(sources)
+  def concatIterable[A](sources: Iterable[Observable[A]]): Observable[A] = Observable.fromIterable(sources).concatMap(identity)
 
   @inline def interval(delay: FiniteDuration): Observable[Long] = intervalMillis(delay.toMillis.toInt)
 
@@ -386,11 +391,11 @@ object Observable    {
       }
     }
 
-    def merge(sources: Observable[A]*): Observable[A] = Observable.mergeSeq(source +: sources)
+    def merge(sources: Observable[A]*): Observable[A] = Observable.mergeIterable(source +: sources)
 
-    def switch(sources: Observable[A]*): Observable[A] = Observable.switchSeq(source +: sources)
+    def switch(sources: Observable[A]*): Observable[A] = Observable.switchIterable(source +: sources)
 
-    def concat(sources: Observable[A]*): Observable[A] = Observable.concatSeq(source +: sources)
+    def concat(sources: Observable[A]*): Observable[A] = Observable.concatIterable(source +: sources)
 
     @inline def mergeMap[B](f: A => Observable[B]): Observable[B] = mapObservableWithCancelable(f)(Cancelable.builder)
 
@@ -1156,8 +1161,8 @@ object Observable    {
     @deprecated("Use prependEffect instead", "0.3.0")
     @inline def prependAsync[F[_]: RunEffect](value: F[A]): Observable[A]    = prependEffect(value)
 
-    @inline def prependEffect[F[_]: RunEffect](value: F[A]): Observable[A]   = concatEffect[F, A](value, source)
-    @inline def prependFuture(value: => Future[A]): Observable[A]            = concatFuture[A](value, source)
+    @inline def prependEffect[F[_]: RunEffect](value: F[A]): Observable[A] = concatEffect[F, A](value, source)
+    @inline def prependFuture(value: => Future[A]): Observable[A]          = concatFuture[A](value, source)
 
     def prepend(value: A): Observable[A]         = prependDelay(value)
     def prependDelay(value: => A): Observable[A] = new Observable[A] {
