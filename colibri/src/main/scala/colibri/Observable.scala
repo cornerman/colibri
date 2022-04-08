@@ -1149,6 +1149,7 @@ object Observable    {
     @inline def prependSync[F[_]: RunSyncEffect](value: F[A]): Observable[A] = prependEffect(value)
     @deprecated("Use prependEffect instead", "0.3.0")
     @inline def prependAsync[F[_]: RunEffect](value: F[A]): Observable[A]    = prependEffect(value)
+
     @inline def prependEffect[F[_]: RunEffect](value: F[A]): Observable[A]   = concatEffect[F, A](value, source)
     @inline def prependFuture(value: => Future[A]): Observable[A]            = concatFuture[A](value, source)
 
