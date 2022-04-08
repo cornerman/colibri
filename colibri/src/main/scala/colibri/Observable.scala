@@ -161,8 +161,14 @@ object Observable    {
   def concatSync[F[_]: RunSyncEffect, T](effects: F[T]*): Observable[T] = concatEffect(effects: _*)
   @deprecated("Use concatEffect instead", "0.3.0")
   def concatAsync[F[_]: RunEffect, T](effects: F[T]*): Observable[T]    = concatEffect(effects: _*)
+
   def concatEffect[F[_]: RunEffect, T](effects: F[T]*): Observable[T]   = fromIterable(effects).mapEffect(identity)
-  def concatFuture[T](values: Future[T]*): Observable[T]                = fromIterable(values).mapFuture(identity)
+
+  def concatFuture[T](value1: => Future[T]): Observable[T] = concatEffect(IO.fromFuture(IO(value1)))
+  def concatFuture[T](value1: => Future[T], value2: => Future[T]): Observable[T] = concatEffect(IO.fromFuture(IO(value1)), IO.fromFuture(IO(value2)))
+  def concatFuture[T](value1: => Future[T], value2: => Future[T], value3: => Future[T]): Observable[T] = concatEffect(IO.fromFuture(IO(value1)), IO.fromFuture(IO(value2)), IO.fromFuture(IO(value3)))
+  def concatFuture[T](value1: => Future[T], value2: => Future[T], value3: => Future[T], value4: => Future[T]): Observable[T] = concatEffect(IO.fromFuture(IO(value1)), IO.fromFuture(IO(value2)), IO.fromFuture(IO(value3)), IO.fromFuture(IO(value4)))
+  def concatFuture[T](value1: => Future[T], value2: => Future[T], value3: => Future[T], value4: => Future[T], value5: => Future[T]): Observable[T] = concatEffect(IO.fromFuture(IO(value1)), IO.fromFuture(IO(value2)), IO.fromFuture(IO(value3)), IO.fromFuture(IO(value4)), IO.fromFuture(IO(value5)))
 
   @deprecated("Use concatEffect instead", "0.3.0")
   def concatSync[F[_]: RunSyncEffect, T](effect: F[T], source: Observable[T]): Observable[T] = concatEffect(effect, source)
