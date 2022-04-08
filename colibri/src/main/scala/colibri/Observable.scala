@@ -380,31 +380,49 @@ object Observable    {
       }
     }
 
-    @inline def mergeMap[B](f: A => Observable[B]): Observable[B] = mapObservableWithCancelable(f)(Cancelable.builder)
-
     def merge(sources: Observable[A]*): Observable[A] = Observable.mergeSeq(source +: sources)
 
     def switch(sources: Observable[A]*): Observable[A] = Observable.switchSeq(source +: sources)
 
     def concat(sources: Observable[A]*): Observable[A] = Observable.concatSeq(source +: sources)
 
+    @inline def mergeMap[B](f: A => Observable[B]): Observable[B] = mapObservableWithCancelable(f)(Cancelable.builder)
+
     @inline def switchMap[B](f: A => Observable[B]): Observable[B] = mapObservableWithCancelable(f)(Cancelable.variable)
 
-    // TODO isEmpty?
     private def mapObservableWithCancelable[B](f: A => Observable[B])(newCancelableSetter: () => Cancelable.Setter): Observable[B] =
       new Observable[B] {
         def unsafeSubscribe(sink: Observer[B]): Cancelable = {
           val setter = newCancelableSetter()
 
-          val subscription = source.unsafeSubscribe(
+          var outerCancelCheck      = false
+          var outerCheckIsScheduled = false
+
+          var subscription: Cancelable = null
+          subscription = source.unsafeSubscribe(
             Observer.create[A](
               { value =>
                 val sourceB = f(value)
+
                 setter.add(() => sourceB.unsafeSubscribe(sink))
+
+                if (!outerCheckIsScheduled) {
+                  outerCheckIsScheduled = true
+                  outerCancelCheck = false
+                  NativeTypes.queueMicrotask { () =>
+                    outerCheckIsScheduled = false
+                    if (!outerCancelCheck && subscription.isEmpty()) setter.freeze()
+                  }
+                }
               },
               sink.unsafeOnError,
             ),
           )
+
+          if (subscription.isEmpty()) {
+            outerCancelCheck = true
+            setter.freeze()
+          }
 
           Cancelable.composite(subscription, setter)
         }

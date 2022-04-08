@@ -897,7 +897,7 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
     errors shouldBe 0
   }
 
-  it should "concat" in {
+  it should "concatMap async complete" in {
     var received    = List.empty[Int]
     var errors      = 0
     val observable1 = Observable(1, 2)
@@ -905,7 +905,7 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
     val observable3 = Observable.fromEffect(IO.cede *> IO.pure(6))
     val observable4 = Observable(7)
     val observable5 = Observable.empty
-    val stream      = Observable.concat(observable1, observable2, observable3, observable4, observable5)
+    val stream      = Observable(observable1, observable2, observable3, observable4, observable5).concatMap(identity)
 
     val test = for {
       cancelable <- stream
@@ -944,14 +944,109 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
     test.unsafeToFuture()
   }
 
-  it should "concat sync" in {
+  it should "mergeMap async complete" in {
+    var received    = List.empty[Int]
+    var errors      = 0
+    val observable1 = Observable(1, 2)
+    val observable2 = Observable(4, 5).prependEffect(IO.cede *> IO.pure(3))
+    val observable3 = Observable.fromEffect(IO.cede *> IO.pure(6))
+    val observable4 = Observable(7)
+    val observable5 = Observable.empty
+    val stream      = Observable(observable1, observable2, observable3, observable4, observable5).mergeMap(identity)
+
+    val test = for {
+      cancelable <- stream
+                      .to(
+                        Observer.create[Int](
+                          received ::= _,
+                          _ => errors += 1,
+                        ),
+                      )
+                      .subscribeIO
+
+      _ = cancelable.isEmpty() shouldBe false
+      _ = received shouldBe List(7, 2, 1)
+      _ = errors shouldBe 0
+
+      _ <- IO.cede *> IO.cede
+
+      _ = cancelable.isEmpty() shouldBe true
+      _ = received shouldBe List(6, 5, 4, 3, 7, 2, 1)
+      _ = errors shouldBe 0
+    } yield succeed
+
+    test.unsafeToFuture()
+  }
+
+  it should "switchMap async complete (is sync)" in {
+    var received    = List.empty[Int]
+    var errors      = 0
+    val observable1 = Observable(1, 2)
+    val observable2 = Observable(4, 5).prependEffect(IO.cede *> IO.pure(3))
+    val observable3 = Observable.fromEffect(IO.cede *> IO.pure(6))
+    val observable4 = Observable(7)
+    val observable5 = Observable.empty
+    val stream      = Observable(observable1, observable2, observable3, observable4, observable5).switchMap(identity)
+
+    val test = for {
+      cancelable <- stream
+                      .to(
+                        Observer.create[Int](
+                          received ::= _,
+                          _ => errors += 1,
+                        ),
+                      )
+                      .subscribeIO
+
+      _ = cancelable.isEmpty() shouldBe true
+      _ = received shouldBe List(7, 2, 1)
+      _ = errors shouldBe 0
+    } yield succeed
+
+    test.unsafeToFuture()
+  }
+
+  it should "switchMap async complete" in {
+    var received    = List.empty[Int]
+    var errors      = 0
+    val observable1 = Observable(1, 2)
+    val observable2 = Observable(4, 5).prependEffect(IO.cede *> IO.pure(3))
+    val observable3 = Observable.fromEffect(IO.cede *> IO.pure(6))
+    val observable4 = Observable.fromEffect(IO.cede *> IO.pure(7))
+    val stream      = Observable(observable1, observable2, observable3, observable4).switchMap(identity)
+
+    val test = for {
+      cancelable <- stream
+                      .to(
+                        Observer.create[Int](
+                          received ::= _,
+                          _ => errors += 1,
+                        ),
+                      )
+                      .subscribeIO
+
+      _ = cancelable.isEmpty() shouldBe false
+      _ = received shouldBe List(2, 1)
+      _ = errors shouldBe 0
+
+      _ <- IO.cede *> IO.cede
+
+      _ = cancelable.isEmpty() shouldBe true
+      _ = received shouldBe List(7, 2, 1)
+      _ = errors shouldBe 0
+    } yield succeed
+
+    test.unsafeToFuture()
+  }
+
+  it should "concatMap sync complete" in {
     var received    = List.empty[Int]
     var errors      = 0
     val observable1 = Observable(1, 2)
     val observable2 = Observable(4, 5).prepend(3)
     val observable3 = Observable.pure(6)
     val observable4 = Observable(7)
-    val stream      = Observable.concat(observable1, observable2, observable3, observable4)
+    val stream      = Observable(observable1, observable2, observable3, observable4).concatMap(identity)
 
     val test = for {
       cancelable <- stream
@@ -971,7 +1066,61 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
     test.unsafeToFuture()
   }
 
-  it should "skipSyncDuplicates" in {
+  it should "mergeMap sync complete" in {
+    var received    = List.empty[Int]
+    var errors      = 0
+    val observable1 = Observable(1, 2)
+    val observable2 = Observable(4, 5).prepend(3)
+    val observable3 = Observable.pure(6)
+    val observable4 = Observable(7)
+    val stream      = Observable(observable1, observable2, observable3, observable4).mergeMap(identity)
+
+    val test = for {
+      cancelable <- stream
+                      .to(
+                        Observer.create[Int](
+                          received ::= _,
+                          _ => errors += 1,
+                        ),
+                      )
+                      .subscribeIO
+
+      _ = cancelable.isEmpty() shouldBe true
+      _ = received shouldBe List(7, 6, 5, 4, 3, 2, 1)
+      _ = errors shouldBe 0
+    } yield succeed
+
+    test.unsafeToFuture()
+  }
+
+  it should "switchMap sync complete" in {
+    var received    = List.empty[Int]
+    var errors      = 0
+    val observable1 = Observable(1, 2)
+    val observable2 = Observable(4, 5).prepend(3)
+    val observable3 = Observable.pure(6)
+    val observable4 = Observable(7)
+    val stream      = Observable(observable1, observable2, observable3, observable4).switchMap(identity)
+
+    val test = for {
+      cancelable <- stream
+                      .to(
+                        Observer.create[Int](
+                          received ::= _,
+                          _ => errors += 1,
+                        ),
+                      )
+                      .subscribeIO
+
+      _ = cancelable.isEmpty() shouldBe true
+      _ = received shouldBe List(7, 6, 5, 4, 3, 2, 1)
+      _ = errors shouldBe 0
+    } yield succeed
+
+    test.unsafeToFuture()
+  }
+
+  it should "skipSyncGlitches" in {
     var received   = List.empty[Int]
     var errors     = 0
     val observable = Observable(1, 2)
@@ -991,7 +1140,7 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
       _ = received shouldBe List(4, 3)
       _ = errors shouldBe 0
 
-      cancelable2 <- stream.skipSyncDuplicates
+      cancelable2 <- stream.skipSyncGlitches
                        .to(
                          Observer.create[Int](
                            received ::= _,
