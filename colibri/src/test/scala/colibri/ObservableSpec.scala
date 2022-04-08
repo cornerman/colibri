@@ -9,6 +9,7 @@ import org.scalatest.flatspec.AsyncFlatSpec
 // import scala.concurrent.Future
 
 class ObservableSpec extends AsyncFlatSpec with Matchers {
+  override val executionContext            = scala.scalajs.concurrent.QueueExecutionContext()
   implicit val ioRuntime: unsafe.IORuntime = unsafe.IORuntime(
     compute = this.executionContext,
     blocking = this.executionContext,
@@ -894,6 +895,124 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
 
     received shouldBe List(13, 13, 2, 0)
     errors shouldBe 0
+  }
+
+  it should "concat" in {
+    var received    = List.empty[Int]
+    var errors      = 0
+    val observable1 = Observable(1, 2)
+    val observable2 = Observable(4, 5).prependEffect(IO.cede *> IO.pure(3))
+    val observable3 = Observable.fromEffect(IO.cede *> IO.pure(6))
+    val observable4 = Observable(7)
+    val observable5 = Observable.empty
+    val stream      = Observable.concat(observable1, observable2, observable3, observable4, observable5)
+
+    val test = for {
+      cancelable <- stream
+                      .to(
+                        Observer.create[Int](
+                          received ::= _,
+                          _ => errors += 1,
+                        ),
+                      )
+                      .subscribeIO
+
+      _ = cancelable.isEmpty() shouldBe false
+      _ = received shouldBe List(2, 1)
+      _ = errors shouldBe 0
+
+      _ <- IO.cede *> IO.cede
+
+      _ = cancelable.isEmpty() shouldBe false
+      _ = received shouldBe List(5, 4, 3, 2, 1)
+      _ = errors shouldBe 0
+
+      _ <- IO.cede *> IO.cede *> IO.cede
+
+      _ = cancelable.isEmpty() shouldBe false
+      _ = received shouldBe List(6, 5, 4, 3, 2, 1)
+      _ = errors shouldBe 0
+
+      _ <- IO.cede
+
+      _ = cancelable.isEmpty() shouldBe true
+      _ = received shouldBe List(7, 6, 5, 4, 3, 2, 1)
+      _ = errors shouldBe 0
+
+    } yield succeed
+
+    test.unsafeToFuture()
+  }
+
+  it should "concat sync" in {
+    var received    = List.empty[Int]
+    var errors      = 0
+    val observable1 = Observable(1, 2)
+    val observable2 = Observable(4, 5).prepend(3)
+    val observable3 = Observable.pure(6)
+    val observable4 = Observable(7)
+    val stream      = Observable.concat(observable1, observable2, observable3, observable4)
+
+    val test = for {
+      cancelable <- stream
+                      .to(
+                        Observer.create[Int](
+                          received ::= _,
+                          _ => errors += 1,
+                        ),
+                      )
+                      .subscribeIO
+
+      _ = cancelable.isEmpty() shouldBe true
+      _ = received shouldBe List(7, 6, 5, 4, 3, 2, 1)
+      _ = errors shouldBe 0
+    } yield succeed
+
+    test.unsafeToFuture()
+  }
+
+  it should "skipSyncDuplicates" in {
+    var received   = List.empty[Int]
+    var errors     = 0
+    val observable = Observable(1, 2)
+    val stream     = observable.combineLatestMap(observable)(_ + _)
+
+    val test = for {
+      cancelable <- stream
+                      .to(
+                        Observer.create[Int](
+                          received ::= _,
+                          _ => errors += 1,
+                        ),
+                      )
+                      .subscribeIO
+
+      _ = cancelable.isEmpty() shouldBe true
+      _ = received shouldBe List(4, 3)
+      _ = errors shouldBe 0
+
+      cancelable2 <- stream.skipSyncDuplicates
+                       .to(
+                         Observer.create[Int](
+                           received ::= _,
+                           _ => errors += 1,
+                         ),
+                       )
+                       .subscribeIO
+
+      _ = cancelable2.isEmpty() shouldBe false
+      _ = received shouldBe List(4, 3)
+      _ = errors shouldBe 0
+
+      _ <- IO.cede
+
+      _ = cancelable.isEmpty() shouldBe true
+      _ = received shouldBe List(4, 4, 3)
+      _ = errors shouldBe 0
+
+    } yield succeed
+
+    test.unsafeToFuture()
   }
 
   it should "merge" in {
