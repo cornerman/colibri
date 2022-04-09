@@ -25,6 +25,8 @@ trait Rx[+A] {
 
   final def switchMap[B](f: A => Rx[B])(implicit owner: Owner): Rx[B] = transform(_.switchMap(f andThen (_.observable)))
   final def mergeMap[B](f: A => Rx[B])(implicit owner: Owner): Rx[B]  = transform(_.mergeMap(f andThen (_.observable)))
+  final def concatMap[B](f: A => Rx[B])(implicit owner: Owner): Rx[B]  = transform(_.concatMap(f andThen (_.observable)))
+  final def flatMap[B](f: A => Rx[B])(implicit owner: Owner): Rx[B]  = concatMap(f)
 
   final def transform[B](f: Observable[A] => Observable[B])(implicit owner: Owner): Rx[B] = Rx.observable(f(observable))
 
