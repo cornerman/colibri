@@ -3,7 +3,7 @@ package colibri
 import cats.implicits._
 import colibri.helpers.NativeTypes
 import colibri.effect.{RunSyncEffect, RunEffect}
-import cats.{Eq, FunctorFilter, MonoidK, Applicative, MonadError, Functor}
+import cats._
 import cats.effect.{Sync, SyncIO, Async, IO, Resource}
 
 import scala.scalajs.js
@@ -24,27 +24,48 @@ object Observable    {
     @inline def lift[H[_]: Source, A](source: H[A]): Observable[A] = Observable.lift[H, A](source)
   }
 
-  implicit object monoidK extends MonoidK[Observable] {
-    @inline def empty[T]                                        = Observable.empty
-    @inline def combineK[T](a: Observable[T], b: Observable[T]) = Observable.merge(a, b)
-  }
-
-  implicit object monadError extends MonadError[Observable, Throwable] {
-    @inline override def ap[A, B](ff: Observable[A => B])(fa: Observable[A]): Observable[B]                  = ff.combineLatestMap(fa)((f, a) => f(a))
-    @inline override def pure[A](a: A): Observable[A]                                                        = Observable(a)
-    @inline override def map[A, B](fa: Observable[A])(f: A => B): Observable[B]                              = fa.map(f)
-    @inline override def product[A, B](fa: Observable[A], fb: Observable[B]): Observable[(A, B)]             = fa.combineLatest(fb)
-    @inline override def handleErrorWith[A](fa: Observable[A])(f: Throwable => Observable[A]): Observable[A] =
+  implicit object catsInstances extends MonadError[Observable, Throwable] with FunctorFilter[Observable] with MonoidK[Observable] {
+    @inline override def unit: Observable[Unit]                                                                        = Observable.unit
+    @inline override def pure[A](a: A): Observable[A]                                                                  = Observable.pure(a)
+    @inline override def map[A, B](fa: Observable[A])(f: A => B): Observable[B]                                        = fa.map(f)
+    @inline override def handleErrorWith[A](fa: Observable[A])(f: Throwable => Observable[A]): Observable[A]           =
       fa.map(Observable.pure).recover { case t => f(t) }.flatten
-    @inline override def raiseError[A](e: Throwable): Observable[A]                                          = Observable.raiseError(e)
-    @inline override def flatMap[A, B](fa: Observable[A])(f: A => Observable[B]): Observable[B]              = fa.flatMap(f)
+    @inline override def raiseError[A](e: Throwable): Observable[A]                                                    = Observable.raiseError(e)
+    @inline override def recover[A](fa: Observable[A])(pf: PartialFunction[Throwable, A]): Observable[A]               = fa.recover(pf)
+    @inline override def flatMap[A, B](fa: Observable[A])(f: A => Observable[B]): Observable[B]                        = fa.flatMap(f)
+    @inline override def flatten[A](ffa: Observable[Observable[A]]): Observable[A]                                     = ffa.flatten
+    @inline override def tailRecM[A, B](a: A)(f: A => Observable[Either[A, B]]): Observable[B]                         = Observable.tailRecM[A, B](a)(f)
+    @inline override def ensure[A](fa: Observable[A])(error: => Throwable)(predicate: A => Boolean): Observable[A]     =
+      fa.mapEither(a => if (predicate(a)) Right(a) else Left(error))
+    @inline override def ensureOr[A](fa: Observable[A])(error: A => Throwable)(predicate: A => Boolean): Observable[A] =
+      fa.mapEither(a => if (predicate(a)) Right(a) else Left(error(a)))
+    @inline override def rethrow[A, EE <: Throwable](fa: Observable[Either[EE, A]]): Observable[A]                     = fa.flattenEither
+    @inline override def adaptError[A](fa: Observable[A])(pf: PartialFunction[Throwable, Throwable]): Observable[A]    = fa.adaptError(pf)
 
-    @inline override def tailRecM[A, B](a: A)(f: A => Observable[Either[A, B]]): Observable[B] = Observable.tailRecM[A, B](a)(f)
+    @inline override def functor                                                                   = this
+    @inline override def mapFilter[A, B](fa: Observable[A])(f: A => Option[B]): Observable[B]      = fa.mapFilter(f)
+    @inline override def collect[A, B](fa: Observable[A])(f: PartialFunction[A, B]): Observable[B] =
+      fa.collect(f)
+    @inline override def filter[A](fa: Observable[A])(f: A => Boolean): Observable[A]              =
+      fa.filter(f)
+    @inline override def empty[T]                                                                  = Observable.empty
+    @inline override def combineK[T](a: Observable[T], b: Observable[T])                           = Observable.concat(a, b)
   }
 
-  implicit object functorFilter extends FunctorFilter[Observable] {
-    @inline def functor                                                              = Observable.monadError
-    @inline def mapFilter[A, B](fa: Observable[A])(f: A => Option[B]): Observable[B] = fa.mapFilter(f)
+  implicit val parallel: Parallel.Aux[Observable, CombineObservable.Type] = new Parallel[Observable] {
+    import CombineObservable.{apply => wrap, unwrap}
+
+    override type F[A] = CombineObservable.Type[A]
+
+    override def monad: Monad[Observable]                         = implicitly[Monad[Observable]]
+    override def applicative: Applicative[CombineObservable.Type] = implicitly[Applicative[CombineObservable.Type]]
+
+    override val sequential = new (CombineObservable.Type ~> Observable) {
+      def apply[A](fa: CombineObservable.Type[A]): Observable[A] = unwrap(fa)
+    }
+    override val parallel   = new (Observable ~> CombineObservable.Type) {
+      def apply[A](fa: Observable[A]): CombineObservable.Type[A] = wrap(fa)
+    }
   }
 
   trait Value[+A]      extends Observable[A] {
@@ -63,6 +84,7 @@ object Observable    {
   }
 
   @inline def empty = Empty
+  @inline val unit  = Observable.pure(())
 
   def pure[T](value: T): Observable[T] = new Observable[T] {
     def unsafeSubscribe(sink: Observer[T]): Cancelable = {
@@ -165,10 +187,25 @@ object Observable    {
   def concatEffect[F[_]: RunEffect, T](effects: F[T]*): Observable[T] = fromIterable(effects).mapEffect(identity)
 
   def concatFuture[T](value1: => Future[T]): Observable[T]                                                                   = concatEffect(IO.fromFuture(IO(value1)))
-  def concatFuture[T](value1: => Future[T], value2: => Future[T]): Observable[T] = concatEffect(IO.fromFuture(IO(value1)), IO.fromFuture(IO(value2)))
-  def concatFuture[T](value1: => Future[T], value2: => Future[T], value3: => Future[T]): Observable[T] = concatEffect(IO.fromFuture(IO(value1)), IO.fromFuture(IO(value2)), IO.fromFuture(IO(value3)))
-  def concatFuture[T](value1: => Future[T], value2: => Future[T], value3: => Future[T], value4: => Future[T]): Observable[T] = concatEffect(IO.fromFuture(IO(value1)), IO.fromFuture(IO(value2)), IO.fromFuture(IO(value3)), IO.fromFuture(IO(value4)))
-  def concatFuture[T](value1: => Future[T], value2: => Future[T], value3: => Future[T], value4: => Future[T], value5: => Future[T]): Observable[T] = concatEffect(IO.fromFuture(IO(value1)), IO.fromFuture(IO(value2)), IO.fromFuture(IO(value3)), IO.fromFuture(IO(value4)), IO.fromFuture(IO(value5)))
+  def concatFuture[T](value1: => Future[T], value2: => Future[T]): Observable[T]                                             =
+    concatEffect(IO.fromFuture(IO(value1)), IO.fromFuture(IO(value2)))
+  def concatFuture[T](value1: => Future[T], value2: => Future[T], value3: => Future[T]): Observable[T]                       =
+    concatEffect(IO.fromFuture(IO(value1)), IO.fromFuture(IO(value2)), IO.fromFuture(IO(value3)))
+  def concatFuture[T](value1: => Future[T], value2: => Future[T], value3: => Future[T], value4: => Future[T]): Observable[T] =
+    concatEffect(IO.fromFuture(IO(value1)), IO.fromFuture(IO(value2)), IO.fromFuture(IO(value3)), IO.fromFuture(IO(value4)))
+  def concatFuture[T](
+      value1: => Future[T],
+      value2: => Future[T],
+      value3: => Future[T],
+      value4: => Future[T],
+      value5: => Future[T],
+  ): Observable[T] = concatEffect(
+    IO.fromFuture(IO(value1)),
+    IO.fromFuture(IO(value2)),
+    IO.fromFuture(IO(value3)),
+    IO.fromFuture(IO(value4)),
+    IO.fromFuture(IO(value5)),
+  )
 
   @deprecated("Use concatEffect instead", "0.3.0")
   def concatSync[F[_]: RunSyncEffect, T](effect: F[T], source: Observable[T]): Observable[T] = concatEffect(effect, source)
@@ -375,6 +412,13 @@ object Observable    {
 
     def recover(f: PartialFunction[Throwable, A]): Observable[A] = recoverOption(f andThen (Some(_)))
 
+    def adaptError(f: PartialFunction[Throwable, Throwable]): Observable[A] = new Observable[A] {
+      def unsafeSubscribe(sink: Observer[A]): Cancelable =
+        source.unsafeSubscribe(sink.doOnError { error =>
+          sink.unsafeOnError(f.applyOrElse[Throwable, Throwable](error, t => t))
+        })
+    }
+
     def recoverOption(f: PartialFunction[Throwable, Option[A]]): Observable[A] = new Observable[A] {
       def unsafeSubscribe(sink: Observer[A]): Cancelable = {
         source.unsafeSubscribe(sink.doOnError { error =>
@@ -423,7 +467,7 @@ object Observable    {
       }
     }
 
-    def tapCancel(f: () => Unit): Observable[A]  = new Observable[A] {
+    def tapCancel(f: () => Unit): Observable[A] = new Observable[A] {
       def unsafeSubscribe(sink: Observer[A]): Cancelable = {
         Cancelable.composite(
           source.unsafeSubscribe(sink),

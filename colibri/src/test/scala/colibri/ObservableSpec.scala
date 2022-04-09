@@ -333,6 +333,49 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
     sub.isEmpty() shouldBe true
   }
 
+  it should "parMapN" in {
+    var received = List.empty[(Int, String)]
+    val handler  = Subject.behavior[Int](0)
+    val combined = Subject.behavior[String]("a")
+    val stream   = (handler: Observable[Int], combined: Observable[String]).parMapN(_ -> _)
+
+    val sub = stream.unsafeSubscribe(Observer.create[(Int, String)](received ::= _))
+
+    sub.isEmpty() shouldBe false
+
+    received shouldBe List((0, "a"))
+
+    handler.unsafeOnNext(1)
+
+    received shouldBe List((1, "a"), (0, "a"))
+
+    handler.unsafeOnNext(2)
+
+    received shouldBe List((2, "a"), (1, "a"), (0, "a"))
+
+    combined.unsafeOnNext("b")
+
+    received shouldBe List((2, "b"), (2, "a"), (1, "a"), (0, "a"))
+
+    combined.unsafeOnNext("c")
+
+    received shouldBe List((2, "c"), (2, "b"), (2, "a"), (1, "a"), (0, "a"))
+
+    sub.unsafeCancel()
+
+    sub.isEmpty() shouldBe true
+
+    handler.unsafeOnNext(3)
+
+    received shouldBe List((2, "c"), (2, "b"), (2, "a"), (1, "a"), (0, "a"))
+
+    combined.unsafeOnNext("d")
+
+    received shouldBe List((2, "c"), (2, "b"), (2, "a"), (1, "a"), (0, "a"))
+
+    sub.isEmpty() shouldBe true
+  }
+
   it should "withLatest" in {
     var received = List.empty[(Int, String)]
     val handler  = Subject.behavior[Int](0)
