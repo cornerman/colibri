@@ -423,6 +423,17 @@ object Observable    {
       }
     }
 
+    def tapCancel(f: () => Unit): Observable[A]  = new Observable[A] {
+      def unsafeSubscribe(sink: Observer[A]): Cancelable = {
+        Cancelable.composite(
+          source.unsafeSubscribe(sink),
+          Cancelable.ignoreIsEmpty { () =>
+            f()
+          },
+        )
+      }
+    }
+
     @deprecated("Use .tap(f) instead", "0.3.4")
     def doOnNext(f: A => Unit): Observable[A] = tap(f)
     def tap(f: A => Unit): Observable[A]      = new Observable[A] {
