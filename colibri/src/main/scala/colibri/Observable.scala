@@ -10,6 +10,7 @@ import scala.scalajs.js
 import scala.scalajs.js.timers
 import scala.concurrent.{ExecutionContext, Future}
 import scala.concurrent.duration.FiniteDuration
+import scala.util.Try
 
 trait Observable[+A] {
   def unsafeSubscribe(sink: Observer[A]): Cancelable
@@ -182,6 +183,8 @@ object Observable    {
       Cancelable.composite(cancelRun, cancelable)
     }
   }
+
+  def from[H[_]: ObservableLike, A](observableLike: H[A]): Observable[A] = ObservableLike[H].toObservable(observableLike)
 
   @deprecated("Use concatEffect instead", "0.3.0")
   def concatSync[F[_]: RunSyncEffect, T](effects: F[T]*): Observable[T] = concatEffect(effects: _*)
