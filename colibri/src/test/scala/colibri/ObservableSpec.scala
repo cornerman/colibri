@@ -1120,6 +1120,50 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
     test.unsafeToFuture()
   }
 
+  it should "tailRecM" in {
+    def sum[F[_]](numbers: List[F[Int]])(implicit m: cats.Monad[F]): F[Int] =
+      m.tailRecM((numbers, 0)) { case (lst, accum) =>
+        lst match {
+          case Nil          => m.pure(Right(accum))
+          case head :: tail =>
+            head.map { h =>
+              Left((tail, accum + h))
+            }
+        }
+      }
+
+    var received = List.empty[Int]
+    var errors   = 0
+
+    val iterations = 100000
+    val stream     = sum((1 to iterations).map(Observable(_)).toList)
+
+    import scala.concurrent.duration._
+
+    val test = for {
+      cancelable <- stream
+                      .to(
+                        Observer.create[Int](
+                          received ::= _,
+                          _ => errors += 1,
+                        ),
+                      )
+                      .subscribeIO
+
+      _ = cancelable.isEmpty() shouldBe false
+      _ = received shouldBe List.empty
+      _ = errors shouldBe 0
+
+      _ <- IO.sleep(0.seconds)
+
+      _ = cancelable.isEmpty() shouldBe true
+      _ = received shouldBe List((iterations * (iterations + 1)) / 2)
+      _ = errors shouldBe 0
+    } yield succeed
+
+    test.unsafeToFuture()
+  }
+
   it should "skipSyncGlitches" in {
     var received   = List.empty[Int]
     var errors     = 0
@@ -1158,7 +1202,6 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
       _ = cancelable.isEmpty() shouldBe true
       _ = received shouldBe List(4, 4, 3)
       _ = errors shouldBe 0
-
     } yield succeed
 
     test.unsafeToFuture()
@@ -1348,4 +1391,4 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
     errors shouldBe 0
     cancelable.isEmpty() shouldBe false
   }
-}
+    }

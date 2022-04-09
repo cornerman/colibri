@@ -3,9 +3,8 @@ package colibri
 import cats.implicits._
 import colibri.helpers.NativeTypes
 import colibri.effect.{RunSyncEffect, RunEffect}
-import cats.{Eq, FunctorFilter, MonoidK, Applicative, Functor}
+import cats.{Eq, FunctorFilter, MonoidK, Applicative, MonadError, Functor}
 import cats.effect.{Sync, SyncIO, Async, IO, Resource}
-import sloth.types.FlatMapError
 
 import scala.scalajs.js
 import scala.scalajs.js.timers
@@ -30,21 +29,22 @@ object Observable    {
     @inline def combineK[T](a: Observable[T], b: Observable[T]) = Observable.merge(a, b)
   }
 
-  implicit object applicative extends Applicative[Observable] {
-    @inline def ap[A, B](ff: Observable[A => B])(fa: Observable[A]): Observable[B]               = ff.combineLatestMap(fa)((f, a) => f(a))
-    @inline def pure[A](a: A): Observable[A]                                                     = Observable(a)
-    @inline override def map[A, B](fa: Observable[A])(f: A => B): Observable[B]                  = fa.map(f)
-    @inline override def product[A, B](fa: Observable[A], fb: Observable[B]): Observable[(A, B)] = fa.combineLatest(fb)
+  implicit object monadError extends MonadError[Observable, Throwable] {
+    @inline override def ap[A, B](ff: Observable[A => B])(fa: Observable[A]): Observable[B]                  = ff.combineLatestMap(fa)((f, a) => f(a))
+    @inline override def pure[A](a: A): Observable[A]                                                        = Observable(a)
+    @inline override def map[A, B](fa: Observable[A])(f: A => B): Observable[B]                              = fa.map(f)
+    @inline override def product[A, B](fa: Observable[A], fb: Observable[B]): Observable[(A, B)]             = fa.combineLatest(fb)
+    @inline override def handleErrorWith[A](fa: Observable[A])(f: Throwable => Observable[A]): Observable[A] =
+      fa.map(Observable.pure).recover { case t => f(t) }.flatten
+    @inline override def raiseError[A](e: Throwable): Observable[A]                                          = Observable.raiseError(e)
+    @inline override def flatMap[A, B](fa: Observable[A])(f: A => Observable[B]): Observable[B]              = fa.flatMap(f)
+
+    @inline override def tailRecM[A, B](a: A)(f: A => Observable[Either[A, B]]): Observable[B] = Observable.tailRecM[A, B](a)(f)
   }
 
   implicit object functorFilter extends FunctorFilter[Observable] {
-    @inline def functor                                                              = Observable.applicative
+    @inline def functor                                                              = Observable.monadError
     @inline def mapFilter[A, B](fa: Observable[A])(f: A => Option[B]): Observable[B] = fa.mapFilter(f)
-  }
-
-  implicit object flatMapError extends FlatMapError[Observable, Throwable] {
-    def raiseError[B](failure: Throwable): Observable[B]                                    = Observable.raiseError(failure)
-    def flatMapEither[A, B](fa: Observable[A])(f: A => Either[Throwable, B]): Observable[B] = fa.mapEither(f)
   }
 
   trait Value[+A]      extends Observable[A] {
@@ -162,9 +162,9 @@ object Observable    {
   @deprecated("Use concatEffect instead", "0.3.0")
   def concatAsync[F[_]: RunEffect, T](effects: F[T]*): Observable[T]    = concatEffect(effects: _*)
 
-  def concatEffect[F[_]: RunEffect, T](effects: F[T]*): Observable[T]   = fromIterable(effects).mapEffect(identity)
+  def concatEffect[F[_]: RunEffect, T](effects: F[T]*): Observable[T] = fromIterable(effects).mapEffect(identity)
 
-  def concatFuture[T](value1: => Future[T]): Observable[T] = concatEffect(IO.fromFuture(IO(value1)))
+  def concatFuture[T](value1: => Future[T]): Observable[T]                                                                   = concatEffect(IO.fromFuture(IO(value1)))
   def concatFuture[T](value1: => Future[T], value2: => Future[T]): Observable[T] = concatEffect(IO.fromFuture(IO(value1)), IO.fromFuture(IO(value2)))
   def concatFuture[T](value1: => Future[T], value2: => Future[T], value3: => Future[T]): Observable[T] = concatEffect(IO.fromFuture(IO(value1)), IO.fromFuture(IO(value2)), IO.fromFuture(IO(value3)))
   def concatFuture[T](value1: => Future[T], value2: => Future[T], value3: => Future[T], value4: => Future[T]): Observable[T] = concatEffect(IO.fromFuture(IO(value1)), IO.fromFuture(IO(value2)), IO.fromFuture(IO(value3)), IO.fromFuture(IO(value4)))
@@ -194,7 +194,7 @@ object Observable    {
   @inline def merge[A](sources: Observable[A]*): Observable[A] = mergeIterable(sources)
 
   @deprecated("Use mergeIterable instead", "0.4.5")
-  def mergeSeq[A](sources: Seq[Observable[A]]): Observable[A] = mergeIterable(sources)
+  def mergeSeq[A](sources: Seq[Observable[A]]): Observable[A]           = mergeIterable(sources)
   def mergeIterable[A](sources: Iterable[Observable[A]]): Observable[A] = new Observable[A] {
     def unsafeSubscribe(sink: Observer[A]): Cancelable = {
       val subscriptions = sources.map { source =>
@@ -208,7 +208,7 @@ object Observable    {
   @inline def switch[A](sources: Observable[A]*): Observable[A] = switchIterable(sources)
 
   @deprecated("Use switchIterable instead", "0.4.5")
-  def switchSeq[A](sources: Seq[Observable[A]]): Observable[A] = switchIterable(sources)
+  def switchSeq[A](sources: Seq[Observable[A]]): Observable[A]           = switchIterable(sources)
   def switchIterable[A](sources: Iterable[Observable[A]]): Observable[A] = new Observable[A] {
     def unsafeSubscribe(sink: Observer[A]): Cancelable = {
       val variable = Cancelable.variable()
@@ -224,7 +224,7 @@ object Observable    {
   @inline def concat[A](sources: Observable[A]*): Observable[A] = concatIterable(sources)
 
   @deprecated("Use concatIterable instead", "0.4.5")
-  def concatSeq[A](sources: Seq[Observable[A]]): Observable[A] = concatIterable(sources)
+  def concatSeq[A](sources: Seq[Observable[A]]): Observable[A]           = concatIterable(sources)
   def concatIterable[A](sources: Iterable[Observable[A]]): Observable[A] = Observable.fromIterable(sources).concatMap(identity)
 
   @inline def interval(delay: FiniteDuration): Observable[Long] = intervalMillis(delay.toMillis.toInt)
@@ -249,6 +249,60 @@ object Observable    {
         timers.clearInterval(intervalId)
       }
     }
+  }
+
+  def tailRecM[A, B](a: A)(f: A => Observable[Either[A, B]]): Observable[B] = new Observable[B] {
+    def unsafeSubscribe(sink: Observer[B]): Cancelable = {
+      val subjectRecurse = Subject.publish[Observable[Either[A, B]]]()
+      val consecutive    = Cancelable.consecutive()
+
+      var openSubscriptions     = 0
+      var innerCheckIsScheduled = false
+
+      var subscription: Cancelable = null
+      subscription = subjectRecurse
+        .unsafeSubscribe(
+          Observer.create[Observable[Either[A, B]]](
+            { source =>
+              openSubscriptions += 1
+              consecutive.add { () =>
+                openSubscriptions -= 1
+                var cancelable: Cancelable = null
+                cancelable = source.unsafeSubscribe(
+                  Observer.create[Either[A, B]](
+                    { either =>
+                      either match {
+                        case Right(b) => sink.unsafeOnNext(b)
+                        case Left(a)  => subjectRecurse.unsafeOnNext(f(a))
+                      }
+
+                      if (!innerCheckIsScheduled) {
+                        innerCheckIsScheduled = true
+                        NativeTypes.queueMicrotask { () =>
+                          innerCheckIsScheduled = false
+                          if (cancelable.isEmpty()) {
+                            if (openSubscriptions == 0) consecutive.freeze()
+                            else consecutive.switch()
+                          }
+                        }
+                      }
+                    },
+                    sink.unsafeOnError,
+                  ),
+                )
+
+                cancelable
+              }
+            },
+            sink.unsafeOnError,
+          ),
+        )
+
+      subjectRecurse.unsafeOnNext(f(a))
+
+      Cancelable.composite(consecutive, Cancelable.withIsEmptyWrap(consecutive.isEmpty())(subscription))
+    }
+
   }
 
   @inline implicit class Operations[A](val source: Observable[A]) extends AnyVal {
@@ -559,6 +613,8 @@ object Observable    {
 
     @inline def mapFutureSingleOrDrop[B](f: A => Future[B]): Observable[B] =
       mapEffectSingleOrDrop(v => IO.fromFuture(IO(f(v))))
+
+    @inline def flatMap[B](f: A => Observable[B]): Observable[B] = concatMap(f)
 
     def concatMap[B](f: A => Observable[B]): Observable[B] = new Observable[B] {
       def unsafeSubscribe(sink: Observer[B]): Cancelable = {
@@ -1376,6 +1432,10 @@ object Observable    {
 
   @inline implicit class EitherOperations[A](val source: Observable[Either[Throwable, A]]) extends AnyVal {
     @inline def flattenEither[B]: Observable[A] = source.mapEither(identity)
+  }
+
+  @inline implicit class ObservableLikeOperations[F[_]: ObservableLike, A](val source: Observable[F[A]]) {
+    @inline def flatten[B]: Observable[A] = source.flatMap(o => ObservableLike[F].toObservable(o))
   }
 
   @inline implicit class SubjectValueOperations[A](val handler: Subject.Value[A]) extends AnyVal {
