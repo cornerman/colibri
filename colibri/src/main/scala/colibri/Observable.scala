@@ -132,6 +132,10 @@ object Observable    {
     def unsafeSubscribe(sink: Observer[A]): Cancelable = produce(sink)
   }
 
+  def fromEval[A](eval: Eval[A]): Observable[A] = delay(eval.value)
+
+  def fromTry[A](value: Try[A]): Observable[A] = fromEither(value.toEither)
+
   def fromEither[A](value: Either[Throwable, A]): Observable[A] = new Observable[A] {
     def unsafeSubscribe(sink: Observer[A]): Cancelable = {
       value match {
