@@ -1433,7 +1433,7 @@ object Observable    {
     @inline def subscribe(sink: Observer[A]): Cancelable = source.unsafeSubscribe(sink)
     @deprecated("Use unsafeSubscribe() or subscribeF[F] instead", "0.3.0")
     @inline def subscribe(): Cancelable                  = unsafeSubscribe()
-    @deprecated("Use unsafeForeach(f) or foreach_(f).unsafeSubscribe() instead", "0.3.0")
+    @deprecated("Use unsafeForeach(f) or foreach_(f).subscribeF[F] instead", "0.3.0")
     @inline def foreach(f: A => Unit): Cancelable        = unsafeForeach(f)
   }
 
