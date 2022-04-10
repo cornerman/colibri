@@ -1,7 +1,7 @@
 package colibri
 
 import cats.effect.{Sync, SyncIO, IO}
-import cats.{MonoidK, Contravariant}
+import cats.{MonoidK, ContravariantMonoidal}
 import colibri.helpers._
 
 import scala.util.control.NonFatal
@@ -56,6 +56,17 @@ object Observer    {
       def unsafeOnError(error: Throwable): Unit = f(Left(error))
     }
 
+  def product[A, B](fa: Observer[A], fb: Observer[B]): Observer[(A, B)] = new Observer[(A, B)] {
+    def unsafeOnNext(value: (A, B)): Unit     = {
+      fa.unsafeOnNext(value._1)
+      fb.unsafeOnNext(value._2)
+    }
+    def unsafeOnError(error: Throwable): Unit = {
+      fa.unsafeOnError(error)
+      fb.unsafeOnError(error)
+    }
+  }
+
   def debugLog[A]: Observer[A]                 = debugLog("")
   def debugLog[A](prefix: String): Observer[A] =
     new Observer[A] {
@@ -88,11 +99,13 @@ object Observer    {
     @inline def unsafeOnError[A](sink: Observer[A])(error: Throwable): Unit = sink.unsafeOnError(error)
   }
 
-  implicit object catsInstances extends MonoidK[Observer] with Contravariant[Observer] {
-    @inline def empty[T]                                    = Observer.empty
-    @inline def combineK[T](a: Observer[T], b: Observer[T]) = Observer.combine(a, b)
+  implicit object catsInstances extends ContravariantMonoidal[Observer] with MonoidK[Observer] {
+    @inline override def empty[T]                                    = Observer.empty
+    @inline override def combineK[T](a: Observer[T], b: Observer[T]) = Observer.combine(a, b)
 
-    @inline def contramap[A, B](fa: Observer[A])(f: B => A): Observer[B] = fa.contramap(f)
+    @inline override def contramap[A, B](fa: Observer[A])(f: B => A): Observer[B]          = fa.contramap(f)
+    @inline override def unit: Observer[Unit]                                              = Observer.empty
+    @inline override def product[A, B](fa: Observer[A], fb: Observer[B]): Observer[(A, B)] = Observer.product(fa, fb)
   }
 
   @inline implicit class Operations[A](val sink: Observer[A]) extends AnyVal {
