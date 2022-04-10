@@ -1,9 +1,9 @@
 package colibri
 
+import cats._
 import cats.implicits._
 import colibri.helpers.NativeTypes
 import colibri.effect.{RunSyncEffect, RunEffect}
-import cats._
 import cats.effect.{Sync, SyncIO, Async, IO, Resource}
 
 import scala.scalajs.js
@@ -25,7 +25,11 @@ object Observable    {
     @inline def lift[H[_]: Source, A](source: H[A]): Observable[A] = Observable.lift[H, A](source)
   }
 
-  implicit object catsInstances extends MonadError[Observable, Throwable] with FunctorFilter[Observable] with MonoidK[Observable] {
+  implicit object catsInstances
+      extends MonadError[Observable, Throwable]
+      with FunctorFilter[Observable]
+      with Alternative[Observable]
+      with CoflatMap[Observable] {
     @inline override def unit: Observable[Unit]                                                                        = Observable.unit
     @inline override def pure[A](a: A): Observable[A]                                                                  = Observable.pure(a)
     @inline override def map[A, B](fa: Observable[A])(f: A => B): Observable[B]                                        = fa.map(f)
@@ -42,6 +46,8 @@ object Observable    {
       fa.mapEither(a => if (predicate(a)) Right(a) else Left(error(a)))
     @inline override def rethrow[A, EE <: Throwable](fa: Observable[Either[EE, A]]): Observable[A]                     = fa.flattenEither
     @inline override def adaptError[A](fa: Observable[A])(pf: PartialFunction[Throwable, Throwable]): Observable[A]    = fa.adaptError(pf)
+
+    @inline def coflatMap[A, B](fa: Observable[A])(f: Observable[A] => B): Observable[B] = Observable.eval(f(fa))
 
     @inline override def functor                                                                   = this
     @inline override def mapFilter[A, B](fa: Observable[A])(f: A => Option[B]): Observable[B]      = fa.mapFilter(f)
@@ -85,7 +91,7 @@ object Observable    {
   }
 
   @inline def empty = Empty
-  @inline val unit  = Observable.pure(())
+  val unit  = Observable.pure(())
 
   def pure[T](value: T): Observable[T] = new Observable[T] {
     def unsafeSubscribe(sink: Observer[T]): Cancelable = {
@@ -98,7 +104,7 @@ object Observable    {
 
   @inline def apply[T](value: T, value2: T, values: T*): Observable[T] = Observable.fromIterable(value +: value2 +: values)
 
-  def delay[T](value: => T): Observable[T] = new Observable[T] {
+  def eval[T](value: => T): Observable[T] = new Observable[T] {
     def unsafeSubscribe(sink: Observer[T]): Cancelable = {
       sink.unsafeOnNext(value)
       Cancelable.empty
@@ -133,7 +139,7 @@ object Observable    {
     def unsafeSubscribe(sink: Observer[A]): Cancelable = produce(sink)
   }
 
-  def fromEval[A](eval: Eval[A]): Observable[A] = delay(eval.value)
+  def fromEval[A](evalA: Eval[A]): Observable[A] = eval(evalA.value)
 
   def fromTry[A](value: Try[A]): Observable[A] = fromEither(value.toEither)
 
@@ -366,16 +372,16 @@ object Observable    {
       def unsafeSubscribe(sink2: Observer[Unit]): Cancelable = source.unsafeSubscribe(Observer.combine(sink, sink2.contramap(_ => ())))
     }
 
-    def subscribing(f: Observable[Unit]): Observable[A] = tapSubscribe(() => f.unsafeSubscribe())
+    def subscribing[B](f: Observable[B]): Observable[A] = tapSubscribe(() => f.unsafeSubscribe())
 
     def map[B](f: A => B): Observable[B] = new Observable[B] {
       def unsafeSubscribe(sink: Observer[B]): Cancelable = source.unsafeSubscribe(sink.contramap(f))
     }
 
-    def discard: Observable[Nothing]                             = Observable.empty.subscribing(void)
+    def discard: Observable[Nothing]                             = Observable.empty.subscribing(source)
     def void: Observable[Unit]                                   = map(_ => ())
     def as[B](value: B): Observable[B]                           = map(_ => value)
-    def asDelay[B](value: => B): Observable[B]                   = map(_ => value)
+    def asEval[B](value: => B): Observable[B]                    = map(_ => value)
     def asEffect[F[_]: RunEffect, B](value: F[B]): Observable[B] = mapEffect(_ => value)
     def asFuture[B](value: => Future[B]): Observable[B]          = mapFuture(_ => value)
 
@@ -1239,7 +1245,12 @@ object Observable    {
     @inline def replay: Connectable[Observable.MaybeValue[A]]        = replayLatest
     @inline def replayLatest: Connectable[Observable.MaybeValue[A]]  = multicastMaybeValue(Subject.replayLatest[A]())
     @inline def replayAll: Connectable[Observable[A]]                = multicast(Subject.replayAll[A]())
-    @inline def behavior(value: A): Connectable[Observable.Value[A]] = multicastValue(Subject.behavior(value))
+    @inline def behavior(seed: A): Connectable[Observable.Value[A]] = multicastValue(Subject.behavior(seed))
+
+    @inline def publishShare: Observable[A]                 = publish.refCount
+    @inline def replayLatestShare: Observable.MaybeValue[A] = replayLatest.refCount
+    @inline def replayAllShare: Observable[A]               = replayAll.refCount
+    @inline def behaviorShare(seed: A): Observable.Value[A] = behavior(seed).refCount
 
     @inline def publishSelector[B](f: Observable[A] => Observable[B]): Observable[B]                  = transformSource(s => f(s.publish.refCount))
     @deprecated("Use replayLatestSelector instead", "0.3.4")
@@ -1282,8 +1293,8 @@ object Observable    {
     @inline def prependEffect[F[_]: RunEffect](value: F[A]): Observable[A] = concatEffect[F, A](value, source)
     @inline def prependFuture(value: => Future[A]): Observable[A]          = concatFuture[A](value, source)
 
-    def prepend(value: A): Observable[A]         = prependDelay(value)
-    def prependDelay(value: => A): Observable[A] = new Observable[A] {
+    def prepend(value: A): Observable[A]        = prependEval(value)
+    def prependEval(value: => A): Observable[A] = new Observable[A] {
       def unsafeSubscribe(sink: Observer[A]): Cancelable = {
         sink.unsafeOnNext(value)
         source.unsafeSubscribe(sink)
@@ -1294,7 +1305,7 @@ object Observable    {
     @inline def appendFuture(value: => Future[A]): Observable[A]          = concat(Observable.fromFuture(value))
 
     @inline def append(value: A): Observable[A]         = concat(Observable(value))
-    @inline def appendDelay(value: => A): Observable[A] = concat(Observable.delay(value))
+    @inline def appendEval(value: => A): Observable[A] = concat(Observable.eval(value))
 
     def startWith(values: Iterable[A]): Observable[A] = new Observable[A] {
       def unsafeSubscribe(sink: Observer[A]): Cancelable = {
@@ -1303,7 +1314,7 @@ object Observable    {
       }
     }
 
-    def syncHeadF[F[_]: Sync]: F[Option[A]] = Sync[F].defer {
+    def syncLatestF[F[_]: Sync]: F[Option[A]] = Sync[F].defer {
       var lastValue = Option.empty[F[A]]
 
       val cancelable = source.unsafeSubscribe(
@@ -1314,13 +1325,11 @@ object Observable    {
       lastValue.sequence
     }
 
-    @inline def syncHeadIO: IO[Option[A]] = syncHeadF[IO]
+    @inline def syncLatestIO: IO[Option[A]] = syncLatestF[IO]
 
-    @inline def syncHeadSyncIO: SyncIO[Option[A]] = syncHeadF[SyncIO]
+    @inline def syncLatestSyncIO: SyncIO[Option[A]] = syncLatestF[SyncIO]
 
-    @inline def unsafeSyncHead(): Option[A] = syncHeadSyncIO.unsafeRunSync()
-
-    @inline def syncHead: Observable[A] = Observable.fromEffect(syncHeadSyncIO).flattenOption
+    @inline def syncLatest: Observable[A] = Observable.fromEffect(syncLatestSyncIO).flattenOption
 
     def headF[F[_]: Async]: F[A] = Async[F].async[A] { callback =>
       Async[F].delay {
@@ -1496,8 +1505,14 @@ object Observable    {
     @inline def flattenEither[B]: Observable[A] = source.mapEither(identity)
   }
 
+  @inline implicit class OptionOperations[A](val source: Observable[Option[A]]) extends AnyVal {
+    @inline def flattenOption[B]: Observable[A] = source.mapFilter(identity)
+  }
+
   @inline implicit class ObservableLikeOperations[F[_]: ObservableLike, A](val source: Observable[F[A]]) {
     @inline def flatten[B]: Observable[A] = source.flatMap(o => ObservableLike[F].toObservable(o))
+    @inline def flattenMerge[B]: Observable[A] = source.mergeMap(o => ObservableLike[F].toObservable(o))
+    @inline def flattenSwitch[B]: Observable[A] = source.switchMap(o => ObservableLike[F].toObservable(o))
   }
 
   @inline implicit class SubjectValueOperations[A](val handler: Subject.Value[A]) extends AnyVal {

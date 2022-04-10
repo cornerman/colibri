@@ -56,7 +56,6 @@ object Observer    {
       def unsafeOnError(error: Throwable): Unit = f(Left(error))
     }
 
-  @inline def combine[A](sinks: Observer[A]*): Observer[A] = combineSeq(sinks)
   def debugLog[A]: Observer[A]                 = debugLog("")
   def debugLog[A](prefix: String): Observer[A] =
     new Observer[A] {
@@ -71,7 +70,11 @@ object Observer    {
       }
     }
 
-  def combineSeq[A](sinks: Seq[Observer[A]]): Observer[A] = new Observer[A] {
+  @inline def combine[A](sinks: Observer[A]*): Observer[A] = combineIterable(sinks)
+
+  @deprecated("Use combineIterable instead", "0.4.7")
+  def combineSeq[A](sinks: Seq[Observer[A]]): Observer[A]           = combineIterable(sinks)
+  def combineIterable[A](sinks: Iterable[Observer[A]]): Observer[A] = new Observer[A] {
     def unsafeOnNext(value: A): Unit          = sinks.foreach(_.unsafeOnNext(value))
     def unsafeOnError(error: Throwable): Unit = sinks.foreach(_.unsafeOnError(error))
   }
@@ -85,12 +88,10 @@ object Observer    {
     @inline def unsafeOnError[A](sink: Observer[A])(error: Throwable): Unit = sink.unsafeOnError(error)
   }
 
-  implicit object monoidK extends MonoidK[Observer] {
+  implicit object catsInstances extends MonoidK[Observer] with Contravariant[Observer] {
     @inline def empty[T]                                    = Observer.empty
     @inline def combineK[T](a: Observer[T], b: Observer[T]) = Observer.combine(a, b)
-  }
 
-  implicit object contravariant extends Contravariant[Observer] {
     @inline def contramap[A, B](fa: Observer[A])(f: B => A): Observer[B] = fa.contramap(f)
   }
 

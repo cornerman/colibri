@@ -29,7 +29,7 @@ object ObservableLike       {
   }
 
   implicit val fromFunction0: ObservableLike[Function0] = new ObservableLike[Function0] {
-    def toObservable[A](function: Function0[A]): Observable[A] = Observable.delay(function())
+    def toObservable[A](function: Function0[A]): Observable[A] = Observable.eval(function())
   }
 
   implicit val fromEval: ObservableLike[Eval] = new ObservableLike[Eval] {

@@ -16,7 +16,7 @@ trait Rx[+A] {
   final def mapFuture[B](f: A => Future[B])(implicit owner: Owner): Rx[B]             = transform(_.mapFuture(f))
 
   final def as[B](value: B)(implicit owner: Owner): Rx[B]                           = transform(_.as(value))
-  final def asDelay[B](value: => B)(implicit owner: Owner): Rx[B]                   = transform(_.asDelay(value))
+  final def asEval[B](value: => B)(implicit owner: Owner): Rx[B]                    = transform(_.asEval(value))
   final def asEffect[F[_]: RunEffect, B](value: F[B])(implicit owner: Owner): Rx[B] = transform(_.asEffect(value))
   final def asFuture[B](value: => Future[B])(implicit owner: Owner): Rx[B]          = transform(_.asFuture(value))
 
@@ -25,8 +25,8 @@ trait Rx[+A] {
 
   final def switchMap[B](f: A => Rx[B])(implicit owner: Owner): Rx[B] = transform(_.switchMap(f andThen (_.observable)))
   final def mergeMap[B](f: A => Rx[B])(implicit owner: Owner): Rx[B]  = transform(_.mergeMap(f andThen (_.observable)))
-  final def concatMap[B](f: A => Rx[B])(implicit owner: Owner): Rx[B]  = transform(_.concatMap(f andThen (_.observable)))
-  final def flatMap[B](f: A => Rx[B])(implicit owner: Owner): Rx[B]  = concatMap(f)
+  final def concatMap[B](f: A => Rx[B])(implicit owner: Owner): Rx[B] = transform(_.concatMap(f andThen (_.observable)))
+  final def flatMap[B](f: A => Rx[B])(implicit owner: Owner): Rx[B]   = transform(_.flatMap(f andThen (_.observable)))
 
   final def transform[B](f: Observable[A] => Observable[B])(implicit owner: Owner): Rx[B] = Rx.observable(f(observable))
 
