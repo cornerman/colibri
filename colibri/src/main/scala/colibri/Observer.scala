@@ -57,6 +57,19 @@ object Observer    {
     }
 
   @inline def combine[A](sinks: Observer[A]*): Observer[A] = combineSeq(sinks)
+  def debugLog[A]: Observer[A]                 = debugLog("")
+  def debugLog[A](prefix: String): Observer[A] =
+    new Observer[A] {
+      private var index = 0
+
+      def unsafeOnNext(value: A): Unit          = {
+        println(s"$index: $prefix - $value")
+        index += 1
+      }
+      def unsafeOnError(error: Throwable): Unit = {
+        println(s"ERROR: $prefix - $error")
+      }
+    }
 
   def combineSeq[A](sinks: Seq[Observer[A]]): Observer[A] = new Observer[A] {
     def unsafeOnNext(value: A): Unit          = sinks.foreach(_.unsafeOnNext(value))
