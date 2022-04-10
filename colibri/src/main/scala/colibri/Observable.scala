@@ -75,6 +75,10 @@ object Observable    {
     }
   }
 
+  implicit object catsInstancesSubject extends Invariant[Subject] {
+    @inline def imap[A, B](fa: Subject[A])(f: A => B)(g: B => A): Subject[B] = fa.imapProSubject(g)(f)
+  }
+
   trait Value[+A]      extends Observable[A] {
     def now(): A
   }
