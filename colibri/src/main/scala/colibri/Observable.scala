@@ -82,9 +82,13 @@ object Observable    {
     def now(): Option[A]
   }
 
-  type Hot[+A]           = Observable[A] with Cancelable
-  type HotValue[+A]      = Value[A] with Cancelable
-  type HotMaybeValue[+A] = MaybeValue[A] with Cancelable
+  trait HasCancelable {
+    def cancelable: Cancelable
+  }
+
+  trait Hot[+A]           extends Observable[A] with HasCancelable
+  trait HotValue[+A]      extends Value[A] with HasCancelable
+  trait HotMaybeValue[+A] extends MaybeValue[A] with HasCancelable
 
   object Empty extends Observable[Nothing] {
     @inline def unsafeSubscribe(sink: Observer[Nothing]): Cancelable = Cancelable.empty
