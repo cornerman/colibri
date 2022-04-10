@@ -34,7 +34,7 @@ object Observable    {
     @inline override def pure[A](a: A): Observable[A]                                                                  = Observable.pure(a)
     @inline override def map[A, B](fa: Observable[A])(f: A => B): Observable[B]                                        = fa.map(f)
     @inline override def handleErrorWith[A](fa: Observable[A])(f: Throwable => Observable[A]): Observable[A]           =
-      fa.map(Observable.pure).recover { case t => f(t) }.flatten
+      fa.attempt.flatMap(_.fold(f, Observable.pure))
     @inline override def raiseError[A](e: Throwable): Observable[A]                                                    = Observable.raiseError(e)
     @inline override def recover[A](fa: Observable[A])(pf: PartialFunction[Throwable, A]): Observable[A]               = fa.recover(pf)
     @inline override def flatMap[A, B](fa: Observable[A])(f: A => Observable[B]): Observable[B]                        = fa.flatMap(f)
@@ -59,7 +59,7 @@ object Observable    {
     @inline override def combineK[T](a: Observable[T], b: Observable[T])                           = Observable.concat(a, b)
   }
 
-  implicit val parallel: Parallel.Aux[Observable, CombineObservable.Type] = new Parallel[Observable] {
+  implicit object catsParallelCombine extends Parallel[Observable] {
     import CombineObservable.{apply => wrap, unwrap}
 
     override type F[A] = CombineObservable.Type[A]
@@ -77,6 +77,10 @@ object Observable    {
 
   implicit object catsInstancesSubject extends Invariant[Subject] {
     @inline def imap[A, B](fa: Subject[A])(f: A => B)(g: B => A): Subject[B] = fa.imapProSubject(g)(f)
+  }
+
+  implicit object catsInstancesProSubject extends arrow.Profunctor[ProSubject] {
+    def dimap[A, B, C, D](fab: ProSubject[A,B])(f: C => A)(g: B => D): ProSubject[C,D] = fab.imapProSubject(f)(g)
   }
 
   trait Value[+A]      extends Observable[A] {
