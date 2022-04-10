@@ -361,9 +361,15 @@ object Observable    {
 
   @inline implicit class Operations[A](val source: Observable[A]) extends AnyVal {
     def failed: Observable[Throwable] = new Observable[Throwable] {
-      def unsafeSubscribe(sink: Observer[Throwable]): Cancelable =
-        source.unsafeSubscribe(Observer.createUnrecovered(_ => (), sink.unsafeOnNext(_)))
+      def unsafeSubscribe(sink: Observer[Throwable]): Cancelable = source.unsafeSubscribe(sink.failed)
     }
+
+    def dropFailed: Observable[A] = new Observable[A] {
+      def unsafeSubscribe(sink: Observer[A]): Cancelable = source.unsafeSubscribe(sink.dropOnError)
+    }
+
+    def debugLog: Observable[A] = via(Observer.debugLog)
+    def debugLog(prefix: String): Observable[A] = via(Observer.debugLog(prefix))
 
     def via(sink: Observer[A]): Observable[A] = new Observable[A] {
       def unsafeSubscribe(sink2: Observer[A]): Cancelable = source.unsafeSubscribe(Observer.combine(sink, sink2))
@@ -373,7 +379,7 @@ object Observable    {
     def foreach_(f: A => Unit): Observable[Unit] = to(Observer.create(f))
 
     def to(sink: Observer[A]): Observable[Unit] = new Observable[Unit] {
-      def unsafeSubscribe(sink2: Observer[Unit]): Cancelable = source.unsafeSubscribe(Observer.combine(sink, sink2.contramap(_ => ())))
+      def unsafeSubscribe(sink2: Observer[Unit]): Cancelable = source.unsafeSubscribe(Observer.combine(sink, sink2.void))
     }
 
     def subscribing[B](f: Observable[B]): Observable[A] = tapSubscribe(() => f.unsafeSubscribe())
@@ -1515,6 +1521,7 @@ object Observable    {
 
   @inline implicit class ObservableLikeOperations[F[_]: ObservableLike, A](val source: Observable[F[A]]) {
     @inline def flatten[B]: Observable[A] = source.flatMap(o => ObservableLike[F].toObservable(o))
+    @inline def flattenConcat[B]: Observable[A] = source.concatMap(o => ObservableLike[F].toObservable(o))
     @inline def flattenMerge[B]: Observable[A] = source.mergeMap(o => ObservableLike[F].toObservable(o))
     @inline def flattenSwitch[B]: Observable[A] = source.switchMap(o => ObservableLike[F].toObservable(o))
   }

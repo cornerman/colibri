@@ -132,7 +132,9 @@ object Observer    {
       def unsafeOnError(error: Throwable): Unit = sink.unsafeOnError(error)
     }
 
-    def contraflattenIterable[B]: Observer[Iterable[A]] = contramapIterable(identity)
+    def contraflattenIterable[B]: Observer[Iterable[A]]        = contramapIterable(identity)
+    def contraflattenEither[B]: Observer[Either[Throwable, A]] = contramapEither(identity)
+    def contraflattenOption[B]: Observer[Option[A]]            = contramapFilter(identity)
 
     // TODO return effect
     def contrascan[B](seed: A)(f: (A, B) => A): Observer[B] = new Observer[B] {
@@ -176,6 +178,9 @@ object Observer    {
       def unsafeOnError(error: Throwable): Unit = f(error)
     }
 
+    def dropOnNext: Observer[A]  = doOnNext(_ => ())
+    def dropOnError: Observer[A] = doOnError(_ => ())
+
     def redirect[B](transform: Observable[B] => Observable[A]): Connectable[Observer[B]] = {
       val handler = Subject.publish[B]()
       val source  = transform(handler)
@@ -200,6 +205,14 @@ object Observer    {
     def onErrorF[F[_]: Sync](error: Throwable): F[Unit] = Sync[F].delay(sink.unsafeOnError(error))
     def onErrorIO(error: Throwable): IO[Unit]           = onErrorF[IO](error)
     def onErrorSyncIO(error: Throwable): SyncIO[Unit]   = onErrorF[SyncIO](error)
+  }
+
+  @inline implicit class UnitOperations(val sink: Observer[Unit]) extends AnyVal {
+    @inline def void: Observer[Any] = sink.contramap(_ => ())
+  }
+
+  @inline implicit class ThrowableOperations(val sink: Observer[Throwable]) extends AnyVal {
+    def failed: Observer[Any] = Observer.createUnrecovered(_ => (), sink.unsafeOnNext(_))
   }
 
   private def recovered(action: => Unit, unsafeOnError: Throwable => Unit): Unit = try action
