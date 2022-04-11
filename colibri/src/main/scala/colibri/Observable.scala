@@ -484,7 +484,7 @@ object Observable    {
     @deprecated("Use attempt instead", "0.3.0")
     def recoverToEither: Observable[Either[Throwable, A]] = source.attempt
 
-    def recoverMap(f: Throwable => A): Observable[A] = recover(PartialFunction.fromFunction(f))
+    def recoverMap(f: Throwable => A): Observable[A] = recover { case t => f(t) }
 
     def recover(f: PartialFunction[Throwable, A]): Observable[A] = recoverOption(f andThen (Some(_)))
 
@@ -795,6 +795,30 @@ object Observable    {
 
         isSync = false
 
+        cancelable
+      }
+    }
+
+    def dropUntilSyncLatest: Observable[A] = new Observable[A] {
+      def unsafeSubscribe(sink: Observer[A]): Cancelable = {
+        var isSync = true
+        var lastSyncValue      = Option.empty[A]
+
+        val cancelable = source.unsafeSubscribe(
+          Observer.create[A](
+            { value =>
+              if (isSync) {
+                lastSyncValue = Some(value)
+              } else {
+                sink.unsafeOnNext(value)
+              }
+            },
+            sink.unsafeOnError,
+          ),
+        )
+
+        isSync = false
+        lastSyncValue.foreach(sink.unsafeOnNext)
         cancelable
       }
     }
