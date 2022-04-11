@@ -287,7 +287,45 @@ object Observable    {
 
   @deprecated("Use concatIterable instead", "0.4.5")
   def concatSeq[A](sources: Seq[Observable[A]]): Observable[A]           = concatIterable(sources)
-  def concatIterable[A](sources: Iterable[Observable[A]]): Observable[A] = Observable.fromIterable(sources).concatMap(identity)
+  def concatIterable[A](sources: Iterable[Observable[A]]): Observable[A] = new Observable[A] {
+    def unsafeSubscribe(sink: Observer[A]): Cancelable = {
+      val consecutive = Cancelable.consecutive()
+
+      var innerCancelCheck      = false
+      var innerCheckIsScheduled = false
+
+      sources.foreach { source =>
+        consecutive.add { () =>
+          var cancelable: Cancelable = null
+          cancelable = source.unsafeSubscribe(
+            Observer.create[A](
+              { a =>
+                sink.unsafeOnNext(a)
+                if (!innerCheckIsScheduled) {
+                  innerCheckIsScheduled = true
+                  innerCancelCheck = false
+                  NativeTypes.queueMicrotask { () =>
+                    innerCheckIsScheduled = false
+                    if (!innerCancelCheck && cancelable.isEmpty()) consecutive.switch()
+                  }
+                }
+              },
+              sink.unsafeOnError,
+            ),
+          )
+
+          if (cancelable.isEmpty()) {
+            innerCancelCheck = true
+            consecutive.switch()
+          }
+          cancelable
+        }
+      }
+      consecutive.freeze()
+
+      consecutive
+    }
+  }
 
   @inline def interval(delay: FiniteDuration): Observable[Long] = intervalMillis(delay.toMillis.toInt)
 
