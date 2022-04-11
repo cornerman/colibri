@@ -1207,7 +1207,7 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
     test.unsafeToFuture()
   }
 
-  it should "skipSyncGlitches" in {
+  it should "dropSyncGlitches" in {
     var received   = List.empty[Int]
     var errors     = 0
     val observable = Observable(1, 2)
@@ -1227,7 +1227,7 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
       _ = received shouldBe List(4, 3)
       _ = errors shouldBe 0
 
-      cancelable2 <- stream.skipSyncGlitches
+      cancelable2 <- stream.dropSyncGlitches
                        .to(
                          Observer.create[Int](
                            received ::= _,

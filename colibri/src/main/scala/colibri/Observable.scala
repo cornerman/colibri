@@ -810,7 +810,24 @@ object Observable    {
       }
     }
 
-    def skipSyncGlitches: Observable[A] = new Observable[A] {
+    def dropSyncAll: Observable[A] = new Observable[A] {
+      def unsafeSubscribe(sink: Observer[A]): Cancelable = {
+        var isSync = true
+
+        val cancelable = source.unsafeSubscribe(
+          Observer.create[A](
+            value => if (!isSync) sink.unsafeOnNext(value),
+            sink.unsafeOnError,
+          ),
+        )
+
+        isSync = false
+
+        cancelable
+      }
+    }
+
+    def dropSyncGlitches: Observable[A] = new Observable[A] {
       def unsafeSubscribe(sink: Observer[A]): Cancelable = {
         var isCancel       = false
         var runIsScheduled = false
