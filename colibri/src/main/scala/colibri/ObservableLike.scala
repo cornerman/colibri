@@ -12,10 +12,6 @@ trait ObservableLike[-F[_]] {
 object ObservableLike       {
   @inline def apply[F[_]](implicit like: ObservableLike[F]): ObservableLike[F] = like
 
-  implicit val fromObservable: ObservableLike[Observable] = new ObservableLike[Observable] {
-    def toObservable[A](observable: Observable[A]): Observable[A] = observable
-  }
-
   implicit val fromEither: ObservableLike[Either[Throwable, *]] = new ObservableLike[Either[Throwable, *]] {
     def toObservable[A](either: Either[Throwable, A]): Observable[A] = Observable.fromEither(either)
   }

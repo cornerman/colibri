@@ -16,14 +16,14 @@ package object airstream {
   implicit object liftSink extends colibri.LiftSink[Observer] {
     @inline def lift[G[_]: colibri.Sink, A](sink: G[A]): Observer[A] = Observer.withRecover(
       colibri.Sink[G].unsafeOnNext(sink),
-      PartialFunction.fromFunction(colibri.Sink[G].unsafeOnError(sink)),
+      { case t => colibri.Sink[G].unsafeOnError(sink)(t) },
     )
   }
 
   // Source
   implicit object airstreamObservableSource extends colibri.Source[Observable] {
     def unsafeSubscribe[A](stream: Observable[A])(sink: colibri.Observer[A]): colibri.Cancelable = {
-      val sub = stream.addObserver(Observer.withRecover(sink.unsafeOnNext, PartialFunction.fromFunction(sink.unsafeOnError)))(NoopOwner)
+      val sub = stream.addObserver(Observer.withRecover(sink.unsafeOnNext, { case t => sink.unsafeOnError(t) }))(NoopOwner)
       colibri.Cancelable(sub.kill)
     }
   }
