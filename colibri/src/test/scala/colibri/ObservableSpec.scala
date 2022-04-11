@@ -1250,6 +1250,75 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
     test.unsafeToFuture()
   }
 
+  it should "headIO async" in {
+    val head = Observable(1).prependEffect(IO.cede *> IO.pure(0)).headIO
+
+    val test = for {
+      value <- head
+
+      _ = value shouldBe 0
+    } yield succeed
+
+    test.unsafeToFuture()
+  }
+
+  it should "headIO sync" in {
+    val head = Observable(1, 2).headIO
+
+    val test = for {
+      value <- head
+
+      _ = value shouldBe 1
+    } yield succeed
+
+    test.unsafeToFuture()
+  }
+
+  it should "lastIO async" in {
+    val last = Observable(1).prependEffect(IO.cede *> IO.pure(0)).lastIO
+
+    val test = for {
+      value <- last
+
+      _ = value shouldBe 1
+    } yield succeed
+
+    test.unsafeToFuture()
+  }
+
+  it should "lastIO sync" in {
+    val last = Observable(1, 2).lastIO
+
+    val test = for {
+      value <- last
+
+      _ = value shouldBe 2
+    } yield succeed
+
+    test.unsafeToFuture()
+  }
+
+  it should "syncLatest empty" in {
+    val latest = Observable.empty.syncLatestSyncIO
+
+    val value = latest.unsafeRunSync()
+    value shouldBe None
+  }
+
+  it should "syncLatest sync" in {
+    val latest = Observable(1, 2).syncLatestSyncIO
+
+    val value = latest.unsafeRunSync()
+    value shouldBe Some(2)
+  }
+
+  it should "syncLatest async" in {
+    val latest = Observable(1).appendEffect(IO.cede *> IO.pure(2)).syncLatestSyncIO
+
+    val value = latest.unsafeRunSync()
+    value shouldBe Some(1)
+  }
+
   it should "merge" in {
     var received = List.empty[Int]
     var errors   = 0

@@ -1417,6 +1417,43 @@ object Observable    {
 
     @inline def head: Observable[A] = take(1)
 
+    def lastF[F[_]: Async]: F[A] = Async[F].async[A] { callback =>
+      Async[F].delay {
+        var lastValue: Either[Throwable, A] = null
+        val cancelable = Cancelable.variable()
+
+        var innerCancelCheck = false
+        var innerCheckIsScheduled = false
+
+        def dispatch(value: Either[Throwable, A]) = {
+          lastValue = value
+          if (!innerCheckIsScheduled) {
+            innerCheckIsScheduled = true
+            innerCancelCheck = false
+            NativeTypes.queueMicrotask { () =>
+              innerCheckIsScheduled = false
+              if (!innerCancelCheck && cancelable.isEmpty()) callback(lastValue)
+            }
+          }
+        }
+
+        cancelable.add(() => source.unsafeSubscribe(Observer.create[A](value => dispatch(Right(value)), error => dispatch(Left(error)))))
+
+        cancelable.freeze()
+
+        if (cancelable.isEmpty() && lastValue != null) {
+          innerCancelCheck = true
+          callback(lastValue)
+        }
+
+        Some(Async[F].delay(cancelable.unsafeCancel()))
+      }
+    }
+
+    @inline def lastIO: IO[A] = lastF[IO]
+
+    @inline def last: Observable[A] = Observable.fromEffect(lastIO)
+
     @inline def tail: Observable[A] = drop(1)
 
     def take(num: Int): Observable[A] = {
