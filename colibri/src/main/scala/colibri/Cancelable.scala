@@ -259,7 +259,7 @@ object Cancelable {
     @inline def unsafeCancel(): Unit = ()
   }
 
-  @inline def empty = Empty
+  @inline def empty: Cancelable = Empty
 
   def apply(f: () => Unit): Cancelable = withIsEmpty(false)(f)
 

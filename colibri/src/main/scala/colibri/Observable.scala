@@ -132,13 +132,6 @@ object Observable    {
     }
   }
 
-  def fromIterable[T](values: Iterable[T]): Observable[T] = new Observable[T] {
-    def unsafeSubscribe(sink: Observer[T]): Cancelable = {
-      values.foreach(sink.unsafeOnNext)
-      Cancelable.empty
-    }
-  }
-
   def lift[H[_]: Source, A](source: H[A]): Observable[A] = source match {
     case source: Observable[A @unchecked] => source
     case _                                =>
@@ -149,6 +142,15 @@ object Observable    {
 
   @inline def create[A](produce: Observer[A] => Cancelable): Observable[A] = new Observable[A] {
     def unsafeSubscribe(sink: Observer[A]): Cancelable = produce(sink)
+  }
+
+  def createEmpty(subscription: () => Cancelable): Observable[Nothing] = create(_ => subscription())
+
+  def fromIterable[T](values: Iterable[T]): Observable[T] = new Observable[T] {
+    def unsafeSubscribe(sink: Observer[T]): Cancelable = {
+      values.foreach(sink.unsafeOnNext)
+      Cancelable.empty
+    }
   }
 
   def fromEval[A](evalA: Eval[A]): Observable[A] = eval(evalA.value)
@@ -202,7 +204,7 @@ object Observable    {
     }
   }
 
-  def from[H[_]: ObservableLike, A](observableLike: H[A]): Observable[A] = ObservableLike[H].toObservable(observableLike)
+  def like[H[_]: ObservableLike, A](observableLike: H[A]): Observable[A] = ObservableLike[H].toObservable(observableLike)
 
   @deprecated("Use concatEffect instead", "0.3.0")
   def concatSync[F[_]: RunSyncEffect, T](effects: F[T]*): Observable[T] = concatEffect(effects: _*)
@@ -405,7 +407,10 @@ object Observable    {
 
   }
 
-  @inline implicit class Operations[A](val source: Observable[A]) extends AnyVal {
+  @inline implicit class Operations[A](private val source: Observable[A]) extends AnyVal {
+
+    def liftSource[H[_]: LiftSource]: H[A] = LiftSource[H].lift(source)
+
     def failed: Observable[Throwable] = new Observable[Throwable] {
       def unsafeSubscribe(sink: Observer[Throwable]): Cancelable = source.unsafeSubscribe(sink.failed)
     }
@@ -479,14 +484,9 @@ object Observable    {
     @deprecated("Use attempt instead", "0.3.0")
     def recoverToEither: Observable[Either[Throwable, A]] = source.attempt
 
-    def recover(f: PartialFunction[Throwable, A]): Observable[A] = recoverOption(f andThen (Some(_)))
+    def recoverMap(f: Throwable => A): Observable[A] = recover(PartialFunction.fromFunction(f))
 
-    def adaptError(f: PartialFunction[Throwable, Throwable]): Observable[A] = new Observable[A] {
-      def unsafeSubscribe(sink: Observer[A]): Cancelable =
-        source.unsafeSubscribe(sink.doOnError { error =>
-          sink.unsafeOnError(f.applyOrElse[Throwable, Throwable](error, t => t))
-        })
-    }
+    def recover(f: PartialFunction[Throwable, A]): Observable[A] = recoverOption(f andThen (Some(_)))
 
     def recoverOption(f: PartialFunction[Throwable, Option[A]]): Observable[A] = new Observable[A] {
       def unsafeSubscribe(sink: Observer[A]): Cancelable = {
@@ -497,6 +497,13 @@ object Observable    {
           }
         })
       }
+    }
+
+    def adaptError(f: PartialFunction[Throwable, Throwable]): Observable[A] = new Observable[A] {
+      def unsafeSubscribe(sink: Observer[A]): Cancelable =
+        source.unsafeSubscribe(sink.doOnError { error =>
+          sink.unsafeOnError(f.applyOrElse[Throwable, Throwable](error, t => t))
+        })
     }
 
     def tapSubscribeEffect[F[_]: RunEffect](f: F[Cancelable]): Observable[A] = new Observable[A] {
@@ -1553,23 +1560,27 @@ object Observable    {
     @inline def foreach(f: A => Unit): Cancelable        = unsafeForeach(f)
   }
 
-  @inline implicit class IterableOperations[A](val source: Observable[Iterable[A]]) extends AnyVal {
-    @inline def flattenIterable[B]: Observable[A] = source.mapIterable(identity)
+  @inline implicit class ThrowableOperations(private val source: Observable[Throwable]) extends AnyVal {
+    @inline def mergeFailed: Observable[Throwable] = source.recoverMap(identity)
   }
 
-  @inline implicit class EitherOperations[A](val source: Observable[Either[Throwable, A]]) extends AnyVal {
-    @inline def flattenEither[B]: Observable[A] = source.mapEither(identity)
+  @inline implicit class IterableOperations[A](private val source: Observable[Iterable[A]]) extends AnyVal {
+    @inline def flattenIterable: Observable[A] = source.mapIterable(identity)
   }
 
-  @inline implicit class OptionOperations[A](val source: Observable[Option[A]]) extends AnyVal {
-    @inline def flattenOption[B]: Observable[A] = source.mapFilter(identity)
+  @inline implicit class EitherOperations[A](private val source: Observable[Either[Throwable, A]]) extends AnyVal {
+    @inline def flattenEither: Observable[A] = source.mapEither(identity)
+  }
+
+  @inline implicit class OptionOperations[A](private val source: Observable[Option[A]]) extends AnyVal {
+    @inline def flattenOption: Observable[A] = source.mapFilter(identity)
   }
 
   @inline implicit class ObservableLikeOperations[F[_]: ObservableLike, A](val source: Observable[F[A]]) {
-    @inline def flatten[B]: Observable[A] = source.flatMap(o => ObservableLike[F].toObservable(o))
-    @inline def flattenConcat[B]: Observable[A] = source.concatMap(o => ObservableLike[F].toObservable(o))
-    @inline def flattenMerge[B]: Observable[A] = source.mergeMap(o => ObservableLike[F].toObservable(o))
-    @inline def flattenSwitch[B]: Observable[A] = source.switchMap(o => ObservableLike[F].toObservable(o))
+    @inline def flatten: Observable[A] = source.flatMap(o => ObservableLike[F].toObservable(o))
+    @inline def flattenConcat: Observable[A] = source.concatMap(o => ObservableLike[F].toObservable(o))
+    @inline def flattenMerge: Observable[A] = source.mergeMap(o => ObservableLike[F].toObservable(o))
+    @inline def flattenSwitch: Observable[A] = source.switchMap(o => ObservableLike[F].toObservable(o))
   }
 
   @inline implicit class SubjectValueOperations[A](val handler: Subject.Value[A]) extends AnyVal {

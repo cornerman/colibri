@@ -108,7 +108,9 @@ object Observer    {
     @inline override def product[A, B](fa: Observer[A], fb: Observer[B]): Observer[(A, B)] = Observer.product(fa, fb)
   }
 
-  @inline implicit class Operations[A](val sink: Observer[A]) extends AnyVal {
+  @inline implicit class Operations[A](private val sink: Observer[A]) extends AnyVal {
+    def liftSource[G[_]: LiftSink]: G[A] = LiftSink[G].lift(sink)
+
     def contramap[B](f: B => A): Observer[B] = new Observer[B] {
       def unsafeOnNext(value: B): Unit          = recovered(sink.unsafeOnNext(f(value)), unsafeOnError)
       def unsafeOnError(error: Throwable): Unit = sink.unsafeOnError(error)
@@ -220,11 +222,11 @@ object Observer    {
     def onErrorSyncIO(error: Throwable): SyncIO[Unit]   = onErrorF[SyncIO](error)
   }
 
-  @inline implicit class UnitOperations(val sink: Observer[Unit]) extends AnyVal {
+  @inline implicit class UnitOperations(private val sink: Observer[Unit]) extends AnyVal {
     @inline def void: Observer[Any] = sink.contramap(_ => ())
   }
 
-  @inline implicit class ThrowableOperations(val sink: Observer[Throwable]) extends AnyVal {
+  @inline implicit class ThrowableOperations(private val sink: Observer[Throwable]) extends AnyVal {
     def failed: Observer[Any] = Observer.createUnrecovered(_ => (), sink.unsafeOnNext(_))
   }
 
