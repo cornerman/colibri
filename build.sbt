@@ -27,7 +27,7 @@ inThisBuild(
 )
 
 lazy val commonSettings = Seq(
-  crossScalaVersions := Seq("2.12.15", "2.13.8", "3.1.1"),
+  crossScalaVersions := Seq("2.12.15", "2.13.8", "3.1.2"),
   scalaVersion       := "2.13.8",
   libraryDependencies ++= (CrossVersion.partialVersion(scalaVersion.value) match {
     case Some((3, _)) => Seq.empty
@@ -46,8 +46,8 @@ lazy val colibri = project
   .settings(
     name := "colibri",
     libraryDependencies ++= Seq(
-      "org.typelevel"        %%% "cats-core"   % "2.7.0",
-      "org.typelevel"        %%% "cats-effect" % "3.3.11",
+      "org.typelevel" %%% "cats-core"   % "2.7.0",
+      "org.typelevel" %%% "cats-effect" % "3.3.11",
     ),
   )
 
