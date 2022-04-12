@@ -591,36 +591,21 @@ object Observable    {
         def unsafeSubscribe(sink: Observer[B]): Cancelable = {
           val setter = newCancelableSetter()
 
-          var outerCancelCheck      = false
-          var outerCheckIsScheduled = false
-
-          var subscription: Cancelable = null
-          subscription = source.unsafeSubscribe(
+          val subscription = source.unsafeSubscribe(
             Observer.create[A](
               { value =>
                 val sourceB = f(value)
-
                 setter.add(() => sourceB.unsafeSubscribe(sink))
-
-                if (!outerCheckIsScheduled) {
-                  outerCheckIsScheduled = true
-                  outerCancelCheck = false
-                  NativeTypes.queueMicrotask { () =>
-                    outerCheckIsScheduled = false
-                    if (!outerCancelCheck && subscription.isEmpty()) setter.freeze()
-                  }
-                }
               },
               sink.unsafeOnError,
             ),
           )
 
-          if (subscription.isEmpty()) {
-            outerCancelCheck = true
-            setter.freeze()
-          }
-
-          Cancelable.composite(subscription, setter)
+          Cancelable.composite(
+            subscription,
+            Cancelable.checkIsEmpty(subscription.isEmpty())(setter.freeze),
+            setter
+          )
         }
       }
 
@@ -751,13 +736,10 @@ object Observable    {
       def unsafeSubscribe(sink: Observer[B]): Cancelable = {
         val consecutive = Cancelable.consecutive()
 
-        var outerCancelCheck      = false
         var innerCancelCheck      = false
-        var outerCheckIsScheduled = false
         var innerCheckIsScheduled = false
 
-        var subscription: Cancelable = null
-        subscription = source.unsafeSubscribe(
+        val subscription = source.unsafeSubscribe(
           Observer.create[A](
             { value =>
               val source = f(value)
@@ -787,26 +769,16 @@ object Observable    {
                 }
                 cancelable
               }
-
-              if (!outerCheckIsScheduled) {
-                outerCheckIsScheduled = true
-                outerCancelCheck = false
-                NativeTypes.queueMicrotask { () =>
-                  outerCheckIsScheduled = false
-                  if (!outerCancelCheck && subscription.isEmpty()) consecutive.freeze()
-                }
-              }
             },
             sink.unsafeOnError,
           ),
         )
 
-        if (subscription.isEmpty()) {
-          outerCancelCheck = true
-          consecutive.freeze()
-        }
-
-        Cancelable.composite(subscription, consecutive)
+        Cancelable.composite(
+          subscription,
+          Cancelable.checkIsEmpty(subscription.isEmpty())(consecutive.freeze),
+          consecutive,
+        )
       }
     }
 

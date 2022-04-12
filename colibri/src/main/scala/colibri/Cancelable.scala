@@ -263,6 +263,20 @@ object Cancelable {
 
   def apply(f: () => Unit): Cancelable = withIsEmpty(false)(f)
 
+  def checkIsEmpty(empty: => Boolean)(f: () => Unit): Cancelable = new Cancelable {
+    private var isDone = false
+
+    def isEmpty() =
+      if (isDone) true
+      else if (empty) {
+        isDone = true
+        f()
+        true
+      } else false
+
+    def unsafeCancel() = ()
+  }
+
   def ignoreIsEmptyWrap(cancelable: Cancelable): Cancelable = ignoreIsEmpty(cancelable.unsafeCancel)
   def ignoreIsEmpty(f: () => Unit): Cancelable              = withIsEmpty(true)(f)
 
