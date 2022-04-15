@@ -7,7 +7,7 @@ A simple functional reactive library for ScalaJS. Colibri is an implementation o
 If you're new to these concepts, here is a nice introduction from rx.js: <https://rxjs.dev/guide/overview>. Another good resource are these visualizations for common reactive operators: <https://rxmarbles.com/>.
 
 This library includes:
-- A (minimal) reactive library based on JavaScript native operations like `setTimeout`, `setInterval`, `setImmediate`, `queueMicrotask`
+- A (minimal and performant) reactive library based on JavaScript native operations like `setTimeout`, `setInterval`, `setImmediate`, `queueMicrotask`
 - Typeclasses to integrate with other streaming libraries
 
 ## Usage
@@ -100,7 +100,7 @@ val observable = Observable
   .mapResource(x => myResource(x))
   .switchMap(x => myObservable(x))
   .debounceMillis(1000)
-  
+
 val observer = Observer.foreach[Int](println(_))
 
 val subscription: Cancelable = observable.unsafeSubscribe(observer)
@@ -136,6 +136,97 @@ In order to work with effects inside our Observable, we have defined the followi
 - `RunEffect[F[_]]` can unsafely run an effect `F[_]` asynchronously, potentially starting synchronously until reaching an async boundary.
 - `RunSyncEffect[F[_]]` can unsafely run an effect `F[_]` synchronously.
 
+## Reactive variables
+
+The module `colibri-reactive` exposes reactive variables. This is hot, distinct, glitch-free observables that always have a value. It is meant for managing state - opposed to managing events which is a perfect fit for lazy `Observable` in the core `colibri` library. This module behaves very similar to scala-rx - just built on top of colibri Observables for seamless integration and powerful operators.
+
+Example:
+
+```scala
+
+import colibri.reactive._
+
+import colibri.owner.unsafeImplicits._ // dangerous. This never cancels subscriptions. See below!
+
+val variable = Var(1)
+val variable2 = Var("Test")
+
+val rx = Rx {
+  s"${variable()} - ${variable2()}"
+}
+
+println(variable.now()) // 1
+println(variable2.now()) // "Test"
+println(rx.now()) // "1 - Test"
+
+variable.set(2)
+
+println(variable.now()) // 2
+println(variable2.now()) // "Test"
+println(rx.now()) // "2 - Test"
+
+variable2.set("Foo")
+
+println(variable.now()) // 2
+println(variable2.now()) // "Foo"
+println(rx.now()) // "2 - Foo"
+
+```
+
+If you want to work with reactive variables (hot observable), you need someone to cleanup the subscriptions. This concept is called `Owner`. We use an *unsafe* owner in the above example. It actually never cleans up. It should only ever be used in your main method or for global state. From there it can be passed around implicitly.
+
+You can even work without ever using the unsafe owner and having to pass it implictly. You can use `Owned` blocks instead. Inside an `Owned` block, you will have to return a type that has a `SubscriptionOwner` instance. Example:
+
+```scala
+
+import colibri._
+import colibri.reactive._
+import cats.effect.SyncIO
+
+sealed trait Modifier
+object Modifier {
+  case class ReactiveModifier(rx: Rx[String]) extends Modifier
+  case class SubscriptionModifier(subscription: () => Cancelable) extends Modifier
+  case class CombineModifier(modifierA: Modifier, modifierB: Modifier) extends Modifier
+
+  implicit object subcriptionOwner extends SubscriptionOwner[Modifier] {
+    def own(owner: Modifier)(subscription: () => Cancelable): Modifier = CombineModifier(owner, SubscriptionModifier(subscription))
+  }
+}
+
+val component: SyncIO[Modifier] = Owned {
+  val variable = Var(1)
+  val mapped = rx.map(_ + 1)
+
+  val rx = Rx {
+    "Hallo: ${mapped()}"
+  }
+
+  ReactiveModifier(rx)
+}
+```
+
+For example, outwatch supports `Owned`:
+
+```scala
+
+import outwatch._
+import outwatch.dsl._
+import colibri.reactive._
+import cats.effect.SyncIO
+
+val component: SyncIO[VModifier] = Owned {
+  val variable = Var(1)
+  val mapped = rx.map(_ + 1)
+
+  val rx = Rx {
+    "Hallo: ${mapped()}"
+  }
+
+  div(rx)
+}
+```
+
 ## Information
 
 Throughout the library, the type parameters for the `Sink` and `Source` typeclasses are named consistenly to avoid naming ambiguity when working with `F[_]` in the same context:
@@ -143,7 +234,11 @@ Throughout the library, the type parameters for the `Sink` and `Source` typeclas
 - `G[_] : Sink`
 - `H[_] : Source`
 
-Source Code: [Source.scala](colibri/src/main/scala/colibri/Source.scala), [Sink.scala](colibri/src/main/scala/colibri/Sink.scala)
+In general, we take a middle ground between pure functional programming, performance and ease of use. Internally, the code is mutable for performance reasons. Externally, we try to expose a typesafe, immutable, and mostly pure interface to the user. Every method that will subscribe an `Observable`, thereby potentially executing side effects, is named `unsafe*`.
+
+Types like `Observable` are conceptionally very similar to `IO` - they can just return more than zero or one value. They are also lazy, and operations like map/flatMap/filter/... do not actually do anything. It is only after you unsafely run or subscribe an Observable that it actually starts evaluating.
+
+Source Code: [Source.scala](colibri/src/main/scala/colibri/Source.scala), [Sink.scala](colibri/src/main/scala/colibri/Sink.scala), [RunEffect.scala](colibri/src/main/scala/colibri/RunEffect.scala)
 
 [Implementation for rx](rx/src/main/scala/colibri/ext/rx/package.scala)
 
