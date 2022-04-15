@@ -234,7 +234,7 @@ Throughout the library, the type parameters for the `Sink` and `Source` typeclas
 - `G[_] : Sink`
 - `H[_] : Source`
 
-In general, we take a middle ground between pure functional programming, performance and ease of use. Internally, the code is mutable for performance reasons. Externally, we try to expose a typesafe, immutable, and mostly pure interface to the user. Every method that will subscribe an `Observable`, thereby potentially executing side effects, is named `unsafe*`.
+In general, we take a middle ground with pure functional programming. We focus on performance and ease of use. Internally, the code is mutable for performance reasons. Externally, we try to expose a typesafe, immutable, and mostly pure interface to the user. There are some impure methods for example for subscribing observables - thereby potentially executing side effects. These impure methods are named `unsafe*`. And there are normally pure alias methods returning an effect type for public use. The unsafe methods exist so they can be used internally - we try to keep extra allocations to a minimum there.
 
 Types like `Observable` are conceptionally very similar to `IO` - they can just return more than zero or one value. They are also lazy, and operations like map/flatMap/filter/... do not actually do anything. It is only after you unsafely run or subscribe an Observable that it actually starts evaluating.
 
