@@ -29,8 +29,8 @@ object Owner extends OwnerPlatform {
   }
 
   object unsafeGlobal extends Owner {
-    def cancelable: Cancelable                    = Cancelable.empty
-    def unsafeSubscribe(): Cancelable             = Cancelable.empty
+    def cancelable: Cancelable                          = Cancelable.empty
+    def unsafeSubscribe(): Cancelable                   = Cancelable.empty
     def unsafeOwn(subscription: () => Cancelable): Unit = {
       subscription()
       ()
@@ -62,8 +62,8 @@ object LiveOwner extends LiveOwnerPlatform {
       rx.now()
     }
 
-    def unsafeSubscribe(): Cancelable             = owner.unsafeSubscribe()
+    def unsafeSubscribe(): Cancelable                   = owner.unsafeSubscribe()
     def unsafeOwn(subscription: () => Cancelable): Unit = owner.unsafeOwn(subscription)
-    def cancelable: Cancelable                    = owner.cancelable
+    def cancelable: Cancelable                          = owner.cancelable
   }
 }
