@@ -81,7 +81,7 @@ object Observable    {
   }
 
   implicit object catsInstancesProSubject extends arrow.Profunctor[ProSubject] {
-    def dimap[A, B, C, D](fab: ProSubject[A,B])(f: C => A)(g: B => D): ProSubject[C,D] = fab.imapProSubject(f)(g)
+    def dimap[A, B, C, D](fab: ProSubject[A, B])(f: C => A)(g: B => D): ProSubject[C, D] = fab.imapProSubject(f)(g)
   }
 
   trait Value[+A]      extends Observable[A] {
@@ -104,7 +104,7 @@ object Observable    {
   }
 
   @inline def empty = Empty
-  val unit  = Observable.pure(())
+  val unit          = Observable.pure(())
 
   def pure[T](value: T): Observable[T] = new Observable[T] {
     def unsafeSubscribe(sink: Observer[T]): Cancelable = {
@@ -420,7 +420,7 @@ object Observable    {
       def unsafeSubscribe(sink: Observer[A]): Cancelable = source.unsafeSubscribe(sink.dropOnError)
     }
 
-    def debugLog: Observable[A] = via(Observer.debugLog)
+    def debugLog: Observable[A]                 = via(Observer.debugLog)
     def debugLog(prefix: String): Observable[A] = via(Observer.debugLog(prefix))
 
     def via(sink: Observer[A]): Observable[A] = new Observable[A] {
@@ -605,7 +605,7 @@ object Observable    {
           Cancelable.composite(
             subscription,
             Cancelable.checkIsEmpty(subscription.isEmpty())(setter.unsafeFreeze),
-            setter
+            setter,
           )
         }
       }
@@ -802,8 +802,8 @@ object Observable    {
 
     def dropUntilSyncLatest: Observable[A] = new Observable[A] {
       def unsafeSubscribe(sink: Observer[A]): Cancelable = {
-        var isSync = true
-        var lastSyncValue      = Option.empty[A]
+        var isSync        = true
+        var lastSyncValue = Option.empty[A]
 
         val cancelable = source.unsafeSubscribe(
           Observer.create[A](
@@ -1183,7 +1183,7 @@ object Observable    {
       }
     }
 
-    def asyncMicro: Observable[A] = evalOn(MicrotaskExecutor)
+    def asyncMicro: Observable[A]    = evalOn(MicrotaskExecutor)
     def asyncMacro: Observable[A]    = evalOn(MacrotaskExecutor)
     @inline def async: Observable[A] = asyncMacro
 
@@ -1266,11 +1266,11 @@ object Observable    {
       def unsafeSubscribe(sink: Observer[B]): Cancelable = source.unsafeSubscribe(transform(sink))
     }
 
-    @inline def publish: Connectable[Observable[A]]                  = multicast(Subject.publish[A]())
+    @inline def publish: Connectable[Observable[A]]                 = multicast(Subject.publish[A]())
     @deprecated("Use replayLatest instead", "0.3.4")
-    @inline def replay: Connectable[Observable.MaybeValue[A]]        = replayLatest
-    @inline def replayLatest: Connectable[Observable.MaybeValue[A]]  = multicastMaybeValue(Subject.replayLatest[A]())
-    @inline def replayAll: Connectable[Observable[A]]                = multicast(Subject.replayAll[A]())
+    @inline def replay: Connectable[Observable.MaybeValue[A]]       = replayLatest
+    @inline def replayLatest: Connectable[Observable.MaybeValue[A]] = multicastMaybeValue(Subject.replayLatest[A]())
+    @inline def replayAll: Connectable[Observable[A]]               = multicast(Subject.replayAll[A]())
     @inline def behavior(seed: A): Connectable[Observable.Value[A]] = multicastValue(Subject.behavior(seed))
 
     @inline def publishShare: Observable[A]                 = publish.refCount
@@ -1330,7 +1330,7 @@ object Observable    {
     @inline def appendEffect[F[_]: RunEffect](value: F[A]): Observable[A] = concat(Observable.fromEffect(value))
     @inline def appendFuture(value: => Future[A]): Observable[A]          = concat(Observable.fromFuture(value))
 
-    @inline def append(value: A): Observable[A]         = concat(Observable(value))
+    @inline def append(value: A): Observable[A]        = concat(Observable(value))
     @inline def appendEval(value: => A): Observable[A] = concat(Observable.eval(value))
 
     def startWith(values: Iterable[A]): Observable[A] = new Observable[A] {
@@ -1368,7 +1368,9 @@ object Observable    {
           callback(value)
         }
 
-        cancelable.unsafeAdd(() => source.unsafeSubscribe(Observer.create[A](value => dispatch(Right(value)), error => dispatch(Left(error)))))
+        cancelable.unsafeAdd(() =>
+          source.unsafeSubscribe(Observer.create[A](value => dispatch(Right(value)), error => dispatch(Left(error)))),
+        )
 
         cancelable.unsafeFreeze()
 
@@ -1383,9 +1385,9 @@ object Observable    {
     def lastF[F[_]: Async]: F[A] = Async[F].async[A] { callback =>
       Async[F].delay {
         var lastValue: Either[Throwable, A] = null
-        val cancelable = Cancelable.variable()
+        val cancelable                      = Cancelable.variable()
 
-        var innerCancelCheck = false
+        var innerCancelCheck      = false
         var innerCheckIsScheduled = false
 
         def dispatch(value: Either[Throwable, A]) = {
@@ -1400,7 +1402,9 @@ object Observable    {
           }
         }
 
-        cancelable.unsafeAdd(() => source.unsafeSubscribe(Observer.create[A](value => dispatch(Right(value)), error => dispatch(Left(error)))))
+        cancelable.unsafeAdd(() =>
+          source.unsafeSubscribe(Observer.create[A](value => dispatch(Right(value)), error => dispatch(Left(error)))),
+        )
 
         cancelable.unsafeFreeze()
 
@@ -1577,9 +1581,9 @@ object Observable    {
   }
 
   @inline implicit class ObservableLikeOperations[F[_]: ObservableLike, A](val source: Observable[F[A]]) {
-    @inline def flatten: Observable[A] = source.flatMap(o => ObservableLike[F].toObservable(o))
+    @inline def flatten: Observable[A]       = source.flatMap(o => ObservableLike[F].toObservable(o))
     @inline def flattenConcat: Observable[A] = source.concatMap(o => ObservableLike[F].toObservable(o))
-    @inline def flattenMerge: Observable[A] = source.mergeMap(o => ObservableLike[F].toObservable(o))
+    @inline def flattenMerge: Observable[A]  = source.mergeMap(o => ObservableLike[F].toObservable(o))
     @inline def flattenSwitch: Observable[A] = source.switchMap(o => ObservableLike[F].toObservable(o))
   }
 
