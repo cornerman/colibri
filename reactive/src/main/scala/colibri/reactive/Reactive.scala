@@ -103,10 +103,12 @@ object RxWriter {
 }
 
 trait Var[A] extends Rx[A] with RxWriter[A] {
-  final def lens[B](read: A => B)(write: (A, B) => A)(implicit owner: Owner): Var[B] = new VarLens(this, read, write)
-
   final def transformVar[A2](f: RxWriter[A] => RxWriter[A2])(g: Rx[A] => Rx[A2]): Var[A2] = Var.combine(g(this), f(this))
+  final def transformVarRx(g: Rx[A] => Rx[A]): Var[A]                                     = Var.combine(g(this), this)
+  final def transformVarRxWriter(f: RxWriter[A] => RxWriter[A]): Var[A]                   = Var.combine(this, f(this))
   final def imap[A2](f: A2 => A)(g: A => A2)(implicit owner: Owner): Var[A2]              = transformVar(_.contramap(f))(_.map(g))
+  final def lens[B](read: A => B)(write: (A, B) => A)(implicit owner: Owner): Var[B]      =
+    transformVar(_.contramap(write(now(), _)))(_.map(read))
 }
 
 object Var {
@@ -147,14 +149,6 @@ private final class VarSubject[A](seed: A) extends Var[A] {
   val observer: Observer[A]     = state
 
   def now(): A = state.now()
-}
-
-private final class VarLens[A, B](inner: Var[A], read: A => B, write: (A, B) => A)(implicit owner: Owner) extends Var[B] {
-  private val innerRead = inner.map(read)
-
-  def now()      = innerRead.now()
-  val observable = innerRead.observable
-  val observer   = inner.observer.contramap(write(inner.now(), _))
 }
 
 private final class VarCombine[A](innerRead: Rx[A], innerWrite: RxWriter[A]) extends Var[A] {
