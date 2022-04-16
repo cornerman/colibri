@@ -31,8 +31,8 @@ trait Rx[+A] {
   final def switchMap[B](f: A => Rx[B])(implicit owner: Owner): Rx[B] = transformRxSync(_.switchMap(f andThen (_.observable)))
   final def mergeMap[B](f: A => Rx[B])(implicit owner: Owner): Rx[B]  = transformRxSync(_.mergeMap(f andThen (_.observable)))
 
-  final def subscribe()(implicit owner: Owner): Unit           = owner.own(() => observable.unsafeSubscribe())
-  final def foreach(f: A => Unit)(implicit owner: Owner): Unit = owner.own(() => observable.unsafeForeach(f))
+  final def subscribe()(implicit owner: Owner): Unit           = owner.unsafeOwn(() => observable.unsafeSubscribe())
+  final def foreach(f: A => Unit)(implicit owner: Owner): Unit = owner.unsafeOwn(() => observable.unsafeForeach(f))
 
   final def transformRx[B](f: Observable[A] => Observable[B])(seed: => B)(implicit owner: Owner): Rx[B] = Rx.observable(f(observable))(seed)
   final def transformRxSync[B](f: Observable[A] => Observable[B])(implicit owner: Owner): Rx[B]         = Rx.observableSync(f(observable))
@@ -126,7 +126,7 @@ private final class RxObservable[A](inner: Observable[A], seed: => A)(implicit o
   private val state = new ReplayLatestSubject[A]()
 
   val observable: Observable[A] = inner.dropSyncAll.prependEval(now()).distinctOnEquals.multicast(state).refCount
-  owner.own(() => observable.unsafeSubscribe())
+  owner.unsafeOwn(() => observable.unsafeSubscribe())
 
   def now(): A = state.now().getOrElse(seed)
 }
@@ -135,7 +135,7 @@ private final class RxObservableSync[A](inner: Observable[A])(implicit owner: Ow
   private val state = new ReplayLatestSubject[A]()
 
   val observable: Observable[A] = inner.dropUntilSyncLatest.distinctOnEquals.multicast(state).refCount
-  owner.own(() => observable.unsafeSubscribe())
+  owner.unsafeOwn(() => observable.unsafeSubscribe())
 
   def now(): A = state.now().get
 }

@@ -8,7 +8,7 @@ import colibri._
 trait Owner {
   def cancelable: Cancelable
   def unsafeSubscribe(): Cancelable
-  def own(subscription: () => Cancelable): Unit
+  def unsafeOwn(subscription: () => Cancelable): Unit
 }
 object Owner extends OwnerPlatform {
   def unsafeHotRef(): Owner = new Owner {
@@ -25,13 +25,13 @@ object Owner extends OwnerPlatform {
       result
     }
 
-    def own(subscription: () => Cancelable): Unit = refCountBuilder.add(subscription)
+    def unsafeOwn(subscription: () => Cancelable): Unit = refCountBuilder.unsafeAdd(subscription)
   }
 
   object unsafeGlobal extends Owner {
     def cancelable: Cancelable                    = Cancelable.empty
     def unsafeSubscribe(): Cancelable             = Cancelable.empty
-    def own(subscription: () => Cancelable): Unit = {
+    def unsafeOwn(subscription: () => Cancelable): Unit = {
       subscription()
       ()
     }
@@ -52,7 +52,7 @@ trait LiveOwner  extends Owner             {
 object LiveOwner extends LiveOwnerPlatform {
   def unsafeHotRef()(implicit parentOwner: Owner): LiveOwner = new LiveOwner {
     val owner: Owner = Owner.unsafeHotRef()
-    parentOwner.own(() => owner.unsafeSubscribe())
+    parentOwner.unsafeOwn(() => owner.unsafeSubscribe())
 
     val liveObservableArray             = new scala.scalajs.js.Array[Observable[Any]]()
     val liveObservable: Observable[Any] = Observable.mergeIterable(liveObservableArray)
@@ -63,7 +63,7 @@ object LiveOwner extends LiveOwnerPlatform {
     }
 
     def unsafeSubscribe(): Cancelable             = owner.unsafeSubscribe()
-    def own(subscription: () => Cancelable): Unit = owner.own(subscription)
+    def unsafeOwn(subscription: () => Cancelable): Unit = owner.unsafeOwn(subscription)
     def cancelable: Cancelable                    = owner.cancelable
   }
 }
