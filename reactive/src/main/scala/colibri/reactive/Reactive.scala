@@ -11,31 +11,31 @@ trait Rx[+A] {
 
   final def apply()(implicit liveOwner: LiveOwner): A = liveOwner.unsafeLive(this)
 
-  final def map[B](f: A => B)(implicit owner: Owner): Rx[B]                          = transformSync(_.map(f))
-  final def mapEither[B](f: A => Either[Throwable, B])(implicit owner: Owner): Rx[B] = transformSync(_.mapEither(f))
-  final def tap(f: A => Unit)(implicit owner: Owner): Rx[A]                          = transformSync(_.tap(f))
+  final def map[B](f: A => B)(implicit owner: Owner): Rx[B]                          = transformRxSync(_.map(f))
+  final def mapEither[B](f: A => Either[Throwable, B])(implicit owner: Owner): Rx[B] = transformRxSync(_.mapEither(f))
+  final def tap(f: A => Unit)(implicit owner: Owner): Rx[A]                          = transformRxSync(_.tap(f))
 
-  final def collect[B](f: PartialFunction[A, B])(seed: => B)(implicit owner: Owner): Rx[B] = transform(_.collect(f))(seed)
+  final def collect[B](f: PartialFunction[A, B])(seed: => B)(implicit owner: Owner): Rx[B] = transformRx(_.collect(f))(seed)
 
-  final def mapSyncEffect[F[_]: RunSyncEffect, B](f: A => F[B])(implicit owner: Owner): Rx[B]     = transformSync(_.mapEffect(f))
-  final def mapEffect[F[_]: RunEffect, B](f: A => F[B])(seed: => B)(implicit owner: Owner): Rx[B] = transform(_.mapEffect(f))(seed)
-  final def mapFuture[B](f: A => Future[B])(seed: => B)(implicit owner: Owner): Rx[B]             = transform(_.mapFuture(f))(seed)
+  final def mapSyncEffect[F[_]: RunSyncEffect, B](f: A => F[B])(implicit owner: Owner): Rx[B]     = transformRxSync(_.mapEffect(f))
+  final def mapEffect[F[_]: RunEffect, B](f: A => F[B])(seed: => B)(implicit owner: Owner): Rx[B] = transformRx(_.mapEffect(f))(seed)
+  final def mapFuture[B](f: A => Future[B])(seed: => B)(implicit owner: Owner): Rx[B]             = transformRx(_.mapFuture(f))(seed)
 
-  final def as[B](value: B)(implicit owner: Owner): Rx[B]        = transformSync(_.as(value))
-  final def asEval[B](value: => B)(implicit owner: Owner): Rx[B] = transformSync(_.asEval(value))
+  final def as[B](value: B)(implicit owner: Owner): Rx[B]        = transformRxSync(_.as(value))
+  final def asEval[B](value: => B)(implicit owner: Owner): Rx[B] = transformRxSync(_.asEval(value))
 
-  final def asSyncEffect[F[_]: RunSyncEffect, B](value: F[B])(implicit owner: Owner): Rx[B]     = transformSync(_.asEffect(value))
-  final def asEffect[F[_]: RunEffect, B](value: F[B])(seed: => B)(implicit owner: Owner): Rx[B] = transform(_.asEffect(value))(seed)
-  final def asFuture[B](value: => Future[B])(seed: => B)(implicit owner: Owner): Rx[B]          = transform(_.asFuture(value))(seed)
+  final def asSyncEffect[F[_]: RunSyncEffect, B](value: F[B])(implicit owner: Owner): Rx[B]     = transformRxSync(_.asEffect(value))
+  final def asEffect[F[_]: RunEffect, B](value: F[B])(seed: => B)(implicit owner: Owner): Rx[B] = transformRx(_.asEffect(value))(seed)
+  final def asFuture[B](value: => Future[B])(seed: => B)(implicit owner: Owner): Rx[B]          = transformRx(_.asFuture(value))(seed)
 
-  final def switchMap[B](f: A => Rx[B])(implicit owner: Owner): Rx[B] = transformSync(_.switchMap(f andThen (_.observable)))
-  final def mergeMap[B](f: A => Rx[B])(implicit owner: Owner): Rx[B]  = transformSync(_.mergeMap(f andThen (_.observable)))
+  final def switchMap[B](f: A => Rx[B])(implicit owner: Owner): Rx[B] = transformRxSync(_.switchMap(f andThen (_.observable)))
+  final def mergeMap[B](f: A => Rx[B])(implicit owner: Owner): Rx[B]  = transformRxSync(_.mergeMap(f andThen (_.observable)))
 
   final def subscribe()(implicit owner: Owner): Unit           = owner.own(() => observable.unsafeSubscribe())
   final def foreach(f: A => Unit)(implicit owner: Owner): Unit = owner.own(() => observable.unsafeForeach(f))
 
-  final def transform[B](f: Observable[A] => Observable[B])(seed: => B)(implicit owner: Owner): Rx[B] = Rx.observable(f(observable))(seed)
-  final def transformSync[B](f: Observable[A] => Observable[B])(implicit owner: Owner): Rx[B]         = Rx.observableSync(f(observable))
+  final def transformRx[B](f: Observable[A] => Observable[B])(seed: => B)(implicit owner: Owner): Rx[B] = Rx.observable(f(observable))(seed)
+  final def transformRxSync[B](f: Observable[A] => Observable[B])(implicit owner: Owner): Rx[B]         = Rx.observableSync(f(observable))
 }
 
 object Rx extends RxPlatform {
@@ -62,9 +62,9 @@ object Rx extends RxPlatform {
   @inline implicit final class RxOps[A](private val self: Rx[A]) extends AnyVal {
     def scan(f: (A, A) => A)(implicit owner: Owner): Rx[A] = scan(self.now())(f)
 
-    def scan[B](seed: B)(f: (B, A) => B)(implicit owner: Owner): Rx[B] = self.transformSync(_.scan0(seed)(f))
+    def scan[B](seed: B)(f: (B, A) => B)(implicit owner: Owner): Rx[B] = self.transformRxSync(_.scan0(seed)(f))
 
-    def filter(f: A => Boolean)(seed: => A)(implicit owner: Owner): Rx[A] = self.transform(_.filter(f))(seed)
+    def filter(f: A => Boolean)(seed: => A)(implicit owner: Owner): Rx[A] = self.transformRx(_.filter(f))(seed)
   }
 
   implicit object source extends Source[Rx] {
@@ -77,19 +77,19 @@ trait RxWriter[-A] {
 
   final def set(value: A): Unit = observer.unsafeOnNext(value)
 
-  final def contramap[B](f: B => A): RxWriter[B]                   = transform(_.contramap(f))
-  final def contramapIterable[B](f: B => Iterable[A]): RxWriter[B] = transform(_.contramapIterable(f))
+  final def contramap[B](f: B => A): RxWriter[B]                   = transformRxWriter(_.contramap(f))
+  final def contramapIterable[B](f: B => Iterable[A]): RxWriter[B] = transformRxWriter(_.contramapIterable(f))
 
-  final def contracollect[B](f: PartialFunction[B, A]): RxWriter[B] = transform(_.contracollect(f))
+  final def contracollect[B](f: PartialFunction[B, A]): RxWriter[B] = transformRxWriter(_.contracollect(f))
 
-  final def transform[B](f: Observer[A] => Observer[B]): RxWriter[B] = RxWriter.observer(f(observer))
+  final def transformRxWriter[B](f: Observer[A] => Observer[B]): RxWriter[B] = RxWriter.observer(f(observer))
 }
 
 object RxWriter {
   def observer[A](observer: Observer[A]): RxWriter[A] = new RxWriterObserver(observer)
 
   @inline implicit final class RxWriterOps[A](private val self: RxWriter[A]) extends AnyVal {
-    def contrafilter(f: A => Boolean): RxWriter[A] = self.transform(_.contrafilter(f))
+    def contrafilter(f: A => Boolean): RxWriter[A] = self.transformRxWriter(_.contrafilter(f))
   }
 
   implicit object sink extends Sink[RxWriter] {
@@ -104,10 +104,15 @@ object RxWriter {
 
 trait Var[A] extends Rx[A] with RxWriter[A] {
   final def lens[B](read: A => B)(write: (A, B) => A)(implicit owner: Owner): Var[B] = new VarLens(this, read, write)
+
+  final def transformVar[A2](f: RxWriter[A] => RxWriter[A2])(g: Rx[A] => Rx[A2]): Var[A2] = Var.combine(g(this), f(this))
+  final def imap[A2](f: A2 => A)(g: A => A2)(implicit owner: Owner): Var[A2]              = transformVar(_.contramap(f))(_.map(g))
 }
 
 object Var {
   def apply[A](seed: A): Var[A] = new VarSubject(seed)
+
+  def combine[A](read: Rx[A], write: RxWriter[A]): Var[A] = new VarCombine(read, write)
 }
 
 private final class RxConst[A](value: A) extends Rx[A] {
@@ -150,4 +155,10 @@ private final class VarLens[A, B](inner: Var[A], read: A => B, write: (A, B) => 
   def now()      = innerRead.now()
   val observable = innerRead.observable
   val observer   = inner.observer.contramap(write(inner.now(), _))
+}
+
+private final class VarCombine[A](innerRead: Rx[A], innerWrite: RxWriter[A]) extends Var[A] {
+  def now()      = innerRead.now()
+  val observable = innerRead.observable
+  val observer   = innerWrite.observer
 }
