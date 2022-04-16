@@ -52,10 +52,8 @@ object Observable    {
 
     @inline override def functor                                                                   = this
     @inline override def mapFilter[A, B](fa: Observable[A])(f: A => Option[B]): Observable[B]      = fa.mapFilter(f)
-    @inline override def collect[A, B](fa: Observable[A])(f: PartialFunction[A, B]): Observable[B] =
-      fa.collect(f)
-    @inline override def filter[A](fa: Observable[A])(f: A => Boolean): Observable[A]              =
-      fa.filter(f)
+    @inline override def collect[A, B](fa: Observable[A])(f: PartialFunction[A, B]): Observable[B] = fa.collect(f)
+    @inline override def filter[A](fa: Observable[A])(f: A => Boolean): Observable[A]              = fa.filter(f)
     @inline override def empty[T]                                                                  = Observable.empty
     @inline override def combineK[T](a: Observable[T], b: Observable[T])                           = Observable.concat(a, b)
   }
