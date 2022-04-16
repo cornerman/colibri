@@ -2,7 +2,6 @@ package colibri
 
 import cats._
 import cats.implicits._
-import colibri.helpers.NativeTypes
 import colibri.effect.{RunSyncEffect, RunEffect}
 import cats.effect.{Sync, SyncIO, Async, IO, Resource}
 
@@ -16,6 +15,8 @@ trait Observable[+A] {
   def unsafeSubscribe(sink: Observer[A]): Cancelable
 }
 object Observable    {
+  import org.scalajs.macrotaskexecutor.MacrotaskExecutor
+  private val MicrotaskExecutor = scala.scalajs.concurrent.QueueExecutionContext.promises()
 
   implicit object source extends Source[Observable] {
     @inline def unsafeSubscribe[A](source: Observable[A])(sink: Observer[A]): Cancelable = source.unsafeSubscribe(sink)
@@ -306,7 +307,7 @@ object Observable    {
                 if (!innerCheckIsScheduled) {
                   innerCheckIsScheduled = true
                   innerCancelCheck = false
-                  NativeTypes.queueMicrotask { () =>
+                  MicrotaskExecutor.execute { () =>
                     innerCheckIsScheduled = false
                     if (!innerCancelCheck && cancelable.isEmpty()) consecutive.switch()
                   }
@@ -380,7 +381,7 @@ object Observable    {
 
                       if (!innerCheckIsScheduled) {
                         innerCheckIsScheduled = true
-                        NativeTypes.queueMicrotask { () =>
+                        MicrotaskExecutor.execute { () =>
                           innerCheckIsScheduled = false
                           if (cancelable.isEmpty()) {
                             if (openSubscriptions == 0) consecutive.freeze()
@@ -753,7 +754,7 @@ object Observable    {
                       if (!innerCheckIsScheduled) {
                         innerCheckIsScheduled = true
                         innerCancelCheck = false
-                        NativeTypes.queueMicrotask { () =>
+                        MicrotaskExecutor.execute { () =>
                           innerCheckIsScheduled = false
                           if (!innerCancelCheck && cancelable.isEmpty()) consecutive.switch()
                         }
@@ -835,7 +836,7 @@ object Observable    {
               lastValue = Some(value)
               if (!runIsScheduled) {
                 runIsScheduled = true
-                NativeTypes.queueMicrotask { () =>
+                MicrotaskExecutor.execute { () =>
                   runIsScheduled = false
                   if (!isCancel) lastValue.foreach(sink.unsafeOnNext)
                   lastValue = None
@@ -1182,60 +1183,9 @@ object Observable    {
       }
     }
 
-    def asyncMicro: Observable[A] = new Observable[A] {
-      def unsafeSubscribe(sink: Observer[A]): Cancelable = {
-        var isCancel = false
-        var openRuns = 0
-
-        Cancelable.composite(
-          Cancelable.withIsEmpty(openRuns == 0) { () =>
-            isCancel = true
-          },
-          source.unsafeSubscribe(
-            Observer.create[A](
-              { value =>
-                openRuns += 1
-                NativeTypes.queueMicrotask { () =>
-                  openRuns -= 1
-                  if (!isCancel) sink.unsafeOnNext(value)
-                }
-              },
-              sink.unsafeOnError,
-            ),
-          ),
-        )
-      }
-    }
-
+    def asyncMicro: Observable[A] = evalOn(MicrotaskExecutor)
+    def asyncMacro: Observable[A]    = evalOn(MacrotaskExecutor)
     @inline def async: Observable[A] = asyncMacro
-    def asyncMacro: Observable[A]    = new Observable[A] {
-      def unsafeSubscribe(sink: Observer[A]): Cancelable = {
-        var lastTimeout: js.UndefOr[NativeTypes.SetImmediateHandle] = js.undefined
-        var isCancel                                                = false
-        var openRuns                                                = 0
-
-        // TODO: we only actually cancel the last timeout. The check isCancel
-        // makes sure that unsafeCancelled subscription is really respected.
-        Cancelable.composite(
-          Cancelable.withIsEmpty(openRuns == 0) { () =>
-            isCancel = true
-            lastTimeout.foreach(NativeTypes.clearImmediateRef)
-          },
-          source.unsafeSubscribe(
-            Observer.create[A](
-              { value =>
-                openRuns += 1
-                lastTimeout = NativeTypes.setImmediateRef { () =>
-                  openRuns -= 1
-                  if (!isCancel) sink.unsafeOnNext(value)
-                }
-              },
-              sink.unsafeOnError,
-            ),
-          ),
-        )
-      }
-    }
 
     @inline def delay(duration: FiniteDuration): Observable[A] = delayMillis(duration.toMillis.toInt)
 
@@ -1443,7 +1393,7 @@ object Observable    {
           if (!innerCheckIsScheduled) {
             innerCheckIsScheduled = true
             innerCancelCheck = false
-            NativeTypes.queueMicrotask { () =>
+            MicrotaskExecutor.execute { () =>
               innerCheckIsScheduled = false
               if (!innerCancelCheck && cancelable.isEmpty()) callback(lastValue)
             }
