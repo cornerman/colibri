@@ -83,7 +83,7 @@ object Observer    {
 
   @inline def combine[A](sinks: Observer[A]*): Observer[A] = combineIterable(sinks)
 
-  @deprecated("Use combineIterable instead", "0.4.7")
+  @deprecated("Use combineIterable instead", "0.5.0")
   def combineSeq[A](sinks: Seq[Observer[A]]): Observer[A]           = combineIterable(sinks)
   def combineIterable[A](sinks: Iterable[Observer[A]]): Observer[A] = new Observer[A] {
     def unsafeOnNext(value: A): Unit          = sinks.foreach(_.unsafeOnNext(value))
