@@ -4,7 +4,7 @@ import colibri.{Observable, Cancelable}
 
 trait OwnerPlatform {
   @annotation.compileTimeOnly(
-    "No implicit Owner is available here! Wrap inside `Owned { <code> }` or provide an implicit `Owner` or `import Owner.unsafeImplicits._`.",
+    "No implicit Owner is available here! Wrap inside `Owned { <code> }`, or provide an implicit `Owner`, or `import Owner.unsafeImplicits._` (dangerous).",
   )
   implicit object compileTimeMock extends Owner {
     def unsafeSubscribe(): Cancelable                   = ???
@@ -15,7 +15,7 @@ trait OwnerPlatform {
 
 trait LiveOwnerPlatform {
   @annotation.compileTimeOnly(
-    "No implicit LiveOwner is available here! Wrap inside `Rx { <code> }` or provide an implicit `LiveOwner`.",
+    "No implicit LiveOwner is available here! Wrap inside `Rx { <code> }`, or provide an implicit `LiveOwner`.",
   )
   implicit object compileTimeMock extends LiveOwner {
     def unsafeSubscribe(): Cancelable                   = ???

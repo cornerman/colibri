@@ -3,7 +3,7 @@ package colibri.reactive
 import colibri._
 
 @annotation.implicitNotFound(
-  "No implicit Owner is available here! Wrap inside `Owned { <code> }` or provide an implicit `Owner` or `import Owner.unsafeImplicits._`.",
+  "No implicit Owner is available here! Wrap inside `Owned { <code> }`, or provide an implicit `Owner`, or `import Owner.unsafeImplicits._` (dangerous).",
 )
 trait Owner {
   def cancelable: Cancelable
@@ -43,7 +43,7 @@ object Owner extends OwnerPlatform {
 }
 
 @annotation.implicitNotFound(
-  "No implicit LiveOwner is available here! Wrap inside `Rx { <code> }` or provide an implicit `LiveOwner`.",
+  "No implicit LiveOwner is available here! Wrap inside `Rx { <code> }`, or provide an implicit `LiveOwner`.",
 )
 trait LiveOwner  extends Owner             {
   def liveObservable: Observable[Any]
