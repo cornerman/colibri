@@ -87,7 +87,7 @@ lazy val jsdomTests = project
     publish / skip         := true,
     name                   := "colibri-jsdom-tests",
     Test / requireJsDomEnv := true,
-    installJsdom / version := "13.2.0",
+    installJsdom / version := "19.0.0",
   )
 
 lazy val router = project
