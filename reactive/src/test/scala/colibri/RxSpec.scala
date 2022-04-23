@@ -160,10 +160,11 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
     received1 shouldBe List(false, true, false)
   }.unsafeRunSync()
 
-  it should "work without glitch" in Owned {
+  it should "work without glitches in chain" in Owned {
     var liveCounter = 0
     var mapped      = List.empty[Int]
     var received1   = List.empty[Boolean]
+    var receivedRx  = List.empty[String]
 
     val variable = Var(1)
 
@@ -179,8 +180,11 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
       s"${variable()}: ${stream()}"
     }
 
+    rx.foreach(receivedRx ::= _)
+
     mapped shouldBe List(1)
     received1 shouldBe List(false)
+    receivedRx shouldBe List("1: false")
     rx.now() shouldBe "1: false"
     liveCounter shouldBe 1
 
@@ -188,6 +192,7 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
 
     mapped shouldBe List(2, 1)
     received1 shouldBe List(true, false)
+    receivedRx shouldBe List("2: true", "1: false")
     rx.now() shouldBe "2: true"
     liveCounter shouldBe 2
 
@@ -195,6 +200,7 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
 
     mapped shouldBe List(2, 1)
     received1 shouldBe List(true, false)
+    receivedRx shouldBe List("2: true", "1: false")
     rx.now() shouldBe "2: true"
     liveCounter shouldBe 2
 
@@ -202,6 +208,7 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
 
     mapped shouldBe List(4, 2, 1)
     received1 shouldBe List(true, false)
+    receivedRx shouldBe List("4: true", "2: true", "1: false")
     rx.now() shouldBe "4: true"
     liveCounter shouldBe 3
 
@@ -209,6 +216,7 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
 
     mapped shouldBe List(5, 4, 2, 1)
     received1 shouldBe List(false, true, false)
+    receivedRx shouldBe List("5: false", "4: true", "2: true", "1: false")
     rx.now() shouldBe "5: false"
     liveCounter shouldBe 4
   }.unsafeRunSync()
@@ -348,5 +356,82 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
     rx.now() shouldBe "2, 100, 5"
     liveCounter shouldBe 4
 
+  }.unsafeRunSync()
+
+  it should "diamond" in Owned {
+    var liveCounter = 0
+    var mapped1     = List.empty[Int]
+    var mapped2     = List.empty[Int]
+    var received1   = List.empty[Boolean]
+    var received2   = List.empty[Boolean]
+    var receivedRx  = List.empty[String]
+
+    val variable = Var(1)
+
+    val stream1 = variable.map { x => mapped1 ::= x; x % 2 == 0 }
+    val stream2 = variable.map { x => mapped2 ::= x; x % 2 == 0 }
+
+    stream1.foreach(received1 ::= _)
+    stream2.foreach(received2 ::= _)
+
+    mapped1 shouldBe List(1)
+    mapped2 shouldBe List(1)
+    received1 shouldBe List(false)
+    received2 shouldBe List(false)
+
+    val rx = Rx {
+      liveCounter += 1
+      s"${stream1()}:${stream2()}"
+    }
+
+    rx.foreach(receivedRx ::= _)
+
+    mapped1 shouldBe List(1)
+    mapped2 shouldBe List(1)
+    received1 shouldBe List(false)
+    received2 shouldBe List(false)
+    receivedRx shouldBe List("false:false")
+    rx.now() shouldBe "false:false"
+    liveCounter shouldBe 1
+
+    variable.set(2)
+
+    mapped1 shouldBe List(2, 1)
+    mapped2 shouldBe List(2, 1)
+    received1 shouldBe List(true, false)
+    received2 shouldBe List(true, false)
+    receivedRx shouldBe List("true:true", "true:false", "false:false") // glitch
+    rx.now() shouldBe "true:true"
+    liveCounter shouldBe 3
+
+    variable.set(2)
+
+    mapped1 shouldBe List(2, 1)
+    mapped2 shouldBe List(2, 1)
+    received1 shouldBe List(true, false)
+    received2 shouldBe List(true, false)
+    receivedRx shouldBe List("true:true", "true:false", "false:false")
+    rx.now() shouldBe "true:true"
+    liveCounter shouldBe 3
+
+    variable.set(4)
+
+    mapped1 shouldBe List(4, 2, 1)
+    mapped2 shouldBe List(4, 2, 1)
+    received1 shouldBe List(true, false)
+    received2 shouldBe List(true, false)
+    receivedRx shouldBe List("true:true", "true:false", "false:false")
+    rx.now() shouldBe "true:true"
+    liveCounter shouldBe 3
+
+    variable.set(5)
+
+    mapped1 shouldBe List(5, 4, 2, 1)
+    mapped2 shouldBe List(5, 4, 2, 1)
+    received1 shouldBe List(false, true, false)
+    received2 shouldBe List(false, true, false)
+    receivedRx shouldBe List("false:false", "false:true", "true:true", "true:false", "false:false") // glitch
+    rx.now() shouldBe "false:false"
+    liveCounter shouldBe 5
   }.unsafeRunSync()
 }
