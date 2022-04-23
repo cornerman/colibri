@@ -31,7 +31,8 @@ trait Rx[+A] {
   final def switchMap[B](f: A => Rx[B])(implicit owner: Owner): Rx[B] = transformRxSync(_.switchMap(f andThen (_.observable)))
   final def mergeMap[B](f: A => Rx[B])(implicit owner: Owner): Rx[B]  = transformRxSync(_.mergeMap(f andThen (_.observable)))
 
-  final def foreach(f: A => Unit)(implicit owner: Owner): Unit = owner.unsafeOwn(() => observable.unsafeForeach(f))
+  final def foreach(f: A => Unit)(implicit owner: Owner): Unit      = owner.unsafeOwn(() => observable.unsafeForeach(f))
+  final def foreachLater(f: A => Unit)(implicit owner: Owner): Unit = owner.unsafeOwn(() => observable.tail.unsafeForeach(f))
 
   final def transformRx[B](f: Observable[A] => Observable[B])(seed: => B)(implicit owner: Owner): Rx[B] = Rx.observable(f(observable))(seed)
   final def transformRxSync[B](f: Observable[A] => Observable[B])(implicit owner: Owner): Rx[B]         = Rx.observableSync(f(observable))
