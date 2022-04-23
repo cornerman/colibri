@@ -138,7 +138,9 @@ In order to work with effects inside our Observable, we have defined the followi
 
 ## Reactive variables
 
-The module `colibri-reactive` exposes reactive variables. This is hot, distinct, glitch-free observables that always have a value. It is meant for managing state - opposed to managing events which is a perfect fit for lazy `Observable` in the core `colibri` library. This module behaves very similar to scala-rx - just built on top of colibri Observables for seamless integration and powerful operators.
+The module `colibri-reactive` exposes reactive variables. This is hot, distinct observables that always have a value. These reactive variables are meant for managing state - opposed to managing events which is a perfect fit for lazy `Observable` in the core `colibri` library.
+
+This module behaves very similar to scala-rx - just built on top of colibri Observables for seamless integration and powerful operators. It is not entirely glitch-free because invalid state can appear in operators like map or foreach, but you always have a consistent state in `now()` and it reduces the number of intermediate triggers or glitches. You can become completely glitch-free by converting back to observable and using `dropSyncGlitches` which will introduce an async boundary (micro-task).
 
 Example:
 
@@ -154,6 +156,8 @@ val variable2 = Var("Test")
 val rx = Rx {
   s"${variable()} - ${variable2()}"
 }
+
+rx.foreach(println(_))
 
 println(variable.now()) // 1
 println(variable2.now()) // "Test"
@@ -173,9 +177,9 @@ println(rx.now()) // "2 - Foo"
 
 ```
 
-If you want to work with reactive variables (hot observable), you need someone to cleanup the subscriptions. This concept is called `Owner`. We use an *unsafe* owner in the above example. It actually never cleans up. It should only ever be used in your main method or for global state. From there it can be passed around implicitly.
+If you want to work with reactive variables (hot observable), then someone need to cleanup the subscriptions. We call this concept an `Owner`. We use an *unsafe* owner in the above example. It actually never cleans up. It should only ever be used in your main method or for global state.
 
-You can even work without ever using the unsafe owner and having to pass it implictly. You can use `Owned` blocks instead. Inside an `Owned` block, you will have to return a type that has a `SubscriptionOwner` instance. Example:
+You can even work without ever using the unsafe owner or having to pass it implictly. You can use `Owned` blocks instead. Inside an `Owned` block, you will have to return a type that has a `SubscriptionOwner` instance. Example:
 
 ```scala
 
@@ -206,7 +210,7 @@ val component: SyncIO[Modifier] = Owned {
 }
 ```
 
-For example, outwatch supports `Owned`:
+For example, [Outwatch](https://github.com/outwatch/outwatch) supports `Owned`:
 
 ```scala
 
