@@ -121,6 +121,12 @@ subject.unsafeOnNext(1)
 val myEffect: IO[Unit] = subject.onNextF[IO](2)
 ```
 
+### Memory management
+
+Every subscription that is created inside of colibri methods is returned to the user. For example `unsafeSubscribe` or `subscribeF` returns a `Cancelable`. That means, the caller is responsible to cleanup the subscription by calling `Cancelable#unsafeCancel()` or `Cancelable#cancelF`.
+
+If you are working with `Outwatch`, you can just use `Observable` without ever subscribing yourself. Then all memory management is handled for you automatically. No memory leaks.
+
 ## Typeclasses
 
 We have prepared typeclasses for integrating with other streaming libaries. The most important ones are `Sink` and `Source`. `Source` is a typeclass for Observables, `Sink` is a typeclass for Observers:
@@ -230,6 +236,12 @@ val component: SyncIO[VModifier] = Owned {
   div(rx)
 }
 ```
+
+### Memory management
+
+Every subscription that is created inside of colibri-reactive methods is owned by an implicit `Owner`. For example `map` or `foreach` take an implicit `Owner`. As long as the `Owner` is cancelled when it is not needed anymore, all subscriptions will be cleaned up. The exception is the `Owner.unsafeGlobal` that never cleans up and is meant for global state.
+
+If you are working with `Outwatch`, you can just use `Owned`-blocks returning `VModifier` and everything is handled automatically for you. No memory leaks.
 
 ## Information
 
