@@ -122,6 +122,10 @@ object Observable    {
     }
   }
 
+  def evalObservable[T](value: => Observable[T]): Observable[T] = new Observable[T] {
+    def unsafeSubscribe(sink: Observer[T]): Cancelable = value.unsafeSubscribe(sink)
+  }
+
   @deprecated("Use Observable.raiseError instead", "0.3.0")
   def failure[T](error: Throwable): Observable[T]    = raiseError(error)
   def raiseError[T](error: Throwable): Observable[T] = new Observable[T] {
