@@ -21,7 +21,7 @@ libraryDependencies += "com.github.cornerman" %%% "colibri" % "0.5.0"
 import colibri._
 ```
 
-Reactive variables with hot distinct observables (a bit like scala-rx):
+Reactive variables with hot distinct observables (a bit like scala.rx):
 ```scala
 libraryDependencies += "com.github.cornerman" %%% "colibri-reactive" % "0.5.0"
 ```
@@ -146,9 +146,7 @@ You can convert any `Source` into an `Observable` with `Observable.lift(source)`
 
 ## Reactive variables
 
-The module `colibri-reactive` exposes reactive variables. This is hot, distinct observables that always have a value. These reactive variables are meant for managing state - opposed to managing events which is a perfect fit for lazy `Observable` in the core `colibri` library.
-
-This module behaves very similar to scala-rx - just built on top of colibri Observables for seamless integration and powerful operators. It is not entirely glitch-free because invalid state can appear in operators like map or foreach, but you always have a consistent state in `now()` and it reduces the number of intermediate triggers or glitches. You can become completely glitch-free by converting back to observable and using `dropSyncGlitches` which will introduce an async boundary (micro-task).
+The module `colibri-reactive` exposes reactive variables. This is hot, distinct, glitch-free observables that always have a value. These reactive variables are meant for managing state - opposed to managing events which is a perfect fit for lazy `Observable` in the core `colibri` library. This module behaves very similar to scala.rx.
 
 Example:
 
@@ -166,22 +164,33 @@ val rx = Rx {
 }
 
 rx.foreach(println(_))
+rx.toObservable
+variable.toObserver
 
 println(variable.now()) // 1
 println(variable2.now()) // "Test"
 println(rx.now()) // "1 - Test"
 
-variable.set(2)
+variable() = 2
 
 println(variable.now()) // 2
 println(variable2.now()) // "Test"
 println(rx.now()) // "2 - Test"
 
-variable2.set("Foo")
+variable2() = "Foo"
 
 println(variable.now()) // 2
 println(variable2.now()) // "Foo"
 println(rx.now()) // "2 - Foo"
+
+RxWriter.update(
+    variable1 -> 100,
+    variable2 -> "Success"
+)
+
+println(variable.now()) // 100
+println(variable2.now()) // "Success"
+println(rx.now()) // "100 - Success"
 
 ```
 

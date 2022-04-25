@@ -240,6 +240,11 @@ object Cancelable {
       ()
     }
 
+    def unsafeAddLater(subscription: () => Cancelable): Unit = if (buffer != null) {
+      buffer.push(subscription)
+      ()
+    }
+
     def unsafeFreeze(): Unit = {
       isFrozen = true
     }

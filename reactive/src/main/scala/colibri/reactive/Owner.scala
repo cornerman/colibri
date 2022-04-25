@@ -2,6 +2,8 @@ package colibri.reactive
 
 import colibri._
 
+import scala.scalajs.js
+
 @annotation.implicitNotFound(
   "No implicit Owner is available here! Wrap inside `Owned { <code> }`, or provide an implicit `Owner`, or `import Owner.unsafeImplicits._` (dangerous).",
 )
@@ -9,32 +11,26 @@ trait Owner {
   def cancelable: Cancelable
   def unsafeSubscribe(): Cancelable
   def unsafeOwn(subscription: () => Cancelable): Unit
+  def unsafeOwnLater(subscription: () => Cancelable): Unit
 }
 object Owner extends OwnerPlatform {
   def unsafeHotRef(): Owner = new Owner {
     val refCountBuilder = Cancelable.refCountBuilder()
-    var initialRef      = refCountBuilder.ref()
 
     def cancelable: Cancelable = refCountBuilder
 
-    def unsafeSubscribe(): Cancelable = if (initialRef == null) {
-      refCountBuilder.ref()
-    } else {
-      val result = initialRef
-      initialRef = null
-      result
-    }
+    def unsafeSubscribe(): Cancelable = refCountBuilder.ref()
 
     def unsafeOwn(subscription: () => Cancelable): Unit = refCountBuilder.unsafeAdd(subscription)
+
+    def unsafeOwnLater(subscription: () => Cancelable): Unit = refCountBuilder.unsafeAddLater(subscription)
   }
 
   object unsafeGlobal extends Owner {
-    def cancelable: Cancelable                          = Cancelable.empty
-    def unsafeSubscribe(): Cancelable                   = Cancelable.empty
-    def unsafeOwn(subscription: () => Cancelable): Unit = {
-      subscription()
-      ()
-    }
+    def cancelable: Cancelable                               = Cancelable.empty
+    def unsafeSubscribe(): Cancelable                        = Cancelable.empty
+    def unsafeOwn(subscription: () => Cancelable): Unit      = { val _ = subscription() }
+    def unsafeOwnLater(subscription: () => Cancelable): Unit = ()
   }
 
   object unsafeImplicits {
@@ -46,24 +42,23 @@ object Owner extends OwnerPlatform {
   "No implicit LiveOwner is available here! Wrap inside `Rx { <code> }`, or provide an implicit `LiveOwner`.",
 )
 trait LiveOwner  extends Owner             {
-  def liveObservable: Observable[Any]
+  def unsafeLiveRxArray: js.Array[Rx[Any]]
   def unsafeLive[A](rx: Rx[A]): A
 }
 object LiveOwner extends LiveOwnerPlatform {
-  def unsafeHotRef()(implicit parentOwner: Owner): LiveOwner = new LiveOwner {
+  def unsafeHotRef(): LiveOwner = new LiveOwner {
     val owner: Owner = Owner.unsafeHotRef()
-    parentOwner.unsafeOwn(() => owner.unsafeSubscribe())
 
-    val liveObservableArray             = new scala.scalajs.js.Array[Observable[Any]]()
-    val liveObservable: Observable[Any] = Observable.mergeIterable(liveObservableArray)
+    val unsafeLiveRxArray = new js.Array[Rx[Any]]()
 
     def unsafeLive[A](rx: Rx[A]): A = {
-      liveObservableArray.push(rx.observable)
+      unsafeLiveRxArray.push(rx)
       rx.now()
     }
 
-    def unsafeSubscribe(): Cancelable                   = owner.unsafeSubscribe()
-    def unsafeOwn(subscription: () => Cancelable): Unit = owner.unsafeOwn(subscription)
-    def cancelable: Cancelable                          = owner.cancelable
+    def unsafeSubscribe(): Cancelable                        = owner.unsafeSubscribe()
+    def unsafeOwn(subscription: () => Cancelable): Unit      = owner.unsafeOwn(subscription)
+    def unsafeOwnLater(subscription: () => Cancelable): Unit = owner.unsafeOwnLater(subscription)
+    def cancelable: Cancelable                               = owner.cancelable
   }
 }
