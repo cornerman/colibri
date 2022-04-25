@@ -142,6 +142,8 @@ In order to work with effects inside our Observable, we have defined the followi
 - `RunEffect[F[_]]` can unsafely run an effect `F[_]` asynchronously, potentially starting synchronously until reaching an async boundary.
 - `RunSyncEffect[F[_]]` can unsafely run an effect `F[_]` synchronously.
 
+You can convert any `Source` into an `Observable` with `Observable.lift(source)`. The same for `Sink` and `Observer` with `Observer.lift(sink)`.
+
 ## Reactive variables
 
 The module `colibri-reactive` exposes reactive variables. This is hot, distinct observables that always have a value. These reactive variables are meant for managing state - opposed to managing events which is a perfect fit for lazy `Observable` in the core `colibri` library.
