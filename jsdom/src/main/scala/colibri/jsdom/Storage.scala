@@ -31,7 +31,7 @@ class Storage(storage: dom.Storage) {
     Subject
       .publish[Option[String]]()
       .transformSubject(observer => observer.tap(storageWriter(key)))(observable =>
-        observable.merge(eventListener).prependDelay(Option(storage.getItem(key))).distinctOnEquals.replayLatest.refCount,
+        observable.merge(eventListener).prependEval(Option(storage.getItem(key))).distinct.replayLatest.refCount,
       )
   }
 

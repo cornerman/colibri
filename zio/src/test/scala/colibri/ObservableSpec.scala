@@ -1,6 +1,7 @@
 package colibri
 
 import zio._
+// import zio.stream.ZStream
 import colibri.ext.zio._
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.flatspec.AsyncFlatSpec
@@ -60,5 +61,24 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
 
     received shouldBe List()
     errors shouldBe 0
+  }
+
+  it should "lift" in {
+    var received = List.empty[Int]
+    var errors   = 0
+
+    val scan   = zio.stream.Stream(1, 2, 3, 4, 5).scan(0)(_ + _)
+    val stream = Observable.lift(scan)
+
+    val cancelable = stream.unsafeSubscribe(
+      Observer.create[Int](
+        received ::= _,
+        _ => errors += 1,
+      ),
+    )
+
+    received shouldBe List(15, 10, 6, 3, 1, 0)
+    errors shouldBe 0
+    cancelable.isEmpty() shouldBe true
   }
 }

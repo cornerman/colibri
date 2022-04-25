@@ -29,9 +29,9 @@ object Cancelable {
   }
 
   trait Setter extends Cancelable {
-    def add(subscription: () => Cancelable): Unit
-    def addExisting(subscription: Cancelable): Unit
-    def freeze(): Unit
+    def unsafeAdd(subscription: () => Cancelable): Unit
+    def unsafeAddExisting(subscription: Cancelable): Unit
+    def unsafeFreeze(): Unit
   }
 
   class Builder extends Setter {
@@ -40,17 +40,17 @@ object Cancelable {
 
     def isEmpty() = buffer == null || isFrozen && buffer.forall(_.isEmpty())
 
-    def addExisting(subscription: Cancelable): Unit =
+    def unsafeAddExisting(subscription: Cancelable): Unit =
       if (buffer == null) subscription.unsafeCancel()
-      else add(() => subscription)
+      else unsafeAdd(() => subscription)
 
-    def add(subscription: () => Cancelable): Unit = if (buffer != null) {
+    def unsafeAdd(subscription: () => Cancelable): Unit = if (buffer != null) {
       val cancelable = subscription()
       buffer.push(cancelable)
       ()
     }
 
-    def freeze(): Unit = {
+    def unsafeFreeze(): Unit = {
       isFrozen = true
     }
 
@@ -67,11 +67,11 @@ object Cancelable {
 
     def isEmpty() = current == null || isFrozen && current.isEmpty()
 
-    def addExisting(subscription: Cancelable): Unit =
+    def unsafeAddExisting(subscription: Cancelable): Unit =
       if (current == null) subscription.unsafeCancel()
-      else add(() => subscription)
+      else unsafeAdd(() => subscription)
 
-    def add(subscription: () => Cancelable): Unit = if (current != null) {
+    def unsafeAdd(subscription: () => Cancelable): Unit = if (current != null) {
       current.unsafeCancel()
 
       var isCancel = false
@@ -84,7 +84,7 @@ object Cancelable {
       else current = cancelable
     }
 
-    def freeze(): Unit = {
+    def unsafeFreeze(): Unit = {
       isFrozen = true
     }
 
@@ -109,22 +109,22 @@ object Cancelable {
         val variable       = Cancelable.variable()
         latest = variable
         subscriptions.splice(0, deleteCount = 1)
-        variable.add(nextCancelable)
-        variable.freeze()
+        variable.unsafeAdd(nextCancelable)
+        variable.unsafeFreeze()
         ()
       }
     }
 
-    def freeze(): Unit = {
+    def unsafeFreeze(): Unit = {
       isFrozen = true
     }
 
-    def add(subscription: () => Cancelable): Unit = if (subscriptions != null) {
+    def unsafeAdd(subscription: () => Cancelable): Unit = if (subscriptions != null) {
       if (latest == null) {
         val variable = Cancelable.variable()
         latest = variable
-        variable.add(subscription)
-        variable.freeze()
+        variable.unsafeAdd(subscription)
+        variable.unsafeFreeze()
       } else {
         subscriptions.push(subscription)
         ()
@@ -152,14 +152,14 @@ object Cancelable {
       latest = null
     }
 
-    def add(subscription: () => Cancelable): Unit = if (latest == null) {
+    def unsafeAdd(subscription: () => Cancelable): Unit = if (latest == null) {
       val variable = Cancelable.variable()
       latest = variable
-      variable.add(subscription)
-      variable.freeze()
+      variable.unsafeAdd(subscription)
+      variable.unsafeFreeze()
     }
 
-    def freeze(): Unit = {
+    def unsafeFreeze(): Unit = {
       isFrozen = true
     }
 
@@ -186,16 +186,16 @@ object Cancelable {
         currentCancelable = subscription()
       }
 
-      Cancelable({ () =>
+      Cancelable { () =>
         counter -= 1
         if (counter == 0) {
           currentCancelable.unsafeCancel()
           currentCancelable = null
         }
-      })
+      }
     }
 
-    def freeze(): Unit = {
+    def unsafeFreeze(): Unit = {
       isFrozen = true
     }
 
@@ -208,14 +208,74 @@ object Cancelable {
     }
   }
 
+  class RefCountBuilder extends Cancelable {
+    private var isFrozen                                 = false
+    private var counter                                  = 0
+    private var buffer                                   = new js.Array[() => Cancelable]()
+    private var currentCancelables: js.Array[Cancelable] = null
+
+    def isEmpty() = buffer == null || isFrozen && (currentCancelables == null || currentCancelables.forall(_.isEmpty()))
+
+    def ref(): Cancelable = if (counter == -1) Cancelable.empty
+    else {
+      counter += 1
+      if (counter == 1) {
+        currentCancelables = buffer.map(_())
+      }
+
+      Cancelable { () =>
+        counter -= 1
+        if (counter == 0) {
+          currentCancelables.foreach(_.unsafeCancel())
+          currentCancelables = null
+        }
+      }
+    }
+
+    def unsafeAdd(subscription: () => Cancelable): Unit = if (buffer != null) {
+      buffer.push(subscription)
+      if (currentCancelables != null) {
+        currentCancelables.push(subscription())
+      }
+      ()
+    }
+
+    def unsafeFreeze(): Unit = {
+      isFrozen = true
+    }
+
+    def unsafeCancel(): Unit = {
+      counter = -1
+      buffer = null
+      if (currentCancelables != null) {
+        currentCancelables.foreach(_.unsafeCancel())
+        currentCancelables = null
+      }
+    }
+  }
+
   object Empty extends Cancelable {
     @inline def isEmpty()            = true
     @inline def unsafeCancel(): Unit = ()
   }
 
-  @inline def empty = Empty
+  @inline def empty: Cancelable = Empty
 
   def apply(f: () => Unit): Cancelable = withIsEmpty(false)(f)
+
+  def checkIsEmpty(empty: => Boolean)(f: () => Unit): Cancelable = new Cancelable {
+    private var isDone = false
+
+    def isEmpty() =
+      if (isDone) true
+      else if (empty) {
+        isDone = true
+        f()
+        true
+      } else false
+
+    def unsafeCancel() = ()
+  }
 
   def ignoreIsEmptyWrap(cancelable: Cancelable): Cancelable = ignoreIsEmpty(cancelable.unsafeCancel)
   def ignoreIsEmpty(f: () => Unit): Cancelable              = withIsEmpty(true)(f)
@@ -252,4 +312,6 @@ object Cancelable {
   @inline def singleOrDrop(): SingleOrDrop = new SingleOrDrop
 
   @inline def refCount(subscription: () => Cancelable): RefCount = new RefCount(subscription)
+
+  @inline def refCountBuilder(): RefCountBuilder = new RefCountBuilder
 }

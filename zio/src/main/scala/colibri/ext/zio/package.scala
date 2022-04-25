@@ -62,7 +62,7 @@ private final class SourceZIOWithRuntime[Env](runtime: Runtime[Env]) extends Sou
         .foreach(value => UIO(sink.unsafeOnNext(value))),
     )
 
-    Cancelable { () =>
+    Cancelable.withIsEmpty(canceler.isCompleted) { () =>
       canceler.cancel()
       ()
     }

@@ -27,14 +27,18 @@ inThisBuild(
 )
 
 lazy val commonSettings = Seq(
-  crossScalaVersions := Seq("2.12.15", "2.13.8", "3.1.1"),
+  crossScalaVersions := Seq("2.12.15", "2.13.8", "3.1.2"),
   scalaVersion       := "2.13.8",
   libraryDependencies ++= (CrossVersion.partialVersion(scalaVersion.value) match {
     case Some((3, _)) => Seq.empty
-    case _            => Seq(compilerPlugin("org.typelevel" % "kind-projector" % "0.13.2" cross CrossVersion.full))
+    case _            =>
+      Seq(
+        compilerPlugin("org.typelevel" % "kind-projector" % "0.13.2" cross CrossVersion.full),
+        "org.scala-lang" % "scala-reflect" % scalaVersion.value % Provided,
+      )
   }),
   libraryDependencies ++= Seq(
-    "org.scalatest" %%% "scalatest" % "3.2.11" % Test,
+    "org.scalatest" %%% "scalatest" % "3.2.12" % Test,
   ),
   /* scalacOptions --= Seq("-Xfatal-warnings"), // overwrite option from https://github.com/DavidGregory084/sbt-tpolecat */
 )
@@ -46,9 +50,19 @@ lazy val colibri = project
   .settings(
     name := "colibri",
     libraryDependencies ++= Seq(
-      "org.typelevel"        %%% "cats-core"   % "2.7.0",
-      "org.typelevel"        %%% "cats-effect" % "3.3.10",
-      "com.github.cornerman" %%% "sloth-types" % "0.6.4",
+      "org.typelevel" %%% "cats-core"   % "2.7.0",
+      "org.typelevel" %%% "cats-effect" % "3.3.11",
+    ),
+  )
+
+lazy val reactive = project
+  .enablePlugins(ScalaJSPlugin)
+  .dependsOn(colibri)
+  .in(file("reactive"))
+  .settings(commonSettings)
+  .settings(
+    name := "colibri-reactive",
+    libraryDependencies ++= Seq(
     ),
   )
 
@@ -73,7 +87,7 @@ lazy val jsdomTests = project
     publish / skip         := true,
     name                   := "colibri-jsdom-tests",
     Test / requireJsDomEnv := true,
-    installJsdom / version := "13.2.0",
+    installJsdom / version := "19.0.0",
   )
 
 lazy val router = project
@@ -121,8 +135,8 @@ lazy val zio = project
     name := "colibri-zio",
     libraryDependencies ++= Seq(
       "io.github.cquiroz" %%% "scala-java-time" % "2.3.0",
-      "dev.zio"           %%% "zio"             % "1.0.13",
-      "dev.zio"           %%% "zio-streams"     % "1.0.13",
+      "dev.zio"           %%% "zio"             % "1.0.14",
+      "dev.zio"           %%% "zio-streams"     % "1.0.14",
     ),
   )
 
