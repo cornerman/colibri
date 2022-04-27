@@ -344,8 +344,7 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
     rx.now() shouldBe 7
     liveCounter shouldBe 4
     liveCounter2 shouldBe 5
-  }
-    .unsafeRunSync()
+  }.unsafeRunSync()
 
   it should "work with now" in Owned {
     var liveCounter = 0
@@ -439,6 +438,75 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
 
     rx.now() shouldBe "2, 100, 5"
     liveCounter shouldBe 4
+
+  }.unsafeRunSync()
+
+  it should "work with switchMap" in Owned {
+    var received1 = List.empty[Int]
+
+    val variable1 = Var(1)
+    val variable2 = Var(2)
+    val variable3 = Var(3)
+
+    val stream1 = variable1.switchMap {
+      case 0 | 1 => variable2
+      case _     => variable3
+    }
+
+    stream1.foreach(received1 ::= _)
+
+    received1 shouldBe List(2)
+    stream1.now() shouldBe 2
+
+    variable1() = 0
+
+    received1 shouldBe List(2)
+    stream1.now() shouldBe 2
+
+    variable2() = 10
+
+    received1 shouldBe List(10, 2)
+    stream1.now() shouldBe 10
+
+    variable2() = 100
+
+    received1 shouldBe List(100, 10, 2)
+    stream1.now() shouldBe 100
+
+    variable3() = 30
+
+    received1 shouldBe List(100, 10, 2)
+    stream1.now() shouldBe 100
+
+    variable1() = 2
+
+    received1 shouldBe List(30, 100, 10, 2)
+    stream1.now() shouldBe 30
+
+    variable2() = 1000
+
+    received1 shouldBe List(30, 100, 10, 2)
+    stream1.now() shouldBe 30
+
+    variable3() = 300
+
+    received1 shouldBe List(300, 30, 100, 10, 2)
+    stream1.now() shouldBe 300
+
+    variable3() = 300
+
+    received1 shouldBe List(300, 30, 100, 10, 2)
+    stream1.now() shouldBe 300
+
+    variable1() = 2
+
+    received1 shouldBe List(300, 30, 100, 10, 2)
+    stream1.now() shouldBe 300
+
+    variable1() = 4
+
+    received1 shouldBe List(300, 30, 100, 10, 2)
+    stream1.now() shouldBe 300
 
   }.unsafeRunSync()
 
@@ -759,72 +827,99 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
 
   }.unsafeRunSync()
 
-  it should "work with switchMap" in Owned {
-    var received1 = List.empty[Int]
+  it should "work without glitches in short cycle" in Owned {
+    var liveCounter = 0
+    var mapped1     = List.empty[Int]
+    var mapped2     = List.empty[Int]
+    var received1   = List.empty[Boolean]
+    var received2   = List.empty[Boolean]
+    var receivedRx  = List.empty[String]
 
-    val variable1 = Var(1)
-    val variable2 = Var(2)
-    val variable3 = Var(3)
+    val variable = Var(1)
 
-    val stream1 = variable1.switchMap {
-      case 0 | 1 => variable2
-      case _     => variable3
-    }
+    val stream1 = variable.map { x => mapped1 ::= x; x % 2 == 0 }
+    val stream2 = variable.map { x => mapped2 ::= x; x % 2 == 0 }
 
     stream1.foreach(received1 ::= _)
 
-    received1 shouldBe List(2)
-    stream1.now() shouldBe 2
+    var didSet = false
+    stream2.trigger(
+      RxWriter.createTx(
+        { implicit tx => res =>
+          if (!res) {
+            didSet = true
+            variable.setValue(0)
+          }
+        },
+        { implicit tx => () =>
+          if (didSet) {
+            didSet = false
+            variable.fire()
+          }
+        },
+      ),
+    )
 
-    variable1() = 0
+    stream2.foreach(received2 ::= _)
 
-    received1 shouldBe List(2)
-    stream1.now() shouldBe 2
+    mapped1 shouldBe List(0, 1)
+    mapped2 shouldBe List(0, 1)
+    received1 shouldBe List(true, false)
+    received2 shouldBe List(true)
 
-    variable2() = 10
+    val rx = Rx {
+      liveCounter += 1
+      s"${stream1()}:${stream2()}"
+    }
 
-    received1 shouldBe List(10, 2)
-    stream1.now() shouldBe 10
+    rx.foreach(receivedRx ::= _)
 
-    variable2() = 100
+    mapped1 shouldBe List(0, 1)
+    mapped2 shouldBe List(0, 1)
+    received1 shouldBe List(true, false)
+    received2 shouldBe List(true)
+    receivedRx shouldBe List("true:true")
+    rx.now() shouldBe "true:true"
+    liveCounter shouldBe 1
 
-    received1 shouldBe List(100, 10, 2)
-    stream1.now() shouldBe 100
+    variable() = 2
 
-    variable3() = 30
+    mapped1 shouldBe List(2, 0, 1)
+    mapped2 shouldBe List(2, 0, 1)
+    received1 shouldBe List(true, false)
+    received2 shouldBe List(true)
+    receivedRx shouldBe List("true:true")
+    rx.now() shouldBe "true:true"
+    liveCounter shouldBe 1
 
-    received1 shouldBe List(100, 10, 2)
-    stream1.now() shouldBe 100
+    variable() = 2
 
-    variable1() = 2
+    mapped1 shouldBe List(2, 0, 1)
+    mapped2 shouldBe List(2, 0, 1)
+    received1 shouldBe List(true, false)
+    received2 shouldBe List(true)
+    receivedRx shouldBe List("true:true")
+    rx.now() shouldBe "true:true"
+    liveCounter shouldBe 1
 
-    received1 shouldBe List(30, 100, 10, 2)
-    stream1.now() shouldBe 30
+    variable() = 4
 
-    variable2() = 1000
+    mapped1 shouldBe List(4, 2, 0, 1)
+    mapped2 shouldBe List(4, 2, 0, 1)
+    received1 shouldBe List(true, false)
+    received2 shouldBe List(true)
+    receivedRx shouldBe List("true:true")
+    rx.now() shouldBe "true:true"
+    liveCounter shouldBe 1
 
-    received1 shouldBe List(30, 100, 10, 2)
-    stream1.now() shouldBe 30
+    variable() = 5
 
-    variable3() = 300
-
-    received1 shouldBe List(300, 30, 100, 10, 2)
-    stream1.now() shouldBe 300
-
-    variable3() = 300
-
-    received1 shouldBe List(300, 30, 100, 10, 2)
-    stream1.now() shouldBe 300
-
-    variable1() = 2
-
-    received1 shouldBe List(300, 30, 100, 10, 2)
-    stream1.now() shouldBe 300
-
-    variable1() = 4
-
-    received1 shouldBe List(300, 30, 100, 10, 2)
-    stream1.now() shouldBe 300
-
+    mapped1 shouldBe List(0, 5, 4, 2, 0, 1)
+    mapped2 shouldBe List(0, 5, 4, 2, 0, 1)
+    received1 shouldBe List(true, false)
+    received2 shouldBe List(true)
+    receivedRx shouldBe List("true:true")
+    rx.now() shouldBe "true:true"
+    liveCounter shouldBe 1
   }.unsafeRunSync()
 }

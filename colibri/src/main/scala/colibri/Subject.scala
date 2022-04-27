@@ -81,15 +81,17 @@ final class PublishSubject[A] extends Observer[A] with Observable[A] {
   def hasSubscribers: Boolean = subscribers.nonEmpty
 
   def unsafeOnNext(value: A): Unit = {
+    val running = isRunning
     isRunning = true
     subscribers.foreach(_.unsafeOnNext(value))
-    isRunning = false
+    isRunning = running
   }
 
   def unsafeOnError(error: Throwable): Unit = {
+    val running = isRunning
     isRunning = true
     subscribers.foreach(_.unsafeOnError(error))
-    isRunning = false
+    isRunning = running
   }
 
   def unsafeSubscribe(sink: Observer[A]): Cancelable = {
