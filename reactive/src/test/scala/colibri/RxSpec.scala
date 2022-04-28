@@ -18,7 +18,7 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
     var received1 = List.empty[Int]
     var received2 = List.empty[Int]
 
-    implicit val owner = Owner.unsafeHotRef()
+    implicit val owner = Owner.unsafeRef()
     val subscription   = owner.unsafeSubscribe()
 
     val variable = Var(1)
@@ -266,6 +266,46 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
     received1 shouldBe List(false, true, false)
   }.unsafeRunSync()
 
+  it should "be distinct in short cycle" in Owned {
+    var mapped    = List.empty[Int]
+    var received1 = List.empty[Boolean]
+
+    val variable = Var(1)
+    val stream   = variable.map { x => mapped ::= x; x % 2 == 0 }
+
+    stream.trigger(RxWriter { res =>
+      if (!res) variable.setValue(0) else Fire.empty
+    })
+
+    mapped shouldBe List(0, 1)
+    received1 shouldBe List.empty
+
+    stream.foreach(received1 ::= _)
+
+    mapped shouldBe List(0, 1)
+    received1 shouldBe List(true)
+
+    variable() = 2
+
+    mapped shouldBe List(2, 0, 1)
+    received1 shouldBe List(true)
+
+    variable() = 2
+
+    mapped shouldBe List(2, 0, 1)
+    received1 shouldBe List(true)
+
+    variable() = 4
+
+    mapped shouldBe List(4, 2, 0, 1)
+    received1 shouldBe List(true)
+
+    variable() = 5
+
+    mapped shouldBe List(0, 5, 4, 2, 0, 1)
+    received1 shouldBe List(true)
+  }.unsafeRunSync()
+
   it should "work with multi update" in Owned {
     var liveCounter = 0
     var received1   = List.empty[String]
@@ -280,12 +320,12 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
       variable1() + variable2()
     }
 
-    liveCounter = 1
+    liveCounter shouldBe 1
     received1 shouldBe List.empty
 
     stream.foreach(received1 ::= _)
 
-    liveCounter = 1
+    liveCounter shouldBe 1
     received1 shouldBe List("hallo2")
 
     RxWriter.update(
@@ -293,17 +333,15 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
       variable2 -> 15,
     )
 
-    liveCounter = 2
+    liveCounter shouldBe 2
     received1 shouldBe List("test15", "hallo2")
 
-    println("PRE")
     RxWriter.update(
       variable1 -> "foo",
       variable1 -> "bar",
     )
-    println("POST")
 
-    liveCounter = 3
+    liveCounter shouldBe 3
     received1 shouldBe List("bar15", "test15", "hallo2")
   }.unsafeRunSync()
 
@@ -667,7 +705,7 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
     val variable1 = Var(1)
     val variable2 = Var(2)
 
-    val stream1 = variable1.filter(_ > 0).map(_.getOrElse(0)).map { x => mapped1 ::= x; x % 2 == 0 }
+    val stream1 = variable1.filter(_ > 0)(0).map { x => mapped1 ::= x; x % 2 == 0 }
     val stream2 = variable1.map { x => mapped2 ::= x; x % 2 == 0 }
     val stream3 = variable2.map { x => mapped3 ::= x; x % 3 }.map(identity).map(identity).map(identity)
 
@@ -844,7 +882,7 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
 
     stream1.foreach(received1 ::= _)
 
-    stream2.trigger(RxWriter.create { res =>
+    stream2.trigger(RxWriter { res =>
       if (!res) variable.setValue(0) else Fire.empty
     })
 

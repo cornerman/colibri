@@ -14,7 +14,8 @@ trait Owner {
   def unsafeOwnLater(subscription: () => Cancelable): Unit
 }
 object Owner extends OwnerPlatform {
-  def unsafeHotRef(): Owner = new Owner {
+
+  def unsafeRef(): Owner = new Owner {
     val refCountBuilder = Cancelable.refCountBuilder()
 
     def cancelable: Cancelable = refCountBuilder
@@ -24,6 +25,13 @@ object Owner extends OwnerPlatform {
     def unsafeOwn(subscription: () => Cancelable): Unit = refCountBuilder.unsafeAdd(subscription)
 
     def unsafeOwnLater(subscription: () => Cancelable): Unit = refCountBuilder.unsafeAddLater(subscription)
+  }
+
+  def unsafeHotCancelable(f: Owner => Unit): Cancelable = {
+    val owner = unsafeRef()
+    val _     = owner.unsafeSubscribe()
+    f(owner)
+    owner.cancelable
   }
 
   object unsafeGlobal extends Owner {
@@ -46,8 +54,8 @@ trait LiveOwner  extends Owner             {
   def unsafeLive[A](rx: Rx[A]): A
 }
 object LiveOwner extends LiveOwnerPlatform {
-  def unsafeHotRef(): LiveOwner = new LiveOwner {
-    val owner: Owner = Owner.unsafeHotRef()
+  def unsafeRef(): LiveOwner = new LiveOwner {
+    val owner: Owner = Owner.unsafeRef()
 
     val unsafeLiveRxArray = new js.Array[Rx[Any]]()
 
