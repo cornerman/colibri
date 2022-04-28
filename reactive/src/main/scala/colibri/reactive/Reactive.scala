@@ -8,11 +8,6 @@ import scala.scalajs.js
 import scala.concurrent.Future
 import cats.implicits._
 
-trait Tx
-object Tx {
-  def create(): Tx = new Tx {}
-}
-
 trait Rx[+A] { self =>
   def now(): A
   def triggerLater(writer: RxWriter[A])(implicit owner: Owner): Unit
@@ -36,11 +31,8 @@ trait Rx[+A] { self =>
   final def as[B](value: B)(implicit owner: Owner): Rx[B]        = map(_ => value)
   final def asEval[B](value: => B)(implicit owner: Owner): Rx[B] = map(_ => value)
 
-  final def foreachFire(f: () => Unit)(implicit owner: Owner): Unit      = trigger(RxWriter.fire(f))
-  final def foreachFireLater(f: () => Unit)(implicit owner: Owner): Unit = triggerLater(RxWriter.fire(f))
-
-  final def foreach(f: A => Unit)(implicit owner: Owner): Unit      = foreachFire(() => f(now()))
-  final def foreachLater(f: A => Unit)(implicit owner: Owner): Unit = foreachFireLater(() => f(now()))
+  final def foreach(f: A => Unit)(implicit owner: Owner): Unit      = trigger(RxWriter.foreach(f))
+  final def foreachLater(f: A => Unit)(implicit owner: Owner): Unit = triggerLater(RxWriter.foreach(f))
 
   final def switchMap[B](f: A => Rx[B])(implicit owner: Owner): Rx[B] = Rx.function(implicit owner => f(self())())
 
@@ -52,7 +44,7 @@ trait Rx[+A] { self =>
 object Rx extends RxPlatform {
   def function[R](f: LiveOwner => R)(implicit owner: Owner): Rx[R] = {
     val subject = Subject.behavior(())
-    val writer  = RxWriter.fire(() => subject.unsafeOnNext(())).zipFire
+    val writer  = RxWriter.foreach[Any](_ => subject.unsafeOnNext(())).zipFire
 
     val observable = subject.switchMap { _ =>
       implicit val owner: LiveOwner = LiveOwner.unsafeHotRef()
@@ -103,20 +95,17 @@ object Rx extends RxPlatform {
 }
 
 trait RxWriter[-A] { self =>
-  def setValue(value: A)(implicit tx: Tx): Unit
-  def fire()(implicit tx: Tx): Unit
+  def setValue(value: A): Fire
 
   @deprecated("Use variable() = value (that is: variable.update(value)) instead", "0.6.0")
   final def set(value: A): Unit = update(value)
 
   final def update(value: A): Unit = {
-    implicit val tx: Tx = Tx.create()
-    setValue(value)
-    fire()
+    val fire = setValue(value)
+    fire.commit()
   }
 
-  final def contramap[B](f: B => A): RxWriter[B] =
-    RxWriter.createTx(implicit tx => b => self.setValue(f(b)), implicit tx => () => self.fire())
+  final def contramap[B](f: B => A): RxWriter[B] = RxWriter.create(b => self.setValue(f(b)))
 
   final def zipFire: RxWriter[A] = new RxWriterZipFire(self)
 
@@ -125,42 +114,33 @@ trait RxWriter[-A] { self =>
 
 object RxWriter {
   case class Setter[A](writer: RxWriter[A], value: A) {
-    def setValue()(implicit tx: Tx) = writer.setValue(value)
-    def fire()(implicit tx: Tx)     = writer.fire()
+    def setValue() = writer.setValue(value)
   }
   object Setter                                       {
     implicit def tupleToSetter[A](tuple: (RxWriter[A], A)): Setter[A] = Setter(tuple._1, tuple._2)
   }
 
   def update(setters: Setter[_]*): Unit = {
-    implicit val tx: Tx = Tx.create()
-    setters.foreach(_.setValue())
-    setters.foreach(_.fire())
+    val fires = setters.map(_.setValue())
+    fires.foreach(_.commit())
   }
 
-  // TODO implicit functions type and macro like Rx to hide the Tx parameter
-  def createTx[A](onSet: Tx => (A => Unit) = (_: Tx) => (_: A) => (), onFire: Tx => (() => Unit) = _ => () => ()): RxWriter[A] =
-    new RxWriter[A] {
-      def setValue(value: A)(implicit tx: Tx): Unit = onSet(tx)(value)
-      def fire()(implicit tx: Tx): Unit             = onFire(tx)()
-    }
+  def create[A](f: A => Fire): RxWriter[A] = new RxWriter[A] {
+    def setValue(value: A): Fire = f(value)
+  }
 
-  def create[A](onSet: A => Unit = (_: A) => (), onFire: () => Unit = () => ()): RxWriter[A] = createTx[A](_ => onSet, _ => onFire)
-
-  def foreach[A](f: A => Unit): RxWriter[A]           = create(f)
-  def foreachTx[A](f: Tx => (A => Unit)): RxWriter[A] = createTx[A](f)
-  def fire[A](f: () => Unit): RxWriter[A]             = create(onFire = f)
-  def fireTx[A](f: Tx => () => Unit): RxWriter[A]     = createTx(onFire = f)
+  def foreach[A](f: A => Unit): RxWriter[A] = create(a => Fire.onCommit(() => f(a)))
 
   def observer[A](observer: Observer[A]): RxWriter[A] = {
     var lastValue = Option.empty[A]
-    RxWriter.create(
-      value => lastValue = Some(value),
-      { () =>
+    RxWriter.create { value =>
+      lastValue = Some(value)
+
+      Fire.onCommit { () =>
         lastValue.foreach(observer.unsafeOnNext(_))
         lastValue = None
-      },
-    )
+      }
+    }
   }
 
   implicit object sink extends Sink[RxWriter] {
@@ -203,40 +183,38 @@ private final class RxObservable[A](inner: Observable[A])(implicit owner: Owner)
 }
 
 private final class VarSubject[A](seed: A) extends Var[A] {
-  private val transactions = new js.Array[Tx]
-  private var subscribers  = new js.Array[RxWriter[A]]
-  private var isRunning    = false
+  private var subscribers = new js.Array[RxWriter[A]]
+  private var isRunning   = false
 
+  private var openTransactions    = 0
   private var committedCurrent: A = seed
   private var current: A          = seed
 
   def hasSubscribers: Boolean = subscribers.nonEmpty
 
-  def setValue(value: A)(implicit tx: Tx): Unit = {
-    if (transactions.indexOf(tx) == -1) transactions.push(tx)
+  def setValue(value: A): Fire = {
     if (value != current) {
       current = value
-      // committedCurrent = null.asInstanceOf[A]
+      openTransactions += 1
 
       val running = isRunning
       isRunning = true
-      subscribers.foreach(_.setValue(current))
+      val fires   = subscribers.map(_.setValue(current))
       isRunning = running
-    }
-  }
 
-  def fire()(implicit tx: Tx): Unit = {
-    val idx = transactions.indexOf(tx)
-    if (idx != -1) {
-      transactions.splice(idx, 1)
-      if (transactions.isEmpty && committedCurrent != current) {
-        val running = isRunning
-        isRunning = true
-        subscribers.foreach(_.fire())
-        isRunning = running
-        committedCurrent = current
-      }
-    }
+      Fire(
+        { () =>
+          openTransactions -= 1
+          if (openTransactions == 0 && committedCurrent != current) {
+            fires.foreach(_.commit())
+            committedCurrent = current
+          } else {
+            fires.foreach(_.forget())
+          }
+        },
+        { () => fires.foreach(_.forget()) },
+      )
+    } else Fire.empty
   }
 
   def triggerLater(writer: RxWriter[A])(implicit owner: Owner): Unit = {
@@ -254,25 +232,28 @@ private final class VarSubject[A](seed: A) extends Var[A] {
 }
 
 private final class RxWriterZipFire[A](inner: RxWriter[A]) extends RxWriter[A] {
-  private val transactions = new js.Array[Tx]
+  private var openTransactions = 0
 
-  def setValue(value: A)(implicit tx: Tx): Unit = {
-    if (transactions.indexOf(tx) == -1) transactions.push(tx)
-    inner.setValue(value)
-  }
+  def setValue(value: A): Fire = {
+    openTransactions += 1
+    val fire = inner.setValue(value)
 
-  def fire()(implicit tx: Tx): Unit = {
-    val idx = transactions.indexOf(tx)
-    if (idx != -1) {
-      transactions.splice(idx, 1)
-      if (transactions.isEmpty) inner.fire()
-    }
+    Fire(
+      { () =>
+        openTransactions -= 1
+        if (openTransactions == 0) fire.commit()
+        else fire.forget()
+      },
+      { () =>
+        openTransactions -= 1
+        fire.forget()
+      },
+    )
   }
 }
 
 private final class VarCombine[A](innerRead: Rx[A], innerWrite: RxWriter[A]) extends Var[A] {
   def now()                                                          = innerRead.now()
   def triggerLater(writer: RxWriter[A])(implicit owner: Owner): Unit = innerRead.triggerLater(writer)
-  def setValue(value: A)(implicit tx: Tx): Unit                      = innerWrite.setValue(value)
-  def fire()(implicit tx: Tx): Unit                                  = innerWrite.fire()
+  def setValue(value: A): Fire                                       = innerWrite.setValue(value)
 }

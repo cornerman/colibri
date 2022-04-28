@@ -296,10 +296,12 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
     liveCounter = 2
     received1 shouldBe List("test15", "hallo2")
 
+    println("PRE")
     RxWriter.update(
       variable1 -> "foo",
       variable1 -> "bar",
     )
+    println("POST")
 
     liveCounter = 3
     received1 shouldBe List("bar15", "test15", "hallo2")
@@ -842,23 +844,9 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
 
     stream1.foreach(received1 ::= _)
 
-    var didSet = false
-    stream2.trigger(
-      RxWriter.createTx(
-        { implicit tx => res =>
-          if (!res) {
-            didSet = true
-            variable.setValue(0)
-          }
-        },
-        { implicit tx => () =>
-          if (didSet) {
-            didSet = false
-            variable.fire()
-          }
-        },
-      ),
-    )
+    stream2.trigger(RxWriter.create { res =>
+      if (!res) variable.setValue(0) else Fire.empty
+    })
 
     stream2.foreach(received2 ::= _)
 
