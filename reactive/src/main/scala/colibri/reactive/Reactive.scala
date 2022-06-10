@@ -70,6 +70,7 @@ object Rx extends RxPlatform {
   implicit object source extends Source[Rx] {
     def unsafeSubscribe[A](source: Rx[A])(sink: Observer[A]): Cancelable = source.observable.unsafeSubscribe(sink)
   }
+
 }
 
 trait RxWriter[-A] {
@@ -115,6 +116,78 @@ object Var {
   def apply[A](seed: A): Var[A] = new VarSubject(seed)
 
   def combine[A](read: Rx[A], write: RxWriter[A]): Var[A] = new VarCombine(read, write)
+
+  @inline implicit class SeqVarOperations[A](rxvar: Var[Seq[A]]) {
+    def sequence(implicit owner: Owner): Rx[Seq[Var[A]]] = Rx.observableSync(new Observable[Seq[Var[A]]] {
+
+      def unsafeSubscribe(sink: Observer[Seq[Var[A]]]): Cancelable = {
+        rxvar.observable.unsafeSubscribe(
+          Observer.create(
+            { seq =>
+              sink.unsafeOnNext(seq.zipWithIndex.map { case (a, idx) =>
+                val observer   = new Observer[A] {
+                  def unsafeOnNext(value: A): Unit = {
+                    rxvar.set(seq.updated(idx, value))
+                  }
+
+                  def unsafeOnError(error: Throwable): Unit = {
+                    sink.unsafeOnError(error)
+                  }
+                }
+                val observable = new Observable.Value[A] {
+                  def now(): A = a
+
+                  def unsafeSubscribe(sink: Observer[A]): Cancelable = {
+                    sink.unsafeOnNext(a)
+                    Cancelable.empty
+                  }
+
+                }
+                Var.combine(Rx.observable(observable)(seed = a), RxWriter.observer(observer))
+              })
+            },
+            sink.unsafeOnError,
+          ),
+        )
+      }
+    })
+  }
+
+  @inline implicit class OptionVarOperations[A](rxvar: Var[Option[A]]) {
+    def sequence(implicit owner: Owner): Rx[Option[Var[A]]] = Rx.observableSync(new Observable[Option[Var[A]]] {
+
+      def unsafeSubscribe(sink: Observer[Option[Var[A]]]): Cancelable = {
+        rxvar.observable.unsafeSubscribe(
+          Observer.create(
+            { opt =>
+              sink.unsafeOnNext(opt.map { case a =>
+                val observer   = new Observer[A] {
+                  def unsafeOnNext(value: A): Unit = {
+                    rxvar.set(Some(value))
+                  }
+
+                  def unsafeOnError(error: Throwable): Unit = {
+                    sink.unsafeOnError(error)
+                  }
+                }
+                val observable = new Observable.Value[A] {
+                  def now(): A = a
+
+                  def unsafeSubscribe(sink: Observer[A]): Cancelable = {
+                    sink.unsafeOnNext(a)
+                    Cancelable.empty
+                  }
+
+                }
+                Var.combine(Rx.observable(observable)(seed = a), RxWriter.observer(observer))
+              })
+            },
+            sink.unsafeOnError,
+          ),
+        )
+      }
+    })
+  }
 }
 
 private final class RxConst[A](value: A) extends Rx[A] {
