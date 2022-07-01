@@ -3,16 +3,16 @@ package colibri.ext
 import colibri._
 import colibri.effect._
 
-import _root_.zio.stream.{Stream, UStream, ZSink, ZStream}
-import _root_.zio.{Runtime, UIO, ZEnv, RIO}
+import _root_.zio.stream.{ZSink, ZStream}
+import _root_.zio.{Runtime, ZIO, RIO, Unsafe}
 
 trait ZioLowPrio {
   type RSink[-Env, A]    = ZSink[Env, Throwable, A, A, Unit]
   type RStream[-Env, +A] = ZStream[Env, Throwable, A]
 
-  implicit val zioTaskRunEffect: RunEffect[RIO[ZEnv, *]] = new RunEffectZIOWithRuntime(Runtime.default)
-  implicit val zioSinkSink: Sink[RSink[ZEnv, *]]         = new SinkZIOWithRuntime(Runtime.default)
-  implicit val zioStreamSource: Source[RStream[ZEnv, *]] = new SourceZIOWithRuntime(Runtime.default)
+  implicit val zioTaskRunEffect: RunEffect[RIO[Any, *]] = new RunEffectZIOWithRuntime(Runtime.default)
+  implicit val zioSinkSink: Sink[RSink[Any, *]]         = new SinkZIOWithRuntime(Runtime.default)
+  implicit val zioStreamSource: Source[RStream[Any, *]] = new SourceZIOWithRuntime(Runtime.default)
 }
 
 package object zio extends ZioLowPrio {
@@ -25,8 +25,8 @@ package object zio extends ZioLowPrio {
 
   implicit object zioSinkLiftSink extends LiftSink[RSink[Any, *]] {
     def lift[G[_]: Sink, A](sink: G[A]): RSink[Any, A] = ZSink
-      .foreach[Any, Throwable, A](elem => UIO(Sink[G].unsafeOnNext(sink)(elem)))
-      .foldM(error => ZSink.fromEffect(UIO(Sink[G].unsafeOnError(sink)(error))), _ => ZSink.drain)
+      .foreach[Any, Throwable, A](elem => ZIO.succeed(Sink[G].unsafeOnNext(sink)(elem)))
+      .foldSink(error => ZSink.fromZIO(ZIO.succeed(Sink[G].unsafeOnError(sink)(error))), _ => ZSink.drain)
   }
 
   // Source
@@ -36,30 +36,36 @@ package object zio extends ZioLowPrio {
   )
 
   implicit object zioStreamLiftSource extends LiftSource[RStream[Any, *]] {
-    override def lift[G[_]: Source, A](source: G[A]): RStream[Any, A] = Stream.effectAsyncInterrupt { emit =>
+    override def lift[G[_]: Source, A](source: G[A]): RStream[Any, A] = ZStream.fromZIO(ZIO.asyncInterrupt { emit =>
       val cancelable = Source[G].unsafeSubscribe(source)(new Observer[A] {
-        override def unsafeOnNext(value: A): Unit          = { emit.single(value); () }
-        override def unsafeOnError(error: Throwable): Unit = { emit.fail(error); () }
+        override def unsafeOnNext(value: A): Unit          = emit(ZIO.succeed(value))
+        override def unsafeOnError(error: Throwable): Unit = emit(ZIO.fail(error))
       })
-      Left(UIO(cancelable.unsafeCancel()))
-    }
+      Left(ZIO.succeed(cancelable.unsafeCancel()))
+    })
   }
 }
 
 private final class SinkZIOWithRuntime[Env](runtime: Runtime[Env]) extends Sink[zio.RSink[Env, *]] {
-  override def unsafeOnNext[A](sink: zio.RSink[Env, A])(value: A): Unit =
-    runtime.unsafeRun(UStream(value).run(sink))
+  override def unsafeOnNext[A](sink: zio.RSink[Env, A])(value: A): Unit = {
+    Unsafe.unsafeCompat(implicit u => runtime.unsafe.run(ZStream.succeed(value).run(sink)))
+    ()
+  }
 
-  override def unsafeOnError[A](sink: zio.RSink[Env, A])(error: Throwable): Unit =
-    runtime.unsafeRun(ZStream.fail(error).run(sink))
+  override def unsafeOnError[A](sink: zio.RSink[Env, A])(error: Throwable): Unit = {
+    Unsafe.unsafeCompat(implicit u => runtime.unsafe.run(ZStream.fail(error).run(sink)))
+    ()
+  }
 }
 
 private final class SourceZIOWithRuntime[Env](runtime: Runtime[Env]) extends Source[zio.RStream[Env, *]] {
   override def unsafeSubscribe[A](source: zio.RStream[Env, A])(sink: Observer[A]): Cancelable = {
-    val canceler = runtime.unsafeRunToFuture(
-      source
-        .onError(cause => UIO(sink.unsafeOnError(cause.squash)))
-        .foreach(value => UIO(sink.unsafeOnNext(value))),
+    val canceler = Unsafe.unsafeCompat(implicit u =>
+      runtime.unsafe.runToFuture(
+        source
+          .onError(cause => ZIO.succeed(sink.unsafeOnError(cause.squash)))
+          .foreach(value => ZIO.succeed(sink.unsafeOnNext(value))),
+      ),
     )
 
     Cancelable.withIsEmpty(canceler.isCompleted) { () =>
@@ -71,10 +77,10 @@ private final class SourceZIOWithRuntime[Env](runtime: Runtime[Env]) extends Sou
 
 private final class RunEffectZIOWithRuntime[Env](runtime: Runtime[Env]) extends RunEffect[RIO[Env, *]] {
   override def unsafeRunAsyncCancelable[T](effect: RIO[Env, T])(cb: Either[Throwable, T] => Unit): Cancelable =
-    unsafeRunSyncOrAsyncCancelable(RIO.yieldNow *> effect)(cb)
+    unsafeRunSyncOrAsyncCancelable(ZIO.yieldNow *> effect)(cb)
 
   override def unsafeRunSyncOrAsyncCancelable[T](effect: RIO[Env, T])(cb: Either[Throwable, T] => Unit): Cancelable = {
-    val cancelableFuture = runtime.unsafeRunToFuture(effect)
+    val cancelableFuture = Unsafe.unsafeCompat(implicit u => runtime.unsafe.runToFuture(effect))
     RunEffectExecution.handleFutureCancelable(cancelableFuture, cancelableFuture.cancel)(cb)
   }
 }
