@@ -434,4 +434,22 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
     rx.now() shouldBe "false:false"
     liveCounter shouldBe 5
   }.unsafeRunSync()
+
+  it should "collect" in Owned {
+    val variable        = Var[Option[Int]](Some(1))
+    val collected       = variable.collect { case Some(x) => x }(0)
+    var collectedStates = Vector.empty[Int]
+
+    collected.foreach(collectedStates :+= _)
+
+    collectedStates shouldBe Vector(1)
+
+    variable.set(None)
+    collectedStates shouldBe Vector(1)
+
+    variable.set(Some(17))
+    collectedStates shouldBe Vector(1, 17)
+
+  }.unsafeRunSync()
+
 }
