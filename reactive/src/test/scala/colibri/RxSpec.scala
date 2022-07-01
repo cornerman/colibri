@@ -469,4 +469,64 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
 
   }.unsafeRunSync()
 
+  it should "sequence on Var[Seq[T]]" in Owned {
+    {
+      // inner.set on seed value
+      val variable                    = Var[Seq[Int]](Seq(1))
+      val sequence: Rx[Seq[Var[Int]]] = variable.sequence
+
+      variable.now() shouldBe Seq(1)
+      sequence.now().map(_.now()) shouldBe Seq(1)
+
+      sequence.now()(0).set(2)
+      variable.now() shouldBe Seq(2)
+    }
+
+    {
+      // inner.set on value after seed
+      val variable                    = Var[Seq[Int]](Seq.empty)
+      val sequence: Rx[Seq[Var[Int]]] = variable.sequence
+
+      variable.now() shouldBe Seq.empty
+      sequence.now().map(_.now()) shouldBe Seq.empty
+
+      variable.set(Seq(1))
+      sequence.now().map(_.now()) shouldBe Seq(1)
+
+      sequence.now()(0).set(2)
+      variable.now() shouldBe Seq(2)
+    }
+  }.unsafeRunSync()
+
+  it should "sequence on Var[Option[T]]" in Owned {
+    {
+      // inner.set on seed value
+      val variable                       = Var[Option[Int]](Some(1))
+      val sequence: Rx[Option[Var[Int]]] = variable.sequence
+
+      variable.now() shouldBe Some(1)
+      sequence.now().map(_.now()) shouldBe Some(1)
+
+      sequence.now().get.set(2)
+      variable.now() shouldBe Some(2)
+    }
+
+    {
+      // inner.set on value after seed
+      val variable                       = Var[Option[Int]](Option.empty)
+      val sequence: Rx[Option[Var[Int]]] = variable.sequence
+
+      variable.now() shouldBe None
+      sequence.now().map(_.now()) shouldBe None
+
+      variable.set(Option(1))
+      sequence.now().map(_.now()) shouldBe Option(1)
+
+      sequence.now().get.set(2)
+      variable.now() shouldBe Option(2)
+
+      variable.set(None)
+      sequence.now().map(_.now()) shouldBe None
+    }
+  }.unsafeRunSync()
 }

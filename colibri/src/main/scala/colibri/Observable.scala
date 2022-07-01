@@ -1382,6 +1382,8 @@ object Observable    {
 
     @inline def headIO: IO[A] = headF[IO]
 
+    @inline def unsafeHeadFuture(): Future[A] = headIO.unsafeToFuture()(cats.effect.unsafe.IORuntime.global)
+
     @inline def head: Observable[A] = take(1)
 
     def lastF[F[_]: Async]: F[A] = Async[F].async[A] { callback =>
@@ -1420,6 +1422,8 @@ object Observable    {
     }
 
     @inline def lastIO: IO[A] = lastF[IO]
+
+    @inline def unsafeLastFuture(): Future[A] = lastIO.unsafeToFuture()(cats.effect.unsafe.IORuntime.global)
 
     @inline def last: Observable[A] = Observable.fromEffect(lastIO)
 
