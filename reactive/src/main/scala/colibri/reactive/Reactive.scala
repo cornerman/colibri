@@ -55,7 +55,7 @@ object Rx extends RxPlatform {
 
   def const[A](value: A): Rx[A] = new RxConst(value)
 
-  def observable[A](observable: Observable[A])(seed: => A)(implicit owner: Owner): Rx[A] = new RxObservable(observable, seed)
+  def observable[A](observable: Observable[A])(seed: => A)(implicit owner: Owner): Rx[A] = observableSync(observable.prependEval(seed))
 
   def observableSync[A](observable: Observable[A])(implicit owner: Owner): Rx[A] = new RxObservableSync(observable)
 
@@ -120,15 +120,6 @@ object Var {
 private final class RxConst[A](value: A) extends Rx[A] {
   val observable: Observable[A] = Observable.pure(value)
   def now(): A                  = value
-}
-
-private final class RxObservable[A](inner: Observable[A], seed: => A)(implicit owner: Owner) extends Rx[A] {
-  private val state = new ReplayLatestSubject[A]()
-
-  val observable: Observable[A] = inner.dropSyncAll.prependEval(now()).distinctOnEquals.multicast(state).refCount
-  owner.unsafeOwn(() => observable.unsafeSubscribe())
-
-  def now(): A = state.now().getOrElse(seed)
 }
 
 private final class RxObservableSync[A](inner: Observable[A])(implicit owner: Owner) extends Rx[A] {
