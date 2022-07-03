@@ -1394,6 +1394,23 @@ object Observable    {
 
     @inline def syncLatest: Observable[A] = Observable.fromEffect(syncLatestSyncIO).flattenOption
 
+    def syncAllF[F[_]: Sync]: F[Seq[A]] = Sync[F].defer {
+      val values = collection.mutable.ArrayBuffer[F[A]]()
+
+      val cancelable = source.unsafeSubscribe(
+        Observer.create[A](value => values.addOne(Sync[F].pure(value)), error => values.addOne(Sync[F].raiseError(error))),
+      )
+      cancelable.unsafeCancel()
+
+      values.toSeq.sequence
+    }
+
+    @inline def syncAllIO: IO[Seq[A]] = syncAllF[IO]
+
+    @inline def syncAllSyncIO: SyncIO[Seq[A]] = syncAllF[SyncIO]
+
+    @inline def syncAll: Observable[A] = Observable.fromEffect(syncAllSyncIO).flattenIterable
+
     def headF[F[_]: Async]: F[A] = Async[F].async[A] { callback =>
       Async[F].delay {
         val cancelable = Cancelable.variable()
