@@ -92,7 +92,7 @@ lazy val jsdomTests = project
 
 lazy val router = project
   .enablePlugins(ScalaJSPlugin)
-  .dependsOn(jsdom)
+  .dependsOn(jsdom, reactive)
   .in(file("router"))
   .settings(commonSettings)
   .settings(
