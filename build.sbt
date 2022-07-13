@@ -51,7 +51,7 @@ lazy val colibri = project
     name := "colibri",
     libraryDependencies ++= Seq(
       "org.typelevel" %%% "cats-core"   % "2.8.0",
-      "org.typelevel" %%% "cats-effect" % "3.3.13",
+      "org.typelevel" %%% "cats-effect" % "3.3.14",
     ),
   )
 
