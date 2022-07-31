@@ -38,7 +38,7 @@ lazy val commonSettings = Seq(
       )
   }),
   libraryDependencies ++= Seq(
-    "org.scalatest" %%% "scalatest" % "3.2.12" % Test,
+    "org.scalatest" %%% "scalatest" % "3.2.13" % Test,
   ),
   /* scalacOptions --= Seq("-Xfatal-warnings"), // overwrite option from https://github.com/DavidGregory084/sbt-tpolecat */
 )
