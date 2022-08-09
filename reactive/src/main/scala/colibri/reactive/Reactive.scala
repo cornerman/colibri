@@ -170,7 +170,6 @@ object Var {
                 {
                   case (Some(prev @ _), Some(next)) =>
                     cache.get.set(next)
-                    println(("next: ", next, cache.toString))
 
                   case (Some(prev @ _), None) =>
                     cache = None
