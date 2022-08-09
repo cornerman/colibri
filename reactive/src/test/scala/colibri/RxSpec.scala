@@ -530,12 +530,9 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
     }
 
     {
-      println("test starting")
-
       // inner.set on seed value
       val variable                       = Var[Option[Int]](Some(1))
       val sequence: Rx[Option[Var[Int]]] = variable.sequence
-      println("set initial")
 
       var outerTriggered = 0
       var innerTriggered = 0
@@ -548,9 +545,7 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
       innerTriggered shouldBe 1
       val varRefA = sequence.now().get
 
-      println("update outer")
       variable.set(Some(2))
-      println("update done")
       variable.now() shouldBe Some(2)
       sequence.now().map(_.now()) shouldBe Some(2)
       outerTriggered shouldBe 1
