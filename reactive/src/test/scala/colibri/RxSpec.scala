@@ -540,7 +540,7 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
       var outerTriggered = 0
       var innerTriggered = 0
       sequence.foreach(_ => outerTriggered += 1)
-      sequence.now().foreach(_ => innerTriggered += 1)
+      sequence.now().foreach(_.foreach(_ => innerTriggered += 1))
 
       variable.now() shouldBe Some(1)
       sequence.now().map(_.now()) shouldBe Some(1)
