@@ -157,34 +157,38 @@ object Var {
   @inline implicit class OptionVarOperations[A](rxvar: Var[Option[A]]) {
     def sequence(implicit owner: Owner): Rx[Option[Var[A]]] = Rx.observableSync(new Observable[Option[Var[A]]] {
 
-      def unsafeSubscribe(sink: Observer[Option[Var[A]]]): Cancelable = {
-        rxvar.observable.unsafeSubscribe(
-          Observer.create(
-            { opt =>
-              sink.unsafeOnNext(opt.map { case a =>
-                val observer   = new Observer[A] {
-                  def unsafeOnNext(value: A): Unit = {
-                    rxvar.set(Some(value))
-                  }
+      def unsafeSubscribe(outerSink: Observer[Option[Var[A]]]): Cancelable = {
+        var cache = Option.empty[Var[A]]
 
-                  def unsafeOnError(error: Throwable): Unit = {
-                    sink.unsafeOnError(error)
-                  }
-                }
-                val observable = new Observable.Value[A] {
-                  def now(): A = a
+        val cancelable = Cancelable.variable()
 
-                  def unsafeSubscribe(sink: Observer[A]): Cancelable = {
-                    sink.unsafeOnNext(a)
-                    Cancelable.empty
-                  }
+        Cancelable.composite(
+          rxvar.observable
+            .scan[(Option[A], Option[A])]((None, None)) { case ((head @ _, tail), elem) => (tail, elem) }
+            .unsafeSubscribe(
+              Observer.create(
+                {
+                  case (Some(prev @ _), Some(next)) =>
+                    cache.get.set(next)
+                    println(("next: ", next, cache.toString))
 
-                }
-                Var.combine(Rx.observable(observable)(seed = a), RxWriter.observer(observer))
-              })
-            },
-            sink.unsafeOnError,
-          ),
+                  case (Some(prev @ _), None) =>
+                    cache = None
+                    outerSink.unsafeOnNext(None)
+
+                  case (None, Some(next)) =>
+                    val temp = Var(next)
+                    cache = Some(temp)
+                    cancelable.unsafeAdd(() => temp.observable.map(Some.apply).unsafeForeach(rxvar.set))
+                    outerSink.unsafeOnNext(cache)
+
+                  case (None, None) =>
+                    outerSink.unsafeOnNext(None)
+                },
+                outerSink.unsafeOnError,
+              ),
+            ),
+          cancelable,
         )
       }
     })

@@ -528,5 +528,35 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
       variable.set(None)
       sequence.now().map(_.now()) shouldBe None
     }
+
+    {
+      println("test starting")
+
+      // inner.set on seed value
+      val variable                       = Var[Option[Int]](Some(1))
+      val sequence: Rx[Option[Var[Int]]] = variable.sequence
+      println("set initial")
+
+      var outerTriggered = 0
+      var innerTriggered = 0
+      sequence.foreach(_ => outerTriggered += 1)
+      sequence.now().foreach(_ => innerTriggered += 1)
+
+      variable.now() shouldBe Some(1)
+      sequence.now().map(_.now()) shouldBe Some(1)
+      outerTriggered shouldBe 1
+      innerTriggered shouldBe 1
+      val varRefA = sequence.now().get
+
+      println("update outer")
+      variable.set(Some(2))
+      println("update done")
+      variable.now() shouldBe Some(2)
+      sequence.now().map(_.now()) shouldBe Some(2)
+      outerTriggered shouldBe 1
+      innerTriggered shouldBe 2
+      val varRefB = sequence.now().get
+      assert(varRefA eq varRefB)
+    }
   }.unsafeRunSync()
 }
