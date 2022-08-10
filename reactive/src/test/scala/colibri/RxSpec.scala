@@ -435,6 +435,39 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
     liveCounter shouldBe 5
   }.unsafeRunSync()
 
+  it should "chained combine" in Owned {
+
+
+    val currentWorkspace = Var[Option[String]](None)
+    val workspaceFirstTableName: Observable[Option[String]] = currentWorkspace.observable.filter(_.isDefined)
+
+    val other: Var[Option[String]] = {
+      val tableNameFromUrl: Var[Option[String]] = Var(None)
+      Var.combine(
+        Rx.observableSync(
+          tableNameFromUrl.observable.combineLatestMap(workspaceFirstTableName)((fromUrl, firstTable) =>
+            fromUrl.orElse(firstTable),
+          ),
+        ),
+        tableNameFromUrl,
+      )
+    }
+    val combined = {
+      val show = Var(false)
+      Var.combine(
+        Rx { show() || other().isEmpty },
+       // Rx.observableSync(
+       //   show.observable.combineLatestMap(other.observable)((s, o) =>
+       //     s || o.isEmpty,
+       //   ),
+       // ),
+        show,
+      )
+    }
+
+    combined.now() shouldBe true
+  }.unsafeRunSync()
+
   it should "collect" in Owned {
     val variable        = Var[Option[Int]](Some(1))
     val collected       = variable.collect { case Some(x) => x }(0)
