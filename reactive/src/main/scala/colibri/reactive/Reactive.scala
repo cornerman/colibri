@@ -104,7 +104,7 @@ object RxWriter {
 }
 
 trait Var[A] extends Rx[A] with RxWriter[A] {
-  final def update(f: A => A) = this.set(f(this.now()))
+  final def update(f: A => A)                                                             = this.set(f(this.now()))
   final def transformVar[A2](f: RxWriter[A] => RxWriter[A2])(g: Rx[A] => Rx[A2]): Var[A2] = Var.combine(g(this), f(this))
   final def transformVarRx(g: Rx[A] => Rx[A]): Var[A]                                     = Var.combine(g(this), this)
   final def transformVarRxWriter(f: RxWriter[A] => RxWriter[A]): Var[A]                   = Var.combine(this, f(this))
