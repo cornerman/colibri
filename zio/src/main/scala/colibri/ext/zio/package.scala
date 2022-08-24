@@ -48,19 +48,19 @@ package object zio extends ZioLowPrio {
 
 private final class SinkZIOWithRuntime[Env](runtime: Runtime[Env]) extends Sink[zio.RSink[Env, *]] {
   override def unsafeOnNext[A](sink: zio.RSink[Env, A])(value: A): Unit = {
-    Unsafe.unsafeCompat(implicit u => runtime.unsafe.run(ZStream.succeed(value).run(sink)))
+    Unsafe.unsafe(implicit u => runtime.unsafe.run(ZStream.succeed(value).run(sink)))
     ()
   }
 
   override def unsafeOnError[A](sink: zio.RSink[Env, A])(error: Throwable): Unit = {
-    Unsafe.unsafeCompat(implicit u => runtime.unsafe.run(ZStream.fail(error).run(sink)))
+    Unsafe.unsafe(implicit u => runtime.unsafe.run(ZStream.fail(error).run(sink)))
     ()
   }
 }
 
 private final class SourceZIOWithRuntime[Env](runtime: Runtime[Env]) extends Source[zio.RStream[Env, *]] {
   override def unsafeSubscribe[A](source: zio.RStream[Env, A])(sink: Observer[A]): Cancelable = {
-    val canceler = Unsafe.unsafeCompat(implicit u =>
+    val canceler = Unsafe.unsafe(implicit u =>
       runtime.unsafe.runToFuture(
         source
           .onError(cause => ZIO.succeed(sink.unsafeOnError(cause.squash)))
@@ -80,7 +80,7 @@ private final class RunEffectZIOWithRuntime[Env](runtime: Runtime[Env]) extends 
     unsafeRunSyncOrAsyncCancelable(ZIO.yieldNow *> effect)(cb)
 
   override def unsafeRunSyncOrAsyncCancelable[T](effect: RIO[Env, T])(cb: Either[Throwable, T] => Unit): Cancelable = {
-    val cancelableFuture = Unsafe.unsafeCompat(implicit u => runtime.unsafe.runToFuture(effect))
+    val cancelableFuture = Unsafe.unsafe(implicit u => runtime.unsafe.runToFuture(effect))
     RunEffectExecution.handleFutureCancelable(cancelableFuture, cancelableFuture.cancel)(cb)
   }
 }
