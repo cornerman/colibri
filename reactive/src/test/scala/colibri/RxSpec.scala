@@ -1,19 +1,19 @@
 package colibri.reactive
 
 import colibri._
+import cats.implicits._
+import cats.effect.SyncIO
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.flatspec.AsyncFlatSpec
 
 class ReactiveSpec extends AsyncFlatSpec with Matchers {
 
-  implicit def unsafeSubscriptionOwner[T]: SubscriptionOwner[T] = new SubscriptionOwner[T] {
-    def own(owner: T)(subscription: () => Cancelable): T = {
-      subscription()
-      owner
-    }
+  implicit def unsafeSubscriptionOwner[T]: SubscriptionOwner[SyncIO[T]] = new SubscriptionOwner[SyncIO[T]] {
+    def own(owner: SyncIO[T])(subscription: () => Cancelable): SyncIO[T] =
+      owner.flatTap(_ => SyncIO(subscription()).void)
   }
 
-  "Rx" should "map with proper subscription lifetime" in Owned {
+  "Rx" should "map with proper subscription lifetime" in Owned(SyncIO {
     var mapped    = List.empty[Int]
     var received1 = List.empty[Int]
     var received2 = List.empty[Int]
@@ -122,9 +122,9 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
     mapped shouldBe List(8, 7, 6, 5, 4, 3, 2, 1)
     received1 shouldBe List(8, 7, 6, 5, 4, 3, 2, 1)
     received2 shouldBe List(8, 7, 6, 5, 4, 3, 2)
-  }.unsafeRunSync()
+  }).unsafeRunSync()
 
-  it should "be distinct" in Owned {
+  it should "be distinct" in Owned(SyncIO {
     var mapped    = List.empty[Int]
     var received1 = List.empty[Boolean]
 
@@ -158,9 +158,9 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
 
     mapped shouldBe List(5, 4, 2, 1)
     received1 shouldBe List(false, true, false)
-  }.unsafeRunSync()
+  }).unsafeRunSync()
 
-  it should "work without glitches in chain" in Owned {
+  it should "work without glitches in chain" in Owned(SyncIO {
     var liveCounter = 0
     var mapped      = List.empty[Int]
     var received1   = List.empty[Boolean]
@@ -219,9 +219,9 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
     receivedRx shouldBe List("5: false", "4: true", "2: true", "1: false")
     rx.now() shouldBe "5: false"
     liveCounter shouldBe 4
-  }.unsafeRunSync()
+  }).unsafeRunSync()
 
-  it should "work nested" in Owned {
+  it should "work nested" in Owned(SyncIO {
     var liveCounter  = 0
     var liveCounter2 = 0
 
@@ -260,10 +260,9 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
     rx.now() shouldBe 7
     liveCounter shouldBe 4
     liveCounter2 shouldBe 5
-  }
-    .unsafeRunSync()
+  }).unsafeRunSync()
 
-  it should "work with now" in Owned {
+  it should "work with now" in Owned(SyncIO {
     var liveCounter = 0
 
     val variable  = Var(1)
@@ -303,30 +302,30 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
     rx.now() shouldBe "2, 100, 5"
     liveCounter shouldBe 4
 
-  }.unsafeRunSync()
+  }).unsafeRunSync()
 
-  it should "work with multi nesting" in Owned {
+  it should "work with multi nesting" in Owned(SyncIO {
     var liveCounter = 0
 
     val variable  = Var(1)
     val variable2 = Var(2)
     val variable3 = Var(3)
 
-    val rx = Owned {
-      Owned {
+    val rx = Owned(SyncIO {
+      Owned(SyncIO {
         Rx {
           liveCounter += 1
 
-          Owned {
+          Owned(SyncIO {
             Rx {
               Rx {
                 s"${variable()}, ${variable2()}, ${variable3.now()}"
               }
             }(implicitly)()
-          }.unsafeRunSync()()
+          }).unsafeRunSync()()
         }
-      }.unsafeRunSync()
-    }.unsafeRunSync()
+      }).unsafeRunSync()
+    }).unsafeRunSync()
 
     rx.now() shouldBe "1, 2, 3"
     liveCounter shouldBe 1
@@ -356,9 +355,9 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
     rx.now() shouldBe "2, 100, 5"
     liveCounter shouldBe 4
 
-  }.unsafeRunSync()
+  }).unsafeRunSync()
 
-  it should "diamond" in Owned {
+  it should "diamond" in Owned(SyncIO {
     var liveCounter = 0
     var mapped1     = List.empty[Int]
     var mapped2     = List.empty[Int]
@@ -433,9 +432,9 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
     receivedRx shouldBe List("false:false", "false:true", "true:true", "true:false", "false:false") // glitch
     rx.now() shouldBe "false:false"
     liveCounter shouldBe 5
-  }.unsafeRunSync()
+  }).unsafeRunSync()
 
-  it should "collect" in Owned {
+  it should "collect" in Owned(SyncIO {
     val variable        = Var[Option[Int]](Some(1))
     val collected       = variable.collect { case Some(x) => x }(0)
     var collectedStates = Vector.empty[Int]
@@ -450,9 +449,9 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
     variable.set(Some(17))
     collectedStates shouldBe Vector(1, 17)
 
-  }.unsafeRunSync()
+  }).unsafeRunSync()
 
-  it should "collect initial none" in Owned {
+  it should "collect initial none" in Owned(SyncIO {
     val variable        = Var[Option[Int]](None)
     val collected       = variable.collect { case Some(x) => x }(0)
     var collectedStates = Vector.empty[Int]
@@ -467,9 +466,9 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
     variable.set(Some(17))
     collectedStates shouldBe Vector(0, 17)
 
-  }.unsafeRunSync()
+  }).unsafeRunSync()
 
-  it should "sequence on Var[Seq[T]]" in Owned {
+  it should "sequence on Var[Seq[T]]" in Owned(SyncIO {
     {
       // inner.set on seed value
       val variable                    = Var[Seq[Int]](Seq(1))
@@ -496,9 +495,9 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
       sequence.now()(0).set(2)
       variable.now() shouldBe Seq(2)
     }
-  }.unsafeRunSync()
+  }).unsafeRunSync()
 
-  it should "sequence on Var[Option[T]]" in Owned {
+  it should "sequence on Var[Option[T]]" in Owned(SyncIO {
     {
       // inner.set on seed value
       val variable                       = Var[Option[Int]](Some(1))
@@ -528,5 +527,5 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
       variable.set(None)
       sequence.now().map(_.now()) shouldBe None
     }
-  }.unsafeRunSync()
+  }).unsafeRunSync()
 }

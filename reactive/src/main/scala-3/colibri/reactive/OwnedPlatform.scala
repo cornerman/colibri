@@ -1,8 +1,8 @@
 package colibri.reactive
 
+import colibri.effect.SyncEmbed
 import colibri.SubscriptionOwner
-import cats.effect.SyncIO
 
 trait OwnedPlatform {
-  def apply[R: SubscriptionOwner](f: Owner ?=> R): SyncIO[R] = Owned.function(implicit owner => f)
+  def apply[R: SubscriptionOwner: SyncEmbed](f: Owner ?=> R): R = Owned.function(implicit owner => f)
 }

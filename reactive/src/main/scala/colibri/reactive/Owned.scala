@@ -1,10 +1,10 @@
 package colibri.reactive
 
+import colibri.effect.SyncEmbed
 import colibri.SubscriptionOwner
-import cats.effect.SyncIO
 
 object Owned extends OwnedPlatform {
-  def function[R: SubscriptionOwner](f: Owner => R): SyncIO[R] = SyncIO {
+  def function[R: SubscriptionOwner: SyncEmbed](f: Owner => R): R = SyncEmbed[R].delay {
     val owner  = Owner.unsafeHotRef()
     val result = f(owner)
     SubscriptionOwner[R].own(result)(owner.unsafeSubscribe)

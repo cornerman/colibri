@@ -1,7 +1,7 @@
 package colibri.reactive.internal
 
-import cats.effect.SyncIO
 import colibri.reactive.{Rx, Owner, LiveOwner}
+import colibri.effect.SyncEmbed
 import colibri.SubscriptionOwner
 import scala.reflect.macros._
 
@@ -29,7 +29,7 @@ object MacroUtils {
     transformer.transform(src)
   }
 
-  def ownedImpl[R](c: blackbox.Context)(f: c.Expr[R])(subscriptionOwner: c.Expr[SubscriptionOwner[R]]): c.Expr[SyncIO[R]] = {
+  def ownedImpl[R](c: blackbox.Context)(f: c.Expr[R])(subscriptionOwner: c.Expr[SubscriptionOwner[R]], syncEmbed: c.Expr[SyncEmbed[R]]): c.Expr[R] = {
     import c.universe._
 
     val newOwner = c.freshName(TermName(ownerName))
@@ -39,7 +39,7 @@ object MacroUtils {
     val tree = q"""
     _root_.colibri.reactive.Owned.function { ($newOwner: _root_.colibri.reactive.Owner) =>
       $newTree
-    }($subscriptionOwner)
+    }($subscriptionOwner, $syncEmbed)
     """
 
     // println(tree)
