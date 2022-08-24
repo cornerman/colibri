@@ -164,24 +164,20 @@ object Var {
 
         Cancelable.composite(
           rxvar.observable
-            .scan[(Option[A], Option[A])]((None, None)) { case ((head @ _, tail), elem) => (tail, elem) }
             .unsafeSubscribe(
               Observer.create(
                 {
-                  case (Some(prev @ _), Some(next)) =>
-                    cache.get.set(next)
+                  case Some(next) => cache match {
+                    case Some(prev) => prev.set(next)
+                    case None =>
+                      val temp = Var(next)
+                      cache = Some(temp)
+                      cancelable.unsafeAdd(() => temp.observable.map(Some.apply).unsafeForeach(rxvar.set))
+                      outerSink.unsafeOnNext(cache)
+                  }
 
-                  case (Some(prev @ _), None) =>
+                  case None =>
                     cache = None
-                    outerSink.unsafeOnNext(None)
-
-                  case (None, Some(next)) =>
-                    val temp = Var(next)
-                    cache = Some(temp)
-                    cancelable.unsafeAdd(() => temp.observable.map(Some.apply).unsafeForeach(rxvar.set))
-                    outerSink.unsafeOnNext(cache)
-
-                  case (None, None) =>
                     outerSink.unsafeOnNext(None)
                 },
                 outerSink.unsafeOnError,
