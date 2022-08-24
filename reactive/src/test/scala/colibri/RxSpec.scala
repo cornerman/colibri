@@ -436,31 +436,30 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
   }.unsafeRunSync()
 
   it should "chained combine" in Owned {
-
-
-    val currentWorkspace = Var[Option[String]](None)
+    val currentWorkspace                                    = Var[Option[String]](None)
     val workspaceFirstTableName: Observable[Option[String]] = currentWorkspace.observable.filter(_.isDefined)
 
     val other: Var[Option[String]] = {
       val tableNameFromUrl: Var[Option[String]] = Var(None)
       Var.combine(
         Rx.observableSync(
-          tableNameFromUrl.observable.combineLatestMap(workspaceFirstTableName)((fromUrl, firstTable) =>
-            fromUrl.orElse(firstTable),
-          ),
+          tableNameFromUrl.observable
+            .combineLatestMap(workspaceFirstTableName)((fromUrl, firstTable) => fromUrl.orElse(firstTable))
+            .prepend(None)
+            .dropUntilSyncLatest,
         ),
         tableNameFromUrl,
       )
     }
-    val combined = {
+    val combined                   = {
       val show = Var(false)
       Var.combine(
         Rx { show() || other().isEmpty },
-       // Rx.observableSync(
-       //   show.observable.combineLatestMap(other.observable)((s, o) =>
-       //     s || o.isEmpty,
-       //   ),
-       // ),
+        // Rx.observableSync(
+        //   show.observable.combineLatestMap(other.observable)((s, o) =>
+        //     s || o.isEmpty,
+        //   ),
+        // ),
         show,
       )
     }
