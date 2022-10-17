@@ -475,6 +475,37 @@ object Observable    {
       def unsafeSubscribe(sink: Observer[B]): Cancelable = source.unsafeSubscribe(sink.contrascan(seed)(f))
     }
 
+    def switchScan[B](seed: B)(f: (B, A) => Observable[B]): Observable[B] = new Observable[B] {
+      override def unsafeSubscribe(sink: Observer[B]): Cancelable = {
+        var current = seed
+        val cancel  = Cancelable.variable()
+
+        def recurse(nested: Observable[B], theA: A): Cancelable = {
+          nested.unsafeSubscribe(new Observer[B] {
+            override def unsafeOnNext(value: B): Unit = {
+              current = value
+              val result = f(current, theA)
+              sink.unsafeOnNext(value)
+              cancel.unsafeAdd(() => recurse(result, theA))
+            }
+
+            override def unsafeOnError(error: Throwable): Unit = sink.unsafeOnError(error)
+          })
+        }
+
+        val c = source.unsafeSubscribe(new Observer[A] {
+          override def unsafeOnNext(value: A): Unit = {
+            val next = f(current, value)
+            cancel.unsafeAdd(() => recurse(next, value))
+          }
+
+          override def unsafeOnError(error: Throwable): Unit = sink.unsafeOnError(error)
+        })
+
+        Cancelable.composite(c, cancel)
+      }
+    }
+
     def mapEither[B](f: A => Either[Throwable, B]): Observable[B] = new Observable[B] {
       def unsafeSubscribe(sink: Observer[B]): Cancelable = source.unsafeSubscribe(sink.contramapEither(f))
     }
