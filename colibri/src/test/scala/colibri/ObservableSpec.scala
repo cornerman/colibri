@@ -127,7 +127,52 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
 
     mapped shouldBe List(3, 2, 1)
     received shouldBe List(6, 3, 1)
+
     cancelable.isEmpty() shouldBe true
+  }
+
+  it should "switchScan" in {
+    var recieved = List.empty[Char]
+    val source   = Subject.publish[Int]()
+    val request1 = Subject.publish[Char]()
+    val request2 = Subject.publish[Char]()
+
+    val stream = source.switchScan('0') {
+      case (_, 1) => request1
+      case (_, 2) => request2
+      case _      => Observable.empty
+    }
+
+    stream.unsafeSubscribe(Observer.create[Char](recieved ::= _))
+    recieved shouldBe List.empty
+
+    request1.unsafeOnNext('a')
+    request2.unsafeOnNext('1')
+    recieved shouldBe List.empty
+
+    source.unsafeOnNext(1)
+    recieved shouldBe List.empty
+    request1.unsafeOnNext('b')
+    request2.unsafeOnNext('2')
+    recieved shouldBe List('b')
+    request1.unsafeOnNext('c')
+    request2.unsafeOnNext('3')
+    recieved shouldBe List('c', 'b')
+
+    source.unsafeOnNext(2)
+    recieved shouldBe List('c', 'b')
+    request1.unsafeOnNext('d')
+    request2.unsafeOnNext('4')
+    recieved shouldBe List('4', 'c', 'b')
+    request1.unsafeOnNext('e')
+    request2.unsafeOnNext('5')
+    recieved shouldBe List('5', '4', 'c', 'b')
+
+    source.unsafeOnNext(3)
+    recieved shouldBe List('5', '4', 'c', 'b')
+    request1.unsafeOnNext('f')
+    request2.unsafeOnNext('6')
+    recieved shouldBe List('5', '4', 'c', 'b')
   }
 
   it should "dropWhile" in {
