@@ -132,18 +132,20 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
   }
 
   it should "switchScan" in {
-    var recieved = List.empty[Char]
-    val source   = Subject.publish[Int]()
-    val request1 = Subject.publish[Char]()
-    val request2 = Subject.publish[Char]()
+    var recieved   = List.empty[Char]
+    val source     = Subject.publish[Int]()
+    val request1   = Subject.publish[Char]()
+    val request2   = Subject.publish[Char]()
+    val endTrigger = Subject.publish[Unit]()
 
-    val stream = source.switchScan('0') {
+    val stream = source.takeUntil(endTrigger).switchScan('0') {
       case (_, 1) => request1
       case (_, 2) => request2
       case _      => Observable.empty
     }
 
-    stream.unsafeSubscribe(Observer.create[Char](recieved ::= _))
+    val subscription = stream.unsafeSubscribe(Observer.create[Char](recieved ::= _))
+
     recieved shouldBe List.empty
 
     request1.unsafeOnNext('a')
@@ -159,6 +161,17 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
     request2.unsafeOnNext('3')
     recieved shouldBe List('c', 'b')
 
+    subscription.isEmpty() shouldBe false
+
+    subscription.unsafeCancel()
+
+    subscription.isEmpty() shouldBe true
+
+    request1.unsafeOnNext('z')
+    recieved shouldBe List('c', 'b')
+
+    val subscription2 = stream.unsafeSubscribe(Observer.create[Char](recieved ::= _))
+
     source.unsafeOnNext(2)
     recieved shouldBe List('c', 'b')
     request1.unsafeOnNext('d')
@@ -173,6 +186,12 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
     request1.unsafeOnNext('f')
     request2.unsafeOnNext('6')
     recieved shouldBe List('5', '4', 'c', 'b')
+
+    subscription2.isEmpty() shouldBe false
+
+    endTrigger.unsafeOnNext(())
+
+    subscription2.isEmpty() shouldBe true
   }
 
   it should "dropWhile" in {

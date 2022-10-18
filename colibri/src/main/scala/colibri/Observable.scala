@@ -480,29 +480,33 @@ object Observable    {
         var current = seed
         val cancel  = Cancelable.variable()
 
-        def recurse(nested: Observable[B], theA: A): Cancelable = {
-          nested.unsafeSubscribe(new Observer[B] {
-            override def unsafeOnNext(value: B): Unit = {
+        def recurse(nested: Observable[B], theA: A): Cancelable = nested.unsafeSubscribe(
+          Observer.create[B](
+            { value =>
               current = value
               val result = f(current, theA)
               sink.unsafeOnNext(value)
               cancel.unsafeAdd(() => recurse(result, theA))
-            }
+            },
+            sink.unsafeOnError,
+          ),
+        )
 
-            override def unsafeOnError(error: Throwable): Unit = sink.unsafeOnError(error)
-          })
-        }
+        val subscription = source.unsafeSubscribe(
+          Observer.create[A](
+            { value =>
+              val next = f(current, value)
+              cancel.unsafeAdd(() => recurse(next, value))
+            },
+            sink.unsafeOnError,
+          ),
+        )
 
-        val c = source.unsafeSubscribe(new Observer[A] {
-          override def unsafeOnNext(value: A): Unit = {
-            val next = f(current, value)
-            cancel.unsafeAdd(() => recurse(next, value))
-          }
-
-          override def unsafeOnError(error: Throwable): Unit = sink.unsafeOnError(error)
-        })
-
-        Cancelable.composite(c, cancel)
+        Cancelable.composite(
+          subscription,
+          Cancelable.checkIsEmpty(subscription.isEmpty())(cancel.unsafeFreeze),
+          cancel,
+        )
       }
     }
 
