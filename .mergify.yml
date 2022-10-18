@@ -4,7 +4,7 @@ queue_rules:
       # Conditions to get out of the queue (= merged)
       - check-success~=build \(2.12.\d+\)
       - check-success~=build \(2.13.\d+\)
-      - check-success~=build \(3.1.\d+\)
+      - check-success~=build \(3.\d+.\d+\)
 
 pull_request_rules:
 
