@@ -26,7 +26,7 @@ pull_request_rules:
         - base=master
         - check-success~=build \(2.12.\d+\)
         - check-success~=build \(2.13.\d+\)
-        - check-success~=build \(3.1.\d+\)
+        - check-success~=build \(3.\d+.\d+\)
     actions:
       queue:
         name: default
