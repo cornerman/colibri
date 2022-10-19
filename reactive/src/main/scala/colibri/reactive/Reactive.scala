@@ -110,7 +110,8 @@ trait Var[A] extends Rx[A] with RxWriter[A] {
   final def transformVarRx(g: Rx[A] => Rx[A]): Var[A]                                     = Var.combine(g(this), this)
   final def transformVarRxWriter(f: RxWriter[A] => RxWriter[A]): Var[A]                   = Var.combine(this, f(this))
   final def imap[A2](f: A2 => A)(g: A => A2)(implicit owner: Owner): Var[A2]              = transformVar(_.contramap(f))(_.map(g))
-  final def lens[B](read: A => B)(write: (A, B) => A)(implicit owner: Owner): Var[B]      = transformVar(_.contramap(write(now(), _)))(_.map(read))
+  final def lens[B](read: A => B)(write: (A, B) => A)(implicit owner: Owner): Var[B]      =
+    transformVar(_.contramap(write(now(), _)))(_.map(read))
   final def lens[B](lens: Lens[A, B])(implicit owner: Owner): Var[B]                      = this.lens(lens.get(_))((base, zoomed) => lens.set(zoomed)(base))
 }
 
@@ -168,14 +169,15 @@ object Var {
             .unsafeSubscribe(
               Observer.create(
                 {
-                  case Some(next) => cache match {
-                    case Some(prev) => prev.set(next)
-                    case None =>
-                      val temp = Var(next)
-                      cache = Some(temp)
-                      cancelable.unsafeAdd(() => temp.observable.map(Some.apply).unsafeForeach(rxvar.set))
-                      outerSink.unsafeOnNext(cache)
-                  }
+                  case Some(next) =>
+                    cache match {
+                      case Some(prev) => prev.set(next)
+                      case None       =>
+                        val temp = Var(next)
+                        cache = Some(temp)
+                        cancelable.unsafeAdd(() => temp.observable.map(Some.apply).unsafeForeach(rxvar.set))
+                        outerSink.unsafeOnNext(cache)
+                    }
 
                   case None =>
                     cache = None
