@@ -3,6 +3,7 @@ package colibri.reactive
 import colibri._
 import cats.implicits._
 import cats.effect.SyncIO
+import monocle.macros.GenLens
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.flatspec.AsyncFlatSpec
 
@@ -553,4 +554,55 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
       assert(varRefA eq varRefB)
     }
   }).unsafeRunSync()
+
+  it should "lens" in Owned(SyncIO {
+    val a: Var[(Int, String)] = Var((0, "Wurst"))
+    val b: Var[String] = a.lens(_._2)((a, b) => a.copy(_2 = b))
+    val c: Rx[String] = b.map(_ + "q")
+
+    a.now() shouldBe ((0, "Wurst"))
+    b.now() shouldBe "Wurst"
+    c.now() shouldBe "Wurstq"
+
+    a.set((1, "hoho"))
+    a.now() shouldBe ((1, "hoho"))
+    b.now() shouldBe "hoho"
+    c.now() shouldBe "hohoq"
+
+    b.set("Voodoo")
+    a.now() shouldBe ((1, "Voodoo"))
+    b.now() shouldBe "Voodoo"
+    c.now() shouldBe "Voodooq"
+
+    a.set((3, "genau"))
+    a.now() shouldBe ((3, "genau"))
+    b.now() shouldBe "genau"
+    c.now() shouldBe "genauq"
+
+    b.set("Schwein")
+    a.now() shouldBe ((3, "Schwein"))
+    b.now() shouldBe "Schwein"
+    c.now() shouldBe "Schweinq"
+  }).unsafeRunSync()
+
+  it should "lens with monocle" in {
+    case class Company(name: String, zipcode: Int)
+    case class Employee(name: String, company: Company)
+
+    Owned(SyncIO {
+      val employee = Var(Employee("jules", Company("wules", 7)))
+      val zipcode = employee.lens(GenLens[Employee](_.company.zipcode))
+
+      employee.now() shouldBe Employee("jules", Company("wules", 7))
+      zipcode.now() shouldBe 7
+
+      zipcode.set(8)
+      employee.now() shouldBe Employee("jules", Company("wules", 8))
+      zipcode.now() shouldBe 8
+
+      employee.set(Employee("gula", Company("bori", 6)))
+      employee.now() shouldBe Employee("gula", Company("bori", 6))
+      zipcode.now() shouldBe 6
+    }).unsafeRunSync()
+  }
 }
