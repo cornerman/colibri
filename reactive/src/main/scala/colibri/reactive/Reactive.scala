@@ -77,7 +77,8 @@ object Rx extends RxPlatform {
 trait RxWriter[-A] {
   def observer: Observer[A]
 
-  final def set(value: A): Unit = observer.unsafeOnNext(value)
+  final def set(value: A): Unit = update(value)
+  final def update(value: A): Unit = observer.unsafeOnNext(value)
 
   final def contramap[B](f: B => A): RxWriter[B]                   = transformRxWriter(_.contramap(f))
   final def contramapIterable[B](f: B => Iterable[A]): RxWriter[B] = transformRxWriter(_.contramapIterable(f))
