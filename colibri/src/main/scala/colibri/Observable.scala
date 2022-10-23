@@ -1387,6 +1387,11 @@ object Observable    {
       () => source.unsafeSubscribe(pipe),
     )
 
+    def fold[B](seed: B)(f: (B, A) => B): Observable[B]         = scan(seed)(f).last
+    def foldF[F[_]: Async, B](seed: B)(f: (B, A) => B): F[B]    = scan(seed)(f).lastF[F]
+    def foldIO[B](seed: B)(f: (B, A) => B): IO[B]               = scan(seed)(f).lastIO
+    def unsafeFoldFuture[B](seed: B)(f: (B, A) => B): Future[B] = scan(seed)(f).unsafeLastFuture()
+
     @deprecated("Use prependEffect instead", "0.3.0")
     @inline def prependSync[F[_]: RunSyncEffect](value: F[A]): Observable[A] = prependEffect(value)
     @deprecated("Use prependEffect instead", "0.3.0")
