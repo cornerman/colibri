@@ -1681,6 +1681,8 @@ object Observable    {
     }
 
     @inline def asIf[A: Monoid](ifTrue: => A): Observable[A] = asIf(ifTrue, Monoid[A].empty)
+
+    @inline def not: Observable[Boolean] = source.map(x => !x)
   }
 
   @inline implicit class IterableOperations[A](private val source: Observable[Iterable[A]]) extends AnyVal {
