@@ -1421,6 +1421,8 @@ object Observable    {
       }
     }
 
+    def endWith(values: Iterable[A]): Observable[A] = concat(Observable.fromIterable(values))
+
     def syncLatestF[F[_]: Sync]: F[Option[A]] = Sync[F].defer {
       var lastValue = Option.empty[F[A]]
 
