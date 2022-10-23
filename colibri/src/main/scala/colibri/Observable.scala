@@ -59,18 +59,16 @@ object Observable    {
   }
 
   implicit object catsParallelCombine extends Parallel[Observable] {
-    import CombineObservable.{apply => wrap, unwrap}
-
     override type F[A] = CombineObservable.Type[A]
 
     override def monad: Monad[Observable]                         = implicitly[Monad[Observable]]
     override def applicative: Applicative[CombineObservable.Type] = implicitly[Applicative[CombineObservable.Type]]
 
     override val sequential = new (CombineObservable.Type ~> Observable) {
-      def apply[A](fa: CombineObservable.Type[A]): Observable[A] = unwrap(fa)
+      def apply[A](fa: CombineObservable.Type[A]): Observable[A] = CombineObservable.unwrap(fa)
     }
     override val parallel   = new (Observable ~> CombineObservable.Type) {
-      def apply[A](fa: Observable[A]): CombineObservable.Type[A] = wrap(fa)
+      def apply[A](fa: Observable[A]): CombineObservable.Type[A] = CombineObservable.wrap(fa)
     }
   }
 

@@ -6,7 +6,7 @@ private[colibri] abstract class Newtype1[F[_]] { self =>
   trait Tag extends Any
   type Type[+A] <: Base with Tag
 
-  def apply[A](fa: F[A]): Type[A] =
+  def wrap[A](fa: F[A]): Type[A] =
     fa.asInstanceOf[Type[A]]
 
   def unwrap[A](fa: Type[A]): F[A] =
