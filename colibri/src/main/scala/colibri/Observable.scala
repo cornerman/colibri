@@ -655,13 +655,13 @@ object Observable    {
 
     def concat(sources: Observable[A]*): Observable[A] = Observable.concatIterable(source +: sources)
 
-    @inline def mergeMap[B](f: A => Observable[B]): Observable[B] = mapObservableWithCancelable(f)(Cancelable.builder)
-    @inline def mergeMapEffect[F[_] : RunEffect, B](f: A => F[B]): Observable[B] = mergeMap(a => Observable.fromEffect(f(a)))
-    @inline def mergeMapFuture[B](f: A => Future[B]): Observable[B] = mergeMap(a => Observable.fromFuture(f(a)))
+    @inline def mergeMap[B](f: A => Observable[B]): Observable[B]               = mapObservableWithCancelable(f)(Cancelable.builder)
+    @inline def mergeMapEffect[F[_]: RunEffect, B](f: A => F[B]): Observable[B] = mergeMap(a => Observable.fromEffect(f(a)))
+    @inline def mergeMapFuture[B](f: A => Future[B]): Observable[B]             = mergeMap(a => Observable.fromFuture(f(a)))
 
-    @inline def switchMap[B](f: A => Observable[B]): Observable[B] = mapObservableWithCancelable(f)(Cancelable.variable)
-    @inline def switchMapEffect[F[_] : RunEffect, B](f: A => F[B]): Observable[B] = switchMap(a => Observable.fromEffect(f(a)))
-    @inline def switchMapFuture[B](f: A => Future[B]): Observable[B] = switchMap(a => Observable.fromFuture(f(a)))
+    @inline def switchMap[B](f: A => Observable[B]): Observable[B]               = mapObservableWithCancelable(f)(Cancelable.variable)
+    @inline def switchMapEffect[F[_]: RunEffect, B](f: A => F[B]): Observable[B] = switchMap(a => Observable.fromEffect(f(a)))
+    @inline def switchMapFuture[B](f: A => Future[B]): Observable[B]             = switchMap(a => Observable.fromFuture(f(a)))
 
     private def mapObservableWithCancelable[B](f: A => Observable[B])(newCancelableSetter: () => Cancelable.Setter): Observable[B] =
       new Observable[B] {
@@ -691,7 +691,8 @@ object Observable    {
     @deprecated("Use mapEffect instead", "0.3.0")
     def mapAsync[F[_]: RunEffect, B](f: A => F[B]): Observable[B]            = mapEffect(f)
 
-    def mapEffect[F[_]: RunEffect, B](f: A => F[B]): Observable[B] = new Observable[B] {
+    @inline def mapEffect[F[_]: RunEffect, B](f: A => F[B]): Observable[B] = concatMapEffect(f)
+    def concatMapEffect[F[_]: RunEffect, B](f: A => F[B]): Observable[B]   = new Observable[B] {
       def unsafeSubscribe(sink: Observer[B]): Cancelable = {
         val consecutive = Cancelable.consecutive()
 
@@ -721,7 +722,8 @@ object Observable    {
       }
     }
 
-    @inline def mapFuture[B](f: A => Future[B]): Observable[B] = mapEffect(v => IO.fromFuture(IO(f(v))))
+    @inline def mapFuture[B](f: A => Future[B]): Observable[B]       = concatMapFuture(f)
+    @inline def concatMapFuture[B](f: A => Future[B]): Observable[B] = mapEffect(v => IO.fromFuture(IO(f(v))))
 
     @inline def mapResource[F[_]: RunEffect: Sync, B](f: A => Resource[F, B]): Observable[B] =
       mapResourceWithCancelable(f)(Cancelable.builder)
