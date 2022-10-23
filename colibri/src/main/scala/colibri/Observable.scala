@@ -1672,6 +1672,15 @@ object Observable    {
     @inline def mergeFailed: Observable[Throwable] = source.recoverMap(identity)
   }
 
+  @inline implicit class BooleanOperations(private val source: Observable[Boolean]) extends AnyVal {
+    @inline def asIf[A](ifTrue: => A, ifFalse: A): Observable[A] = source.map {
+      case true  => ifTrue
+      case false => ifFalse
+    }
+
+    @inline def asIf[A: Monoid](ifTrue: => A): Observable[A] = asIf(ifTrue, Monoid[A].empty)
+  }
+
   @inline implicit class IterableOperations[A](private val source: Observable[Iterable[A]]) extends AnyVal {
     @inline def flattenIterable: Observable[A] = source.mapIterable(identity)
   }
