@@ -1,5 +1,6 @@
 package colibri
 
+import cats.implicits._
 import cats.effect.{IO, SyncIO, unsafe}
 import fs2.{Pure, Stream}
 import colibri.ext.fs2._
@@ -81,7 +82,8 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
     mapped shouldBe List.empty
     received shouldBe List.empty
 
-    val test = IO.cede *> IO {
+    // TODO: why does it need so many shifts since cats-effect 3.3.14 + fs2 3.2.14?
+    val test = Seq.fill(5)(IO.cede).sequence *> IO {
       mapped shouldBe List(1)
       received shouldBe List(1)
     }
