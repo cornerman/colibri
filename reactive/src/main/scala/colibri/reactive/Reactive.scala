@@ -2,7 +2,7 @@ package colibri.reactive
 
 import colibri._
 import colibri.effect._
-import monocle.Lens
+import monocle.{Iso, Lens}
 
 import scala.concurrent.Future
 
@@ -111,6 +111,8 @@ trait Var[A] extends Rx[A] with RxWriter[A] {
   final def transformVarRxWriter(f: RxWriter[A] => RxWriter[A]): Var[A]                   = Var.combine(this, f(this))
   final def imap[A2](f: A2 => A)(g: A => A2)(implicit owner: Owner): Var[A2]              = transformVar(_.contramap(f))(_.map(g))
   final def lens[B](read: A => B)(write: (A, B) => A)(implicit owner: Owner): Var[B]      = transformVar(_.contramap(write(now(), _)))(_.map(read))
+
+  final def imap[B](iso: Iso[A, B])(implicit owner: Owner): Var[B]   = this.imap(iso.reverseGet(_))(iso.get(_))
   final def lens[B](lens: Lens[A, B])(implicit owner: Owner): Var[B]                      = this.lens(lens.get(_))((base, zoomed) => lens.replace(zoomed)(base))
 }
 
