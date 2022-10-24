@@ -446,7 +446,7 @@ object Observable    {
 
         val taskCancelables = Cancelable.builder()
 
-        val cancelable = source.unsafeSubscribe(
+        val subscription = source.unsafeSubscribe(
           Observer.create(
             { input =>
               val index = tasks.length
@@ -469,7 +469,11 @@ object Observable    {
           ),
         )
 
-        Cancelable.composite(cancelable, taskCancelables)
+        Cancelable.composite(
+          subscription,
+          Cancelable.checkIsEmpty(subscription.isEmpty())(taskCancelables.unsafeFreeze),
+          taskCancelables,
+        )
       }
     }
 
