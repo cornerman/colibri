@@ -1,5 +1,6 @@
 package colibri.reactive
 
+import cats.Monoid
 import colibri._
 import colibri.effect._
 import monocle.{Iso, Lens, Prism}
@@ -67,6 +68,17 @@ object Rx extends RxPlatform {
     def scan[B](seed: B)(f: (B, A) => B)(implicit owner: Owner): Rx[B] = self.transformRxSync(_.scan0(seed)(f))
 
     def filter(f: A => Boolean)(seed: => A)(implicit owner: Owner): Rx[A] = self.transformRx(_.filter(f))(seed)
+  }
+
+  @inline implicit class RxBooleanOps(private val source: Rx[Boolean]) extends AnyVal {
+    @inline def toggle[A](ifTrue: => A, ifFalse: A)(implicit owner: Owner): Rx[A] = source.map {
+      case true  => ifTrue
+      case false => ifFalse
+    }
+
+    @inline def toggle[A: Monoid](ifTrue: => A)(implicit owner: Owner): Rx[A] = toggle(ifTrue, Monoid[A].empty)
+
+    @inline def negated(implicit owner: Owner): Rx[Boolean] = source.map(x => !x)
   }
 
   implicit object source extends Source[Rx] {
