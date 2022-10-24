@@ -3,7 +3,7 @@ package colibri.reactive
 import colibri._
 import cats.implicits._
 import cats.effect.SyncIO
-import monocle.macros.GenLens
+import monocle.macros.{GenLens, GenPrism}
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.flatspec.AsyncFlatSpec
 
@@ -603,6 +603,56 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
       employee.set(Employee("gula", Company("bori", 6)))
       employee.now() shouldBe Employee("gula", Company("bori", 6))
       zipcode.now() shouldBe 6
+    }).unsafeRunSync()
+  }
+
+  it should "prism with monocle" in {
+    sealed trait Event
+    case class EventA(i: Int)    extends Event
+    case class EventB(s: String) extends Event
+
+    Owned(SyncIO {
+      val eventVar     = Var[Event](EventA(0))
+      val eventNotAVar = Var[Event](EventB(""))
+
+      val eventAVarOption    = eventVar.prism(GenPrism[Event, EventA])
+      val eventAVarOption2   = eventVar.subType[EventA]
+      val eventNotAVarOption = eventNotAVar.prism(GenPrism[Event, EventA])
+
+      eventAVarOption.isDefined shouldBe true
+      eventAVarOption2.isDefined shouldBe true
+      eventNotAVarOption.isDefined shouldBe false
+
+      val eventAVar  = eventAVarOption.get
+      val eventAVar2 = eventAVarOption2.get
+
+      eventVar.now() shouldBe EventA(0)
+      eventAVar.now() shouldBe EventA(0)
+      eventAVar2.now() shouldBe EventA(0)
+
+      eventAVar.set(EventA(1))
+
+      eventVar.now() shouldBe EventA(1)
+      eventAVar.now() shouldBe EventA(1)
+      eventAVar2.now() shouldBe EventA(1)
+
+      eventVar.set(EventB("he"))
+
+      eventVar.now() shouldBe EventB("he")
+      eventAVar.now() shouldBe EventA(1)
+      eventAVar2.now() shouldBe EventA(1)
+
+      eventAVar.set(EventA(2))
+
+      eventVar.now() shouldBe EventA(2)
+      eventAVar.now() shouldBe EventA(2)
+      eventAVar2.now() shouldBe EventA(2)
+
+      eventVar.set(EventA(3))
+
+      eventVar.now() shouldBe EventA(3)
+      eventAVar.now() shouldBe EventA(3)
+      eventAVar2.now() shouldBe EventA(3)
     }).unsafeRunSync()
   }
 }
