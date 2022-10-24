@@ -113,7 +113,7 @@ trait Var[A] extends Rx[A] with RxWriter[A] {
   final def lens[B](read: A => B)(write: (A, B) => A)(implicit owner: Owner): Var[B]      = transformVar(_.contramap(write(now(), _)))(_.map(read))
 
   final def imap[B](iso: Iso[A, B])(implicit owner: Owner): Var[B]   = this.imap(iso.reverseGet(_))(iso.get(_))
-  final def lens[B](lens: Lens[A, B])(implicit owner: Owner): Var[B]                      = this.lens(lens.get(_))((base, zoomed) => lens.replace(zoomed)(base))
+  final def lens[B](lens: Lens[A, B])(implicit owner: Owner): Var[B] = this.lens(lens.get(_))((base, zoomed) => lens.replace(zoomed)(base))
 }
 
 object Var {
@@ -170,14 +170,15 @@ object Var {
             .unsafeSubscribe(
               Observer.create(
                 {
-                  case Some(next) => cache match {
-                    case Some(prev) => prev.set(next)
-                    case None =>
-                      val temp = Var(next)
-                      cache = Some(temp)
-                      cancelable.unsafeAdd(() => temp.observable.map(Some.apply).unsafeForeach(rxvar.set))
-                      outerSink.unsafeOnNext(cache)
-                  }
+                  case Some(next) =>
+                    cache match {
+                      case Some(prev) => prev.set(next)
+                      case None       =>
+                        val temp = Var(next)
+                        cache = Some(temp)
+                        cancelable.unsafeAdd(() => temp.observable.map(Some.apply).unsafeForeach(rxvar.set))
+                        outerSink.unsafeOnNext(cache)
+                    }
 
                   case None =>
                     cache = None

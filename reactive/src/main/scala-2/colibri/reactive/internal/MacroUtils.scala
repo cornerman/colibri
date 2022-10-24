@@ -29,7 +29,9 @@ object MacroUtils {
     transformer.transform(src)
   }
 
-  def ownedImpl[R](c: blackbox.Context)(f: c.Expr[R])(subscriptionOwner: c.Expr[SubscriptionOwner[R]], syncEmbed: c.Expr[SyncEmbed[R]]): c.Expr[R] = {
+  def ownedImpl[R](
+      c: blackbox.Context,
+  )(f: c.Expr[R])(subscriptionOwner: c.Expr[SubscriptionOwner[R]], syncEmbed: c.Expr[SyncEmbed[R]]): c.Expr[R] = {
     import c.universe._
 
     val newOwner = c.freshName(TermName(ownerName))

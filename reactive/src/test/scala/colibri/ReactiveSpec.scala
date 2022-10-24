@@ -557,8 +557,8 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
 
   it should "lens" in Owned(SyncIO {
     val a: Var[(Int, String)] = Var((0, "Wurst"))
-    val b: Var[String] = a.lens(_._2)((a, b) => a.copy(_2 = b))
-    val c: Rx[String] = b.map(_ + "q")
+    val b: Var[String]        = a.lens(_._2)((a, b) => a.copy(_2 = b))
+    val c: Rx[String]         = b.map(_ + "q")
 
     a.now() shouldBe ((0, "Wurst"))
     b.now() shouldBe "Wurst"
@@ -591,7 +591,7 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
 
     Owned(SyncIO {
       val employee = Var(Employee("jules", Company("wules", 7)))
-      val zipcode = employee.lens(GenLens[Employee](_.company.zipcode))
+      val zipcode  = employee.lens(GenLens[Employee](_.company.zipcode))
 
       employee.now() shouldBe Employee("jules", Company("wules", 7))
       zipcode.now() shouldBe 7
