@@ -775,10 +775,11 @@ object Observable    {
       }
     }
 
-    @deprecated("Use mapEffectSingleOrDrop instead", "0.3.0")
-    def mapAsyncSingleOrDrop[F[_]: RunEffect, B](f: A => F[B]): Observable[B] = mapEffectSingleOrDrop(f)
-
-    def mapEffectSingleOrDrop[F[_]: RunEffect, B](f: A => F[B]): Observable[B] = new Observable[B] {
+    @deprecated("Use singleMapEffect instead", "0.3.0")
+    def mapAsyncSingleOrDrop[F[_]: RunEffect, B](f: A => F[B]): Observable[B]  = singleMapEffect(f)
+    @deprecated("Use singleMapEffect instead", "0.7.2")
+    def mapEffectSingleOrDrop[F[_]: RunEffect, B](f: A => F[B]): Observable[B] = singleMapEffect(f)
+    def singleMapEffect[F[_]: RunEffect, B](f: A => F[B]): Observable[B]       = new Observable[B] {
       def unsafeSubscribe(sink: Observer[B]): Cancelable = {
         val single = Cancelable.singleOrDrop()
 
@@ -808,8 +809,10 @@ object Observable    {
       }
     }
 
-    @inline def mapFutureSingleOrDrop[B](f: A => Future[B]): Observable[B] =
-      mapEffectSingleOrDrop(v => IO.fromFuture(IO(f(v))))
+    @deprecated("Use singleMapFuture instead", "0.7.2")
+    @inline def mapFutureSingleOrDrop[B](f: A => Future[B]): Observable[B] = singleMapEffect(f)
+    @inline def singleMapEffect[B](f: A => Future[B]): Observable[B]       =
+      singleMapEffect(v => IO.fromFuture(IO(f(v))))
 
     @inline def flatMap[B](f: A => Observable[B]): Observable[B] = concatMap(f)
 
