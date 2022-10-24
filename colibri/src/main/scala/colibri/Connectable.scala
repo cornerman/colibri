@@ -17,8 +17,6 @@ object Connectable                                                              
     def refCount: Observable[A]        = new Observable[A] {
       def unsafeSubscribe(sink: Observer[A]): Cancelable = Cancelable.composite(source.value.unsafeSubscribe(sink), source.connect())
     }
-    @deprecated("Use unsafeHot instead", "0.5.0")
-    def hot: Observable.Hot[A]         = unsafeHot()
     def unsafeHot(): Observable.Hot[A] = new Observable.Hot[A] {
       val cancelable                                     = source.connect()
       def unsafeSubscribe(sink: Observer[A]): Cancelable = source.value.unsafeSubscribe(sink)

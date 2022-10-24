@@ -29,11 +29,6 @@ object Observer    {
       }
   }
 
-  @deprecated("Use createUnrecovered instead", "")
-  @inline def unsafeCreate[A](
-      consume: A => Unit,
-      failure: Throwable => Unit = UnhandledErrorReporter.errorSubject.unsafeOnNext,
-  ): Observer[A] = createUnrecovered(consume, failure)
   @inline def createUnrecovered[A](
       consume: A => Unit,
       failure: Throwable => Unit = UnhandledErrorReporter.errorSubject.unsafeOnNext,
@@ -90,8 +85,6 @@ object Observer    {
 
   @inline def combine[A](sinks: Observer[A]*): Observer[A] = combineIterable(sinks)
 
-  @deprecated("Use combineIterable instead", "0.5.0")
-  def combineSeq[A](sinks: Seq[Observer[A]]): Observer[A]           = combineIterable(sinks)
   def combineIterable[A](sinks: Iterable[Observer[A]]): Observer[A] = new Observer[A] {
     def unsafeOnNext(value: A): Unit          = sinks.foreach(_.unsafeOnNext(value))
     def unsafeOnError(error: Throwable): Unit = sinks.foreach(_.unsafeOnError(error))
@@ -214,11 +207,6 @@ object Observer    {
       val source  = transform(handler)
       Connectable(handler, () => source.unsafeSubscribe(sink))
     }
-
-    @deprecated("Use unsafeOnNext instead", "")
-    def onNext(value: A): Unit          = sink.unsafeOnNext(value)
-    @deprecated("Use unsafeOnError instead", "")
-    def onError(error: Throwable): Unit = sink.unsafeOnError(error)
 
     def onNextF[F[_]: Sync](value: A): F[Unit] = Sync[F].delay(sink.unsafeOnNext(value))
     def onNextIO(value: A): IO[Unit]           = onNextF[IO](value)
