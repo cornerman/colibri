@@ -612,12 +612,12 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
     case class EventB(s: String) extends Event
 
     Owned(SyncIO {
-      val eventVar     = Var[Event](EventA(0))
-      val eventNotAVar = Var[Event](EventB(""))
+      val eventVar: Var[Event]     = Var[Event](EventA(0))
+      val eventNotAVar: Var[Event] = Var[Event](EventB(""))
 
-      val eventAVarOption    = eventVar.prism(GenPrism[Event, EventA])
-      val eventAVarOption2   = eventVar.subType[EventA]
-      val eventNotAVarOption = eventNotAVar.prism(GenPrism[Event, EventA])
+      val eventAVarOption: Option[Var[EventA]]    = eventVar.prism(GenPrism[Event, EventA])
+      val eventAVarOption2: Option[Var[EventA]]   = eventVar.subType[EventA]
+      val eventNotAVarOption: Option[Var[EventA]] = eventNotAVar.prism(GenPrism[Event, EventA])
 
       eventAVarOption.isDefined shouldBe true
       eventAVarOption2.isDefined shouldBe true

@@ -1680,14 +1680,14 @@ object Observable    {
   }
 
   @inline implicit class BooleanOperations(private val source: Observable[Boolean]) extends AnyVal {
-    @inline def asIf[A](ifTrue: => A, ifFalse: A): Observable[A] = source.map {
+    @inline def toggle[A](ifTrue: => A, ifFalse: A): Observable[A] = source.map {
       case true  => ifTrue
       case false => ifFalse
     }
 
-    @inline def asIf[A: Monoid](ifTrue: => A): Observable[A] = asIf(ifTrue, Monoid[A].empty)
+    @inline def toggle[A: Monoid](ifTrue: => A): Observable[A] = toggle(ifTrue, Monoid[A].empty)
 
-    @inline def not: Observable[Boolean] = source.map(x => !x)
+    @inline def negated: Observable[Boolean] = source.map(x => !x)
   }
 
   @inline implicit class IterableOperations[A](private val source: Observable[Iterable[A]]) extends AnyVal {
