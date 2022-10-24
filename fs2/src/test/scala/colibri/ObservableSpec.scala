@@ -78,14 +78,7 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
 
     Source[Stream[IO, *]].unsafeSubscribe(stream)(Observer.create[Int](received ::= _))
 
-    mapped shouldBe List.empty
-    received shouldBe List.empty
-
-    val test = IO.cede *> IO {
-      mapped shouldBe List(1)
-      received shouldBe List(1)
-    }
-
-    test.unsafeToFuture()
+    mapped shouldBe List(1)
+    received shouldBe List(1)
   }
 }
