@@ -6,7 +6,6 @@ import colibri.helpers.Newtype1
 // Inspired by monix: https://github.com/monix/monix/blob/88fdaf67a11bffb8bf7a2d525f7564491574743e/monix-reactive/shared/src/main/scala/monix/reactive/observables/CombineObservable.scala
 object CombineObservable extends Newtype1[Observable] {
   implicit val applicative: Applicative[CombineObservable.Type] = new Applicative[CombineObservable.Type] {
-    import CombineObservable.{apply => wrap}
 
     override def pure[A](x: A): colibri.CombineObservable.Type[A] =
       wrap(Observable.pure(x))

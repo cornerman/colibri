@@ -59,18 +59,16 @@ object Observable    {
   }
 
   implicit object catsParallelCombine extends Parallel[Observable] {
-    import CombineObservable.{apply => wrap, unwrap}
-
     override type F[A] = CombineObservable.Type[A]
 
     override def monad: Monad[Observable]                         = implicitly[Monad[Observable]]
     override def applicative: Applicative[CombineObservable.Type] = implicitly[Applicative[CombineObservable.Type]]
 
     override val sequential = new (CombineObservable.Type ~> Observable) {
-      def apply[A](fa: CombineObservable.Type[A]): Observable[A] = unwrap(fa)
+      def apply[A](fa: CombineObservable.Type[A]): Observable[A] = CombineObservable.unwrap(fa)
     }
     override val parallel   = new (Observable ~> CombineObservable.Type) {
-      def apply[A](fa: Observable[A]): CombineObservable.Type[A] = wrap(fa)
+      def apply[A](fa: Observable[A]): CombineObservable.Type[A] = CombineObservable.wrap(fa)
     }
   }
 
@@ -442,6 +440,41 @@ object Observable    {
       def unsafeSubscribe(sink: Observer[B]): Cancelable = source.unsafeSubscribe(sink.contramap(f))
     }
 
+    def parMapEffect[B, F[_]: RunEffect](f: A => F[B]): Observable[B] = new Observable[B] {
+      def unsafeSubscribe(sink: Observer[B]): Cancelable = {
+        val tasks = js.Array[Either[Throwable, B]]()
+
+        val taskCancelables = Cancelable.builder()
+
+        val cancelable = source.unsafeSubscribe(
+          Observer.create(
+            { input =>
+              val index = tasks.length
+              tasks.push(null)
+
+              val effect = f(input)
+
+              taskCancelables.unsafeAdd(() =>
+                RunEffect[F].unsafeRunSyncOrAsyncCancelable(effect) { either =>
+                  tasks(index) = either
+                  val finishedTasks = tasks.takeWhileInPlace(_ != null)
+                  finishedTasks.foreach {
+                    case Right(value) => sink.unsafeOnNext(value)
+                    case Left(error)  => sink.unsafeOnError(error)
+                  }
+                },
+              )
+            },
+            sink.unsafeOnError,
+          ),
+        )
+
+        Cancelable.composite(cancelable, taskCancelables)
+      }
+    }
+
+    def parMapFuture[B](f: A => Future[B]): Observable[B] = parMapEffect(a => IO.fromFuture(IO(f(a))))
+
     def discard: Observable[Nothing]                             = Observable.empty.subscribing(source)
     def void: Observable[Unit]                                   = map(_ => ())
     def as[B](value: B): Observable[B]                           = map(_ => value)
@@ -620,9 +653,13 @@ object Observable    {
 
     def concat(sources: Observable[A]*): Observable[A] = Observable.concatIterable(source +: sources)
 
-    @inline def mergeMap[B](f: A => Observable[B]): Observable[B] = mapObservableWithCancelable(f)(Cancelable.builder)
+    @inline def mergeMap[B](f: A => Observable[B]): Observable[B]               = mapObservableWithCancelable(f)(Cancelable.builder)
+    @inline def mergeMapEffect[F[_]: RunEffect, B](f: A => F[B]): Observable[B] = mergeMap(a => Observable.fromEffect(f(a)))
+    @inline def mergeMapFuture[B](f: A => Future[B]): Observable[B]             = mergeMap(a => Observable.fromFuture(f(a)))
 
-    @inline def switchMap[B](f: A => Observable[B]): Observable[B] = mapObservableWithCancelable(f)(Cancelable.variable)
+    @inline def switchMap[B](f: A => Observable[B]): Observable[B]               = mapObservableWithCancelable(f)(Cancelable.variable)
+    @inline def switchMapEffect[F[_]: RunEffect, B](f: A => F[B]): Observable[B] = switchMap(a => Observable.fromEffect(f(a)))
+    @inline def switchMapFuture[B](f: A => Future[B]): Observable[B]             = switchMap(a => Observable.fromFuture(f(a)))
 
     private def mapObservableWithCancelable[B](f: A => Observable[B])(newCancelableSetter: () => Cancelable.Setter): Observable[B] =
       new Observable[B] {
@@ -652,7 +689,8 @@ object Observable    {
     @deprecated("Use mapEffect instead", "0.3.0")
     def mapAsync[F[_]: RunEffect, B](f: A => F[B]): Observable[B]            = mapEffect(f)
 
-    def mapEffect[F[_]: RunEffect, B](f: A => F[B]): Observable[B] = new Observable[B] {
+    @inline def mapEffect[F[_]: RunEffect, B](f: A => F[B]): Observable[B] = concatMapEffect(f)
+    def concatMapEffect[F[_]: RunEffect, B](f: A => F[B]): Observable[B]   = new Observable[B] {
       def unsafeSubscribe(sink: Observer[B]): Cancelable = {
         val consecutive = Cancelable.consecutive()
 
@@ -682,7 +720,8 @@ object Observable    {
       }
     }
 
-    @inline def mapFuture[B](f: A => Future[B]): Observable[B] = mapEffect(v => IO.fromFuture(IO(f(v))))
+    @inline def mapFuture[B](f: A => Future[B]): Observable[B]       = concatMapFuture(f)
+    @inline def concatMapFuture[B](f: A => Future[B]): Observable[B] = mapEffect(v => IO.fromFuture(IO(f(v))))
 
     @inline def mapResource[F[_]: RunEffect: Sync, B](f: A => Resource[F, B]): Observable[B] =
       mapResourceWithCancelable(f)(Cancelable.builder)
@@ -1348,6 +1387,11 @@ object Observable    {
       () => source.unsafeSubscribe(pipe),
     )
 
+    def fold[B](seed: B)(f: (B, A) => B): Observable[B]         = scan(seed)(f).last
+    def foldF[F[_]: Async, B](seed: B)(f: (B, A) => B): F[B]    = scan(seed)(f).lastF[F]
+    def foldIO[B](seed: B)(f: (B, A) => B): IO[B]               = scan(seed)(f).lastIO
+    def unsafeFoldFuture[B](seed: B)(f: (B, A) => B): Future[B] = scan(seed)(f).unsafeLastFuture()
+
     @deprecated("Use prependEffect instead", "0.3.0")
     @inline def prependSync[F[_]: RunSyncEffect](value: F[A]): Observable[A] = prependEffect(value)
     @deprecated("Use prependEffect instead", "0.3.0")
@@ -1377,6 +1421,8 @@ object Observable    {
       }
     }
 
+    def endWith(values: Iterable[A]): Observable[A] = concat(Observable.fromIterable(values))
+
     def syncLatestF[F[_]: Sync]: F[Option[A]] = Sync[F].defer {
       var lastValue = Option.empty[F[A]]
 
@@ -1393,6 +1439,23 @@ object Observable    {
     @inline def syncLatestSyncIO: SyncIO[Option[A]] = syncLatestF[SyncIO]
 
     @inline def syncLatest: Observable[A] = Observable.fromEffect(syncLatestSyncIO).flattenOption
+
+    def syncAllF[F[_]: Sync]: F[Seq[A]] = Sync[F].defer {
+      val values = collection.mutable.ArrayBuffer[F[A]]()
+
+      val cancelable = source.unsafeSubscribe(
+        Observer.create[A](value => values.addOne(Sync[F].pure(value)), error => values.addOne(Sync[F].raiseError(error))),
+      )
+      cancelable.unsafeCancel()
+
+      values.toSeq.sequence
+    }
+
+    @inline def syncAllIO: IO[Seq[A]] = syncAllF[IO]
+
+    @inline def syncAllSyncIO: SyncIO[Seq[A]] = syncAllF[SyncIO]
+
+    @inline def syncAll: Observable[A] = Observable.fromEffect(syncAllSyncIO).flattenIterable
 
     def headF[F[_]: Async]: F[A] = Async[F].async[A] { callback =>
       Async[F].delay {
@@ -1607,6 +1670,17 @@ object Observable    {
 
   @inline implicit class ThrowableOperations(private val source: Observable[Throwable]) extends AnyVal {
     @inline def mergeFailed: Observable[Throwable] = source.recoverMap(identity)
+  }
+
+  @inline implicit class BooleanOperations(private val source: Observable[Boolean]) extends AnyVal {
+    @inline def asIf[A](ifTrue: => A, ifFalse: A): Observable[A] = source.map {
+      case true  => ifTrue
+      case false => ifFalse
+    }
+
+    @inline def asIf[A: Monoid](ifTrue: => A): Observable[A] = asIf(ifTrue, Monoid[A].empty)
+
+    @inline def not: Observable[Boolean] = source.map(x => !x)
   }
 
   @inline implicit class IterableOperations[A](private val source: Observable[Iterable[A]]) extends AnyVal {

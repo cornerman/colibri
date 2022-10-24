@@ -27,7 +27,7 @@ inThisBuild(
 )
 
 lazy val commonSettings = Seq(
-  crossScalaVersions := Seq("2.12.17", "2.13.10", "3.2.0"),
+  crossScalaVersions := Seq("2.13.10", "3.2.0"),
   scalaVersion       := "2.13.10",
   libraryDependencies ++= (CrossVersion.partialVersion(scalaVersion.value) match {
     case Some((3, _)) => Seq.empty
@@ -63,8 +63,8 @@ lazy val reactive = project
   .settings(
     name := "colibri-reactive",
     libraryDependencies ++= Seq(
-      "com.github.julien-truffaut" %%% "monocle-core"  % "2.0.4",
-      "com.github.julien-truffaut" %%% "monocle-macro" % "2.0.4" % Test,
+      "dev.optics" %%% "monocle-core"  % "3.1.0",
+      "dev.optics" %%% "monocle-macro" % "3.1.0" % Test,
     ),
   )
 
@@ -110,7 +110,7 @@ lazy val rx = project
   .settings(commonSettings)
   .settings(
     name               := "colibri-rx",
-    crossScalaVersions := Seq("2.12.17", "2.13.10"), // no scala3, because scala.rx uses scala2 macros
+    crossScalaVersions := Seq("2.13.10"), // no scala3, because scala.rx uses scala2 macros
     libraryDependencies ++= Seq(
       "com.lihaoyi" %% "scalarx" % "0.4.3",
     ),
