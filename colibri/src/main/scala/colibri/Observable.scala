@@ -820,8 +820,8 @@ object Observable    {
     }
 
     @deprecated("Use singleMapFuture instead", "0.7.2")
-    @inline def mapFutureSingleOrDrop[B](f: A => Future[B]): Observable[B] = singleMapEffect(f)
-    @inline def singleMapEffect[B](f: A => Future[B]): Observable[B]       =
+    @inline def mapFutureSingleOrDrop[B](f: A => Future[B]): Observable[B] = singleMapFuture(f)
+    @inline def singleMapFuture[B](f: A => Future[B]): Observable[B]       =
       singleMapEffect(v => IO.fromFuture(IO(f(v))))
 
     @inline def flatMap[B](f: A => Observable[B]): Observable[B] = concatMap(f)
