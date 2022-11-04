@@ -591,7 +591,7 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
 
     Owned(SyncIO {
       val employee = Var(Employee("jules", Company("wules", 7)))
-      val zipcode  = employee.lens(GenLens[Employee](_.company.zipcode))
+      val zipcode  = employee.lensO(GenLens[Employee](_.company.zipcode))
 
       employee.now() shouldBe Employee("jules", Company("wules", 7))
       zipcode.now() shouldBe 7
@@ -606,7 +606,7 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
     }).unsafeRunSync()
   }
 
-  it should "prism with monocle" in {
+  it should "optics operations" in {
     sealed trait Event
     case class EventA(i: Int)    extends Event
     case class EventB(s: String) extends Event
@@ -615,9 +615,9 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
       val eventVar: Var[Event]     = Var[Event](EventA(0))
       val eventNotAVar: Var[Event] = Var[Event](EventB(""))
 
-      val eventAVarOption: Option[Var[EventA]]    = eventVar.prism(GenPrism[Event, EventA])
+      val eventAVarOption: Option[Var[EventA]]    = eventVar.prismO(GenPrism[Event, EventA])
       val eventAVarOption2: Option[Var[EventA]]   = eventVar.subType[EventA]
-      val eventNotAVarOption: Option[Var[EventA]] = eventNotAVar.prism(GenPrism[Event, EventA])
+      val eventNotAVarOption: Option[Var[EventA]] = eventNotAVar.prismO(GenPrism[Event, EventA])
 
       eventAVarOption.isDefined shouldBe true
       eventAVarOption2.isDefined shouldBe true
