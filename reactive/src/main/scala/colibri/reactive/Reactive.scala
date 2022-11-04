@@ -147,7 +147,8 @@ trait Var[A] extends Rx[A] with RxWriter[A] {
   final def imapO[B](optic: Iso[A, B])(implicit owner: Owner): Var[B]                    = imap(optic.reverseGet(_))(optic.get(_))
   final def lensO[B](optic: Lens[A, B])(implicit owner: Owner): Var[B]                   = lens(optic.get(_))((base, zoomed) => optic.replace(zoomed)(base))
   final def prismO[B](optic: Prism[A, B])(implicit owner: Owner): Option[Var[B]]         = prism(optic.reverseGet(_))(optic.getOption(_))
-  final def prismInitO[B](optic: Prism[A, B])(initial: B)(implicit owner: Owner): Var[B] = prismInit(optic.reverseGet(_))(optic.getOption(_))(initial)
+  final def prismInitO[B](optic: Prism[A, B])(initial: B)(implicit owner: Owner): Var[B] =
+    prismInit(optic.reverseGet(_))(optic.getOption(_))(initial)
 }
 
 object Var {
