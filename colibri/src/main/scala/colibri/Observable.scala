@@ -11,6 +11,16 @@ import scala.concurrent.{ExecutionContext, Future}
 import scala.concurrent.duration.FiniteDuration
 import scala.util.Try
 
+//class ObservableFlatMapper[A,B](f: A => F[B]) {
+//  def flatMap(f: A => F[B]) = ???
+//}
+//
+//for {
+//  o <- observable.concatSemantic //.flatMap
+//  o2 <- observable2.mergeSemantic //.flatMap
+//  o3 <- observable3.switchSemantic //.map
+//} yield "horst"
+
 trait Observable[+A] {
   def unsafeSubscribe(sink: Observer[A]): Cancelable
 }
@@ -1557,6 +1567,28 @@ object Observable    {
             subscription
           }
         }
+    }
+
+    def takeWhileInclusive(predicate: A => Boolean): Observable[A] = new Observable[A] {
+      def unsafeSubscribe(sink: Observer[A]): Cancelable = {
+        var finishedTake = false
+        val subscription = Cancelable.variable()
+        subscription.unsafeAdd(() =>
+          source.unsafeSubscribe(sink.contrafilter { v =>
+            if (finishedTake) false
+            else {
+              if (!predicate(v)) {
+                finishedTake = true
+                subscription.unsafeCancel()
+              }
+              true
+            }
+          }),
+        )
+        subscription.unsafeFreeze()
+
+        subscription
+      }
     }
 
     def takeWhile(predicate: A => Boolean): Observable[A] = new Observable[A] {
