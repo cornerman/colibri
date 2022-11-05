@@ -1567,4 +1567,48 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
     errors shouldBe 0
     cancelable.isEmpty() shouldBe false
   }
+
+  it should "scanReduce" in {
+    var received = List.empty[Int]
+    var errors   = 0
+    val stream   = Observable(1, 2, 3).scanReduce(_ + _)
+
+    val cancelable = stream.unsafeSubscribe(
+      Observer.create[Int](
+        received ::= _,
+        _ => errors += 1,
+      ),
+    )
+
+    received shouldBe List(6, 3, 1)
+    errors shouldBe 0
+    cancelable.isEmpty() shouldBe true
+  }
+
+  it should "mapFilterFirst" in {
+    val result   = Observable(1, 2, 3).mapFilterFirstIO(v => Option.when(v == 2)(v))
+
+    val test = result.map { v =>
+      v shouldBe 2
+    }
+
+    test.unsafeToFuture()
+  }
+
+  it should "mapFilterWhile" in {
+    var received = List.empty[Int]
+    var errors   = 0
+    val stream   = Observable(1, 2, 3).mapFilterWhile(v => Option.when(v < 3)(v))
+
+    val cancelable = stream.unsafeSubscribe(
+      Observer.create[Int](
+        received ::= _,
+        _ => errors += 1,
+      ),
+    )
+
+    received shouldBe List(2, 1)
+    errors shouldBe 0
+    cancelable.isEmpty() shouldBe true
+  }
 }
