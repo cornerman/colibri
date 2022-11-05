@@ -1362,6 +1362,26 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
     test.unsafeToFuture()
   }
 
+  it should "lastIO async complex" in {
+    val last = Observable(2)
+      .prependEffect(IO.cede *> IO.pure(1))
+      .concatMap(x => Observable(x,x).prependEffect(IO.cede *> IO.pure(0))).take(100)
+      .dropSyncAll
+      .prepend(1000)
+      .switchMap(x => Observable(x).delayMillis(40))
+      .mergeMap(x => Observable(x).delayMillis(10))
+      .distinctOnEquals
+      .lastIO
+
+    val test = for {
+      value <- last
+
+      _ = value shouldBe 2
+    } yield succeed
+
+    test.unsafeToFuture()
+  }
+
   it should "syncLatest empty" in {
     val latest = Observable.empty.syncLatestSyncIO
 
