@@ -1034,6 +1034,8 @@ object Observable    {
     )(f: (A, B, C, D, E, F) => R): Observable[R] =
       zipMap(sourceB.zip(sourceC, sourceD, sourceE, sourceF))((a, tail) => f(a, tail._1, tail._2, tail._3, tail._4, tail._5))
 
+    @inline def combineLatest_(sourceB: Observable[Unit]): Observable[A] = combineLatestMap(sourceB)((a, _) => a)
+
     @inline def combineLatest[B](sourceB: Observable[B]): Observable[(A, B)]                                                             =
       combineLatestMap(sourceB)(_ -> _)
     @inline def combineLatest[B, C](sourceB: Observable[B], sourceC: Observable[C]): Observable[(A, B, C)]                               =
