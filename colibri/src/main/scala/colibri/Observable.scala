@@ -11,16 +11,6 @@ import scala.concurrent.{ExecutionContext, Future}
 import scala.concurrent.duration.FiniteDuration
 import scala.util.Try
 
-//class ObservableFlatMapper[A,B](f: A => F[B]) {
-//  def flatMap(f: A => F[B]) = ???
-//}
-//
-//for {
-//  o <- observable.concatSemantic //.flatMap
-//  o2 <- observable2.mergeSemantic //.flatMap
-//  o3 <- observable3.switchSemantic //.map
-//} yield "horst"
-
 trait Observable[+A] {
   def unsafeSubscribe(sink: Observer[A]): Cancelable
 }
@@ -88,6 +78,11 @@ object Observable    {
 
   implicit object catsInstancesProSubject extends arrow.Profunctor[ProSubject] {
     def dimap[A, B, C, D](fab: ProSubject[A, B])(f: C => A)(g: B => D): ProSubject[C, D] = fab.imapProSubject(f)(g)
+  }
+
+  trait ForSemantic[+A] {
+    def map[B](f: A => B): Observable[B]
+    def flatMap[B](f: A => Observable[B]): Observable[B]
   }
 
   trait Value[+A]      extends Observable[A] {
@@ -876,6 +871,21 @@ object Observable    {
           consecutive,
         )
       }
+    }
+
+    def forMerge: ForSemantic[A] = new ForSemantic[A] {
+      def map[B](f: A => B): Observable[B] = source.map(f)
+      def flatMap[B](f: A => Observable[B]): Observable[B] = source.mergeMap(f)
+    }
+
+    def forSwitch: ForSemantic[A] = new ForSemantic[A] {
+      def map[B](f: A => B): Observable[B] = source.map(f)
+      def flatMap[B](f: A => Observable[B]): Observable[B] = source.switchMap(f)
+    }
+
+    def forConcat: ForSemantic[A] = new ForSemantic[A] {
+      def map[B](f: A => B): Observable[B] = source.map(f)
+      def flatMap[B](f: A => Observable[B]): Observable[B] = source.concatMap(f)
     }
 
     def dropSyncAll: Observable[A] = new Observable[A] {

@@ -1631,4 +1631,35 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
     errors shouldBe 0
     cancelable.isEmpty() shouldBe true
   }
+
+  it should "forSemantic" in {
+    var received = List.empty[Int]
+    var errors   = 0
+    val stream = for {
+      a <- Observable(1).concat(Observable(2).delayMillis(1)).forSwitch
+      b <- Observable(10).concat(Observable(20).delayMillis(2)).forMerge
+      c <- Observable(100).concat(Observable(200).delayMillis(3)).forConcat
+      d <- Observable(1000).concat(Observable(2000).delayMillis(4))
+    } yield a + b + c + d
+
+    val cancelable = stream.unsafeSubscribe(
+      Observer.create[Int](
+        received ::= _,
+        _ => errors += 1,
+      ),
+    )
+
+    received shouldBe List(1111)
+    errors shouldBe 0
+    cancelable.isEmpty() shouldBe false
+
+    val test = stream.lastIO.map { last =>
+      last shouldBe 2222
+      received shouldBe List(2222, 2212, 1222, 2122, 1212, 2112, 1122, 1112, 1111)
+      errors shouldBe 0
+      cancelable.isEmpty() shouldBe true
+    }
+
+    test.unsafeToFuture()
+  }
 }
