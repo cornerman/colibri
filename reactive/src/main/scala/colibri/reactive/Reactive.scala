@@ -128,18 +128,27 @@ trait Var[A] extends Rx[A] with RxWriter[A] {
   final def lens[B](read: A => B)(write: (A, B) => A)(implicit owner: Owner): Var[B] =
     transformVar(_.contramap(write(now(), _)))(_.map(read))
 
-  final def prism[A2](f: A2 => A)(g: A => Option[A2])(implicit owner: Owner): Option[Var[A2]] = g(this.now()).map { initial =>
+  final def prismInit[A2](f: A2 => A)(g: A => Option[A2])(initial: A2)(implicit owner: Owner): Var[A2] =
     transformVar(_.contramap(f))(rx => Rx.observableSync(rx.observable.mapFilter(g).prepend(initial)))
-  }
+
+  final def prism[A2](f: A2 => A)(g: A => Option[A2])(implicit owner: Owner): Option[Var[A2]] =
+    g(now()).map(prismInit(f)(g)(_))
 
   final def subType[A2 <: A: ClassTag](implicit owner: Owner): Option[Var[A2]] = prism[A2]((x: A2) => x) {
     case a: A2 => Some(a)
     case _     => None
   }
 
-  final def imap[B](iso: Iso[A, B])(implicit owner: Owner): Var[B]              = this.imap(iso.reverseGet(_))(iso.get(_))
-  final def lens[B](lens: Lens[A, B])(implicit owner: Owner): Var[B]            = this.lens(lens.get(_))((base, zoomed) => lens.replace(zoomed)(base))
-  final def prism[B](prism: Prism[A, B])(implicit owner: Owner): Option[Var[B]] = this.prism(prism.reverseGet(_))(prism.getOption(_))
+  final def subTypeInit[A2 <: A: ClassTag](initial: A2)(implicit owner: Owner): Var[A2] = prismInit[A2]((x: A2) => x) {
+    case a: A2 => Some(a)
+    case _     => None
+  }(initial)
+
+  final def imapO[B](optic: Iso[A, B])(implicit owner: Owner): Var[B]                    = imap(optic.reverseGet(_))(optic.get(_))
+  final def lensO[B](optic: Lens[A, B])(implicit owner: Owner): Var[B]                   = lens(optic.get(_))((base, zoomed) => optic.replace(zoomed)(base))
+  final def prismO[B](optic: Prism[A, B])(implicit owner: Owner): Option[Var[B]]         = prism(optic.reverseGet(_))(optic.getOption(_))
+  final def prismInitO[B](optic: Prism[A, B])(initial: B)(implicit owner: Owner): Var[B] =
+    prismInit(optic.reverseGet(_))(optic.getOption(_))(initial)
 }
 
 object Var {

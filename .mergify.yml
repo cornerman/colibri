@@ -2,7 +2,6 @@ queue_rules:
   - name: default
     conditions:
       # Conditions to get out of the queue (= merged)
-      - check-success~=build \(2.12.\d+\)
       - check-success~=build \(2.13.\d+\)
       - check-success~=build \(3.\d+.\d+\)
 
@@ -24,7 +23,6 @@ pull_request_rules:
           - author~=^dependabot(|-preview)\[bot\]$
           - author=scala-steward
         - base=master
-        - check-success~=build \(2.12.\d+\)
         - check-success~=build \(2.13.\d+\)
         - check-success~=build \(3.\d+.\d+\)
     actions:

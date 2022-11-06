@@ -11,6 +11,16 @@ import scala.concurrent.{ExecutionContext, Future}
 import scala.concurrent.duration.FiniteDuration
 import scala.util.Try
 
+//class ObservableFlatMapper[A,B](f: A => F[B]) {
+//  def flatMap(f: A => F[B]) = ???
+//}
+//
+//for {
+//  o <- observable.concatSemantic //.flatMap
+//  o2 <- observable2.mergeSemantic //.flatMap
+//  o3 <- observable3.switchSemantic //.map
+//} yield "horst"
+
 trait Observable[+A] {
   def unsafeSubscribe(sink: Observer[A]): Cancelable
 }
@@ -512,6 +522,8 @@ object Observable    {
       def unsafeSubscribe(sink: Observer[B]): Cancelable = source.unsafeSubscribe(sink.contrascan(seed)(f))
     }
 
+    def scanReduce(f: (A, A) => A): Observable[A] = scan[Option[A]](None)((previous, current) => Some(previous.fold(current)(f(_, current)))).flattenOption
+
     def switchScan[B](seed: B)(f: (B, A) => Observable[B]): Observable[B] = new Observable[B] {
       override def unsafeSubscribe(sink: Observer[B]): Cancelable = {
         var current = seed
@@ -810,8 +822,8 @@ object Observable    {
     }
 
     @deprecated("Use singleMapFuture instead", "0.7.2")
-    @inline def mapFutureSingleOrDrop[B](f: A => Future[B]): Observable[B] = singleMapEffect(f)
-    @inline def singleMapEffect[B](f: A => Future[B]): Observable[B]       =
+    @inline def mapFutureSingleOrDrop[B](f: A => Future[B]): Observable[B] = singleMapFuture(f)
+    @inline def singleMapFuture[B](f: A => Future[B]): Observable[B]       =
       singleMapEffect(v => IO.fromFuture(IO(f(v))))
 
     @inline def flatMap[B](f: A => Observable[B]): Observable[B] = concatMap(f)
@@ -1464,6 +1476,17 @@ object Observable    {
 
     @inline def syncAll: Observable[A] = Observable.fromEffect(syncAllSyncIO).flattenIterable
 
+    @inline def collectFirst[B](f: PartialFunction[A, B]): Observable[B] = Observable.fromEffect(collectFirstIO(f))
+    @inline def collectFirstIO[B](f: PartialFunction[A, B]): IO[B] = collectFirstF[IO, B](f)
+    @inline def collectFirstF[F[_]: Async, B](f: PartialFunction[A, B]): F[B] = mapFilterFirstF(f.lift)
+
+    @inline def mapFilterFirst[B](f: A => Option[B]): Observable[B] = Observable.fromEffect(mapFilterFirstIO(f))
+    @inline def mapFilterFirstIO[B](f: A => Option[B]): IO[B] = mapFilterFirstF[IO, B](f)
+    @inline def mapFilterFirstF[F[_]: Async, B](f: A => Option[B]): F[B] = mapFilter(f).headF
+
+    @inline def collectWhile[B](f: PartialFunction[A, B]): Observable[B] = mapFilterWhile(f.lift)
+    @inline def mapFilterWhile[B](f: A => Option[B]): Observable[B] = map(f).takeWhile(_.isDefined).flattenOption
+
     def headF[F[_]: Async]: F[A] = Async[F].async[A] { callback =>
       Async[F].delay {
         val cancelable = Cancelable.variable()
@@ -1557,6 +1580,28 @@ object Observable    {
             subscription
           }
         }
+    }
+
+    def takeWhileInclusive(predicate: A => Boolean): Observable[A] = new Observable[A] {
+      def unsafeSubscribe(sink: Observer[A]): Cancelable = {
+        var finishedTake = false
+        val subscription = Cancelable.variable()
+        subscription.unsafeAdd(() =>
+          source.unsafeSubscribe(sink.contrafilter { v =>
+            if (finishedTake) false
+            else {
+              if (!predicate(v)) {
+                finishedTake = true
+                subscription.unsafeCancel()
+              }
+              true
+            }
+          }),
+        )
+        subscription.unsafeFreeze()
+
+        subscription
+      }
     }
 
     def takeWhile(predicate: A => Boolean): Observable[A] = new Observable[A] {
