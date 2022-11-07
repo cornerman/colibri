@@ -105,6 +105,7 @@ object RxWriter {
 
   @inline implicit final class RxWriterOps[A](private val self: RxWriter[A]) extends AnyVal {
     def contrafilter(f: A => Boolean): RxWriter[A] = self.transformRxWriter(_.contrafilter(f))
+    def tap(f: A => Unit): RxWriter[A]             = self.transformRxWriter(_.tap(f))
   }
 
   implicit object sink extends Sink[RxWriter] {
@@ -253,7 +254,6 @@ private final class VarSubject[A](seed: A) extends Var[A] {
 
   def now(): A = state.now()
 }
-
 private final class VarCombine[A](innerRead: Rx[A], innerWrite: RxWriter[A]) extends Var[A] {
   def now()      = innerRead.now()
   val observable = innerRead.observable
