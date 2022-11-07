@@ -1662,4 +1662,97 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
 
     test.unsafeToFuture()
   }
+
+  it should "sampleWith" in {
+    var received = List.empty[Int]
+    var errors   = 0
+    val trigger = Subject.publish[Unit]()
+    val subject = Subject.publish[Int]()
+    val stream = subject.sampleWith(trigger)
+
+    val cancelable = stream.unsafeSubscribe(
+      Observer.create[Int](
+        received ::= _,
+        _ => errors += 1,
+      ),
+    )
+
+    received shouldBe List()
+    errors shouldBe 0
+    cancelable.isEmpty() shouldBe false
+
+    trigger.unsafeOnNext(())
+
+    received shouldBe List()
+    errors shouldBe 0
+    cancelable.isEmpty() shouldBe false
+
+    subject.unsafeOnNext(1)
+
+    received shouldBe List()
+    errors shouldBe 0
+    cancelable.isEmpty() shouldBe false
+
+    trigger.unsafeOnNext(())
+
+    received shouldBe List(1)
+    errors shouldBe 0
+    cancelable.isEmpty() shouldBe false
+
+    trigger.unsafeOnNext(())
+
+    received shouldBe List(1)
+    errors shouldBe 0
+    cancelable.isEmpty() shouldBe false
+
+    subject.unsafeOnNext(2)
+    subject.unsafeOnNext(3)
+
+    received shouldBe List(1)
+    errors shouldBe 0
+    cancelable.isEmpty() shouldBe false
+
+    trigger.unsafeOnNext(())
+
+    received shouldBe List(3, 1)
+    errors shouldBe 0
+    cancelable.isEmpty() shouldBe false
+  }
+
+  it should "sampleWith initial" in {
+    var received = List.empty[Int]
+    var errors   = 0
+    val trigger = Subject.publish[Unit]()
+    val subject = Subject.publish[Int]()
+    val stream = subject.prepend(-100).sampleWith(trigger.prepend(()))
+
+    val cancelable = stream.unsafeSubscribe(
+      Observer.create[Int](
+        received ::= _,
+        _ => errors += 1,
+      ),
+    )
+
+    received shouldBe List(-100)
+    errors shouldBe 0
+    cancelable.isEmpty() shouldBe false
+
+    trigger.unsafeOnNext(())
+
+    received shouldBe List(-100)
+    errors shouldBe 0
+    cancelable.isEmpty() shouldBe false
+
+    subject.unsafeOnNext(1)
+
+    received shouldBe List(-100)
+    errors shouldBe 0
+    cancelable.isEmpty() shouldBe false
+
+    trigger.unsafeOnNext(())
+
+    received shouldBe List(1, -100)
+    errors shouldBe 0
+    cancelable.isEmpty() shouldBe false
+  }
 }

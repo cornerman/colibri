@@ -1236,6 +1236,32 @@ object Observable    {
       }
     }
 
+    @inline def sampleWith(trigger: Observable[Unit]): Observable[A] = new Observable[A] {
+      def unsafeSubscribe(sink: Observer[A]): Cancelable = {
+        var lastValue: Option[A] = None
+
+        def send(): Unit = {
+          lastValue.foreach(sink.unsafeOnNext)
+          lastValue = None
+        }
+
+        Cancelable.composite(
+          source.unsafeSubscribe(
+            Observer.createUnrecovered(
+              value => lastValue = Some(value),
+              sink.unsafeOnError,
+            ),
+          ),
+          trigger.unsafeSubscribe(
+            Observer.createUnrecovered(
+              _ => send(),
+              sink.unsafeOnError,
+            ),
+          ),
+        )
+      }
+    }
+
     @inline def sample(duration: FiniteDuration): Observable[A] = sampleMillis(duration.toMillis.toInt)
 
     def sampleMillis(duration: Int): Observable[A] = new Observable[A] {
