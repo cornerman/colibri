@@ -13,11 +13,15 @@ object MacroUtils {
 
   def injectOwner[T](c: blackbox.Context)(src: c.Tree, newOwner: c.universe.TermName, exceptOwner: c.Type): c.Tree = {
     import c.universe._
+
+    val implicitOwnerAtCaller     = c.inferImplicitValue(typeOf[Owner], silent = false)
+    val implicitLiveOwnerAtCaller = c.inferImplicitValue(typeOf[LiveOwner], silent = false)
+
     object transformer extends c.universe.Transformer {
       override def transform(tree: c.Tree): c.Tree = {
         val shouldReplaceOwner = tree != null &&
           tree.isTerm &&
-          !(tree.toString.startsWith(ownerName + "$") || tree.toString.startsWith(liveOwnerName + "$")) &&
+          (tree.tpe =:= implicitOwnerAtCaller.tpe || tree.tpe =:= implicitLiveOwnerAtCaller.tpe) &&
           tree.tpe <:< typeOf[Owner] &&
           !(tree.tpe =:= typeOf[Nothing]) &&
           !(tree.tpe <:< exceptOwner)

@@ -125,6 +125,61 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
     received2 shouldBe List(8, 7, 6, 5, 4, 3, 2)
   }).unsafeRunSync()
 
+  it should "nested owners" in Owned(SyncIO {
+    var received1 = List.empty[Int]
+    var innerRx   = List.empty[Int]
+    var outerRx   = List.empty[Int]
+
+    val variable  = Var(1)
+    val variable2 = Var(2)
+
+    def test(x: Int)(implicit owner: Owner) = Rx {
+      innerRx ::= x
+      variable2() * x
+    }
+
+    val rx = Rx {
+      val curr   = variable()
+      outerRx ::= curr
+      val result = test(curr)
+      result()
+    }
+
+    innerRx shouldBe List(1)
+    outerRx shouldBe List(1)
+    received1 shouldBe List.empty
+
+    rx.foreach(received1 ::= _)
+
+    innerRx shouldBe List(1)
+    outerRx shouldBe List(1)
+    received1 shouldBe List(2)
+
+    variable2.set(3)
+
+    innerRx shouldBe List(1, 1, 1) //TODO: triggering too often
+    outerRx shouldBe List(1, 1)
+    received1 shouldBe List(3, 2)
+
+    variable.set(2)
+
+    innerRx shouldBe List(2, 1, 1, 1)
+    outerRx shouldBe List(2, 1, 1)
+    received1 shouldBe List(6, 3, 2)
+
+    variable.set(3)
+
+    innerRx shouldBe List(3, 2, 1, 1, 1)
+    outerRx shouldBe List(3, 2, 1, 1)
+    received1 shouldBe List(9, 6, 3, 2)
+
+    variable2.set(4)
+
+    innerRx shouldBe List(3, 3, 3, 2, 1, 1, 1)  //TODO: triggering too often
+    outerRx shouldBe List(3, 3, 2, 1, 1)
+    received1 shouldBe List(12, 9, 6, 3, 2)
+  }).unsafeRunSync()
+
   it should "be distinct" in Owned(SyncIO {
     var mapped    = List.empty[Int]
     var received1 = List.empty[Boolean]
