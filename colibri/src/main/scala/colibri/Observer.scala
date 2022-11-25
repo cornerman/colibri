@@ -3,6 +3,7 @@ package colibri
 import cats.effect.{Sync, SyncIO, IO}
 import cats.{MonoidK, ContravariantMonoidal}
 import colibri.helpers._
+import scala.concurrent.Promise
 
 import scala.util.control.NonFatal
 
@@ -54,6 +55,12 @@ object Observer    {
     new Observer[A] {
       def unsafeOnNext(value: A): Unit          = recovered(f(Right(value)), unsafeOnError)
       def unsafeOnError(error: Throwable): Unit = f(Left(error))
+    }
+
+  def createFromPromise[A](promise: Promise[A]): Observer[A] =
+    new Observer[A] {
+      def unsafeOnNext(value: A): Unit          = { promise.trySuccess(value); () }
+      def unsafeOnError(error: Throwable): Unit = { promise.tryFailure(error); () }
     }
 
   def product[A, B](fa: Observer[A], fb: Observer[B]): Observer[(A, B)] = new Observer[(A, B)] {
