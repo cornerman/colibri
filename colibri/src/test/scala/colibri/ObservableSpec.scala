@@ -1755,4 +1755,72 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
     errors shouldBe 0
     cancelable.isEmpty() shouldBe false
   }
+
+  it should "replaceWith" in {
+    var mappedA = List.empty[Unit]
+    var mappedB = List.empty[Unit]
+    var received = List.empty[Unit]
+    var errors   = 0
+    val a = Subject.publish[Unit]()
+    val b = Subject.publish[Unit]()
+    val stream = (a: Observable[Unit]).tap(mappedA ::= _).replaceWith((b: Observable[Unit]).tap(mappedB ::= _))
+
+    val cancelable = stream.unsafeSubscribe(
+      Observer.create[Unit](
+        received ::= _,
+        _ => errors += 1,
+      ),
+    )
+
+    mappedA shouldBe List()
+    mappedB shouldBe List()
+    received shouldBe List()
+    errors shouldBe 0
+    cancelable.isEmpty() shouldBe false
+
+    a.unsafeOnNext(())
+
+    mappedA shouldBe List(())
+    mappedB shouldBe List()
+    received shouldBe List(())
+    errors shouldBe 0
+    cancelable.isEmpty() shouldBe false
+
+    b.unsafeOnNext(())
+
+    mappedA shouldBe List(())
+    mappedB shouldBe List(())
+    received shouldBe List((), ())
+    errors shouldBe 0
+    cancelable.isEmpty() shouldBe false
+
+    a.unsafeOnNext(())
+
+    mappedA shouldBe List(())
+    mappedB shouldBe List(())
+    received shouldBe List((), ())
+    errors shouldBe 0
+    cancelable.isEmpty() shouldBe false
+  }
+
+  it should "replaceWith sync" in {
+    var mappedA = List.empty[Unit]
+    var mappedB = List.empty[Unit]
+    var received = List.empty[Unit]
+    var errors   = 0
+    val stream = Observable.pure(()).tap(mappedA ::= _).replaceWith(Observable.pure(()).tap(mappedB ::= _))
+
+    val cancelable = stream.unsafeSubscribe(
+      Observer.create[Unit](
+        received ::= _,
+        _ => errors += 1,
+      ),
+    )
+
+    mappedA shouldBe List()
+    mappedB shouldBe List(())
+    received shouldBe List(())
+    errors shouldBe 0
+    cancelable.isEmpty() shouldBe true
+  }
 }

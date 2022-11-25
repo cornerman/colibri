@@ -1688,6 +1688,23 @@ object Observable    {
       }
     }
 
+    def replaceWith(obs: Observable[A]): Observable[A] = new Observable[A] {
+      def unsafeSubscribe(sink: Observer[A]): Cancelable = {
+        val replacedSubscription = Cancelable.variable()
+
+        val subscription = obs
+          .tap(_ => replacedSubscription.unsafeCancel())
+          .unsafeSubscribe(sink)
+
+        replacedSubscription.unsafeAdd(() => source.unsafeSubscribe(sink))
+
+        Cancelable.composite(
+          replacedSubscription,
+          subscription
+        )
+      }
+    }
+
     def drop(num: Int): Observable[A] = {
       if (num <= 0) source
       else
