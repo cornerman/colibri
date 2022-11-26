@@ -507,8 +507,10 @@ object Observable    {
       def unsafeSubscribe(sink: Observer[A]): Cancelable = source.unsafeSubscribe(sink.contrafilter(f))
     }
 
+    @deprecated("Use scan instead", "0.7.8")
     def scanToList: Observable[List[A]] = scan(List.empty[A])((list, x) => x :: list)
 
+    @deprecated("Use scan0 instead", "0.7.8")
     def scan0ToList: Observable[List[A]] = scan0(List.empty[A])((list, x) => x :: list)
 
     def scan0[B](seed: B)(f: (B, A) => B): Observable[B] = scan(seed)(f).prepend(seed)
