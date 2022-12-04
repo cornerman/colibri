@@ -1,34 +1,25 @@
 package colibri.reactive
 
-import colibri._
 import cats.implicits._
-import cats.effect.SyncIO
 import monocle.macros.{GenLens, GenPrism}
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.flatspec.AsyncFlatSpec
 
 class ReactiveSpec extends AsyncFlatSpec with Matchers {
 
-  implicit def unsafeSubscriptionOwner[T]: SubscriptionOwner[SyncIO[T]] = new SubscriptionOwner[SyncIO[T]] {
-    def own(owner: SyncIO[T])(subscription: () => Cancelable): SyncIO[T] =
-      owner.flatTap(_ => SyncIO(subscription()).void)
-  }
-
-  "Rx" should "map with proper subscription lifetime" in Owned(SyncIO {
+  "Rx" should "map with proper subscription lifetime" in {
     var mapped    = List.empty[Int]
     var received1 = List.empty[Int]
     var received2 = List.empty[Int]
 
-    val owner = implicitly[Owner]
-
     val variable = Var(1)
     val stream   = variable.map { x => mapped ::= x; x }
 
-    mapped shouldBe List(1)
+    mapped shouldBe List.empty
     received1 shouldBe List.empty
     received2 shouldBe List.empty
 
-    stream.foreach(received1 ::= _)
+    val cancelR1 = stream.unsafeForeach(received1 ::= _)
 
     mapped shouldBe List(1)
     received1 shouldBe List(1)
@@ -40,7 +31,7 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
     received1 shouldBe List(2, 1)
     received2 shouldBe List.empty
 
-    stream.foreach(received2 ::= _)
+    val cancelR2 = stream.unsafeForeach(received2 ::= _)
 
     mapped shouldBe List(2, 1)
     received1 shouldBe List(2, 1)
@@ -52,19 +43,14 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
     received1 shouldBe List(3, 2, 1)
     received2 shouldBe List(3, 2)
 
-    val cancel = owner.unsafeSubscribe()
-
-    mapped shouldBe List(3, 2, 1)
-    received1 shouldBe List(3, 2, 1)
-    received2 shouldBe List(3, 2)
-
     variable.set(4)
 
     mapped shouldBe List(4, 3, 2, 1)
     received1 shouldBe List(4, 3, 2, 1)
     received2 shouldBe List(4, 3, 2)
 
-    cancel.unsafeCancel()
+    cancelR1.unsafeCancel()
+    cancelR2.unsafeCancel()
 
     mapped shouldBe List(4, 3, 2, 1)
     received1 shouldBe List(4, 3, 2, 1)
@@ -76,7 +62,8 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
     received1 shouldBe List(4, 3, 2, 1)
     received2 shouldBe List(4, 3, 2)
 
-    val cancel2 = owner.unsafeSubscribe()
+    val cancelR1b = stream.unsafeForeach(received1 ::= _)
+    val cancelR2b = stream.unsafeForeach(received2 ::= _)
 
     mapped shouldBe List(5, 4, 3, 2, 1)
     received1 shouldBe List(5, 4, 3, 2, 1)
@@ -88,7 +75,7 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
     received1 shouldBe List(6, 5, 4, 3, 2, 1)
     received2 shouldBe List(6, 5, 4, 3, 2)
 
-    val cancel3 = owner.unsafeSubscribe()
+    val cancelX = stream.unsafeSubscribe()
 
     mapped shouldBe List(6, 5, 4, 3, 2, 1)
     received1 shouldBe List(6, 5, 4, 3, 2, 1)
@@ -100,19 +87,13 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
     received1 shouldBe List(7, 6, 5, 4, 3, 2, 1)
     received2 shouldBe List(7, 6, 5, 4, 3, 2)
 
-    cancel2.unsafeCancel()
-
-    mapped shouldBe List(7, 6, 5, 4, 3, 2, 1)
-    received1 shouldBe List(7, 6, 5, 4, 3, 2, 1)
-    received2 shouldBe List(7, 6, 5, 4, 3, 2)
-
     variable.set(8)
 
     mapped shouldBe List(8, 7, 6, 5, 4, 3, 2, 1)
     received1 shouldBe List(8, 7, 6, 5, 4, 3, 2, 1)
     received2 shouldBe List(8, 7, 6, 5, 4, 3, 2)
 
-    cancel3.unsafeCancel()
+    cancelR2b.unsafeCancel()
 
     mapped shouldBe List(8, 7, 6, 5, 4, 3, 2, 1)
     received1 shouldBe List(8, 7, 6, 5, 4, 3, 2, 1)
@@ -120,12 +101,36 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
 
     variable.set(9)
 
-    mapped shouldBe List(8, 7, 6, 5, 4, 3, 2, 1)
-    received1 shouldBe List(8, 7, 6, 5, 4, 3, 2, 1)
+    mapped shouldBe List(9, 8, 7, 6, 5, 4, 3, 2, 1)
+    received1 shouldBe List(9, 8, 7, 6, 5, 4, 3, 2, 1)
     received2 shouldBe List(8, 7, 6, 5, 4, 3, 2)
-  }).unsafeRunSync()
 
-  it should "nested owners" in Owned(SyncIO {
+    cancelR1b.unsafeCancel()
+
+    mapped shouldBe List(9, 8, 7, 6, 5, 4, 3, 2, 1)
+    received1 shouldBe List(9, 8, 7, 6, 5, 4, 3, 2, 1)
+    received2 shouldBe List(8, 7, 6, 5, 4, 3, 2)
+
+    variable.set(10)
+
+    mapped shouldBe List(10, 9, 8, 7, 6, 5, 4, 3, 2, 1)
+    received1 shouldBe List(9, 8, 7, 6, 5, 4, 3, 2, 1)
+    received2 shouldBe List(8, 7, 6, 5, 4, 3, 2)
+
+    cancelX.unsafeCancel()
+
+    mapped shouldBe List(10, 9, 8, 7, 6, 5, 4, 3, 2, 1)
+    received1 shouldBe List(9, 8, 7, 6, 5, 4, 3, 2, 1)
+    received2 shouldBe List(8, 7, 6, 5, 4, 3, 2)
+
+    variable.set(11)
+
+    mapped shouldBe List(10, 9, 8, 7, 6, 5, 4, 3, 2, 1)
+    received1 shouldBe List(9, 8, 7, 6, 5, 4, 3, 2, 1)
+    received2 shouldBe List(8, 7, 6, 5, 4, 3, 2)
+  }
+
+  it should "nested owners" in {
     var received1 = List.empty[Int]
     var innerRx   = List.empty[Int]
     var outerRx   = List.empty[Int]
@@ -133,7 +138,7 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
     val variable  = Var(1)
     val variable2 = Var(2)
 
-    def test(x: Int)(implicit owner: Owner) = Rx {
+    def test(x: Int) = Rx {
       innerRx ::= x
       variable2() * x
     }
@@ -143,13 +148,13 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
       outerRx ::= curr
       val result = test(curr)
       result()
-    }
+    }.unsafeHot()
 
     innerRx shouldBe List(1)
     outerRx shouldBe List(1)
     received1 shouldBe List.empty
 
-    rx.foreach(received1 ::= _)
+    rx.unsafeForeach(received1 ::= _)
 
     innerRx shouldBe List(1)
     outerRx shouldBe List(1)
@@ -178,70 +183,64 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
     innerRx shouldBe List(3, 3, 3, 2, 1, 1, 1) // TODO: triggering too often
     outerRx shouldBe List(3, 3, 2, 1, 1)
     received1 shouldBe List(12, 9, 6, 3, 2)
-  }).unsafeRunSync()
+  }
 
-  it should "nested owners 2" in Owned
-    .function(ownedOwner =>
-      SyncIO {
-        var received1 = List.empty[Int]
-        var innerRx   = List.empty[Int]
-        var outerRx   = List.empty[Int]
+  it should "nested owners 2" in {
+    var received1 = List.empty[Int]
+    var innerRx   = List.empty[Int]
+    var outerRx   = List.empty[Int]
 
-        val variable  = Var(1)
-        val variable2 = Var(2)
+    val variable  = Var(1)
+    val variable2 = Var(2)
 
-        implicit val owner: Owner = ownedOwner
+    def test(x: Int) = Rx {
+      innerRx ::= x
+      variable2() * x
+    }
 
-        def test(x: Int)(implicit owner: Owner) = Rx {
-          innerRx ::= x
-          variable2() * x
-        }
+    val rx = Rx {
+      val curr   = variable()
+      outerRx ::= curr
+      val result = test(curr)
+      result()
+    }
 
-        val rx = Rx {
-          val curr   = variable()
-          outerRx ::= curr
-          val result = test(curr)
-          result()
-        }
+    innerRx shouldBe List.empty
+    outerRx shouldBe List.empty
+    received1 shouldBe List.empty
 
-        innerRx shouldBe List(1)
-        outerRx shouldBe List(1)
-        received1 shouldBe List.empty
+    rx.unsafeForeach(received1 ::= _)
 
-        rx.foreach(received1 ::= _)
+    innerRx shouldBe List(1)
+    outerRx shouldBe List(1)
+    received1 shouldBe List(2)
 
-        innerRx shouldBe List(1)
-        outerRx shouldBe List(1)
-        received1 shouldBe List(2)
+    variable2.set(3)
 
-        variable2.set(3)
+    innerRx shouldBe List(1, 1, 1) // TODO: triggering too often
+    outerRx shouldBe List(1, 1)
+    received1 shouldBe List(3, 2)
 
-        innerRx shouldBe List(1, 1, 1) // TODO: triggering too often
-        outerRx shouldBe List(1, 1)
-        received1 shouldBe List(3, 2)
+    variable.set(2)
 
-        variable.set(2)
+    innerRx shouldBe List(2, 1, 1, 1)
+    outerRx shouldBe List(2, 1, 1)
+    received1 shouldBe List(6, 3, 2)
 
-        innerRx shouldBe List(2, 1, 1, 1)
-        outerRx shouldBe List(2, 1, 1)
-        received1 shouldBe List(6, 3, 2)
+    variable.set(3)
 
-        variable.set(3)
+    innerRx shouldBe List(3, 2, 1, 1, 1)
+    outerRx shouldBe List(3, 2, 1, 1)
+    received1 shouldBe List(9, 6, 3, 2)
 
-        innerRx shouldBe List(3, 2, 1, 1, 1)
-        outerRx shouldBe List(3, 2, 1, 1)
-        received1 shouldBe List(9, 6, 3, 2)
+    variable2.set(4)
 
-        variable2.set(4)
+    innerRx shouldBe List(3, 3, 3, 2, 1, 1, 1) // TODO: triggering too often
+    outerRx shouldBe List(3, 3, 2, 1, 1)
+    received1 shouldBe List(12, 9, 6, 3, 2)
+  }
 
-        innerRx shouldBe List(3, 3, 3, 2, 1, 1, 1) // TODO: triggering too often
-        outerRx shouldBe List(3, 3, 2, 1, 1)
-        received1 shouldBe List(12, 9, 6, 3, 2)
-      },
-    )
-    .unsafeRunSync()
-
-  it should "sequence with nesting" in Owned(SyncIO {
+  it should "sequence with nesting" in {
     var received1 = List.empty[Int]
     var mapped    = List.empty[Boolean]
 
@@ -269,10 +268,10 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
       }
     }
 
-    mapped shouldBe List(false)
+    mapped shouldBe List.empty
     received1 shouldBe List.empty
 
-    stream.foreach(received1 ::= _)
+    stream.unsafeForeach(received1 ::= _)
 
     mapped shouldBe List(false)
     received1 shouldBe List(-1)
@@ -285,20 +284,20 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
     variable.set(Some(2))
 
     mapped shouldBe List(true, false)
-    received1 shouldBe List(1, 12, 2, -1)
-  }).unsafeRunSync()
+    received1 shouldBe List(1, 2, -1)
+  }
 
-  it should "be distinct" in Owned(SyncIO {
+  it should "be distinct" in {
     var mapped    = List.empty[Int]
     var received1 = List.empty[Boolean]
 
     val variable = Var(1)
     val stream   = variable.map { x => mapped ::= x; x % 2 == 0 }
 
-    mapped shouldBe List(1)
+    mapped shouldBe List.empty
     received1 shouldBe List.empty
 
-    stream.foreach(received1 ::= _)
+    stream.unsafeForeach(received1 ::= _)
 
     mapped shouldBe List(1)
     received1 shouldBe List(false)
@@ -322,9 +321,9 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
 
     mapped shouldBe List(5, 4, 2, 1)
     received1 shouldBe List(false, true, false)
-  }).unsafeRunSync()
+  }
 
-  it should "work without glitches in chain" in Owned(SyncIO {
+  it should "work without glitches in chain" in {
     var liveCounter = 0
     var mapped      = List.empty[Int]
     var received1   = List.empty[Boolean]
@@ -334,7 +333,7 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
 
     val stream = variable.map { x => mapped ::= x; x % 2 == 0 }
 
-    stream.foreach(received1 ::= _)
+    stream.unsafeForeach(received1 ::= _)
 
     mapped shouldBe List(1)
     received1 shouldBe List(false)
@@ -344,12 +343,12 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
       s"${variable()}: ${stream()}"
     }
 
-    rx.foreach(receivedRx ::= _)
+    rx.unsafeForeach(receivedRx ::= _)
 
     mapped shouldBe List(1)
     received1 shouldBe List(false)
     receivedRx shouldBe List("1: false")
-    rx.now() shouldBe "1: false"
+    rx.nowIfSubscribed() shouldBe "1: false"
     liveCounter shouldBe 1
 
     variable.set(2)
@@ -357,7 +356,7 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
     mapped shouldBe List(2, 1)
     received1 shouldBe List(true, false)
     receivedRx shouldBe List("2: true", "1: false")
-    rx.now() shouldBe "2: true"
+    rx.nowIfSubscribed() shouldBe "2: true"
     liveCounter shouldBe 2
 
     variable.set(2)
@@ -365,7 +364,7 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
     mapped shouldBe List(2, 1)
     received1 shouldBe List(true, false)
     receivedRx shouldBe List("2: true", "1: false")
-    rx.now() shouldBe "2: true"
+    rx.nowIfSubscribed() shouldBe "2: true"
     liveCounter shouldBe 2
 
     variable.set(4)
@@ -373,7 +372,7 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
     mapped shouldBe List(4, 2, 1)
     received1 shouldBe List(true, false)
     receivedRx shouldBe List("4: true", "2: true", "1: false")
-    rx.now() shouldBe "4: true"
+    rx.nowIfSubscribed() shouldBe "4: true"
     liveCounter shouldBe 3
 
     variable.set(5)
@@ -381,11 +380,11 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
     mapped shouldBe List(5, 4, 2, 1)
     received1 shouldBe List(false, true, false)
     receivedRx shouldBe List("5: false", "4: true", "2: true", "1: false")
-    rx.now() shouldBe "5: false"
+    rx.nowIfSubscribed() shouldBe "5: false"
     liveCounter shouldBe 4
-  }).unsafeRunSync()
+  }
 
-  it should "work nested" in Owned(SyncIO {
+  it should "work nested" in {
     var liveCounter  = 0
     var liveCounter2 = 0
 
@@ -401,32 +400,32 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
       }
 
       variable() + nested()
-    }
+    }.unsafeHot()
 
-    rx.now() shouldBe 3
+    rx.nowIfSubscribed() shouldBe 3
     liveCounter shouldBe 1
     liveCounter2 shouldBe 1
 
     variable.set(2)
 
-    rx.now() shouldBe 4
+    rx.nowIfSubscribed() shouldBe 4
     liveCounter shouldBe 2
     liveCounter2 shouldBe 2
 
     variable2.set(4)
 
-    rx.now() shouldBe 6
+    rx.nowIfSubscribed() shouldBe 6
     liveCounter shouldBe 3
     liveCounter2 shouldBe 4 // TODO: why do we jump to 4 calculations here instead of 3?
 
     variable.set(3)
 
-    rx.now() shouldBe 7
+    rx.nowIfSubscribed() shouldBe 7
     liveCounter shouldBe 4
     liveCounter2 shouldBe 5
-  }).unsafeRunSync()
+  }
 
-  it should "work with now" in Owned(SyncIO {
+  it should "work with now" in {
     var liveCounter = 0
 
     val variable  = Var(1)
@@ -436,92 +435,85 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
     val rx = Rx {
       liveCounter += 1
       s"${variable()}, ${variable2()}, ${variable3.now()}"
-    }
+    }.unsafeHot()
 
-    rx.now() shouldBe "1, 2, 3"
+    rx.nowIfSubscribed() shouldBe "1, 2, 3"
     liveCounter shouldBe 1
 
     variable.set(2)
 
-    rx.now() shouldBe "2, 2, 3"
+    rx.nowIfSubscribed() shouldBe "2, 2, 3"
     liveCounter shouldBe 2
 
     variable.set(2)
 
-    rx.now() shouldBe "2, 2, 3"
+    rx.nowIfSubscribed() shouldBe "2, 2, 3"
     liveCounter shouldBe 2
 
     variable2.set(10)
 
-    rx.now() shouldBe "2, 10, 3"
+    rx.nowIfSubscribed() shouldBe "2, 10, 3"
     liveCounter shouldBe 3
 
     variable3.set(5)
 
-    rx.now() shouldBe "2, 10, 3"
+    rx.nowIfSubscribed() shouldBe "2, 10, 3"
     liveCounter shouldBe 3
 
     variable2.set(100)
 
-    rx.now() shouldBe "2, 100, 5"
+    rx.nowIfSubscribed() shouldBe "2, 100, 5"
     liveCounter shouldBe 4
 
-  }).unsafeRunSync()
+  }
 
-  it should "work with multi nesting" in Owned(SyncIO {
+  it should "work with multi nesting" in {
     var liveCounter = 0
 
     val variable  = Var(1)
     val variable2 = Var(2)
     val variable3 = Var(3)
 
-    val rx = Owned(SyncIO {
-      Owned(SyncIO {
+    val rx = Rx {
+      liveCounter += 1
+      Rx {
         Rx {
-          liveCounter += 1
-
-          Owned(SyncIO {
-            Rx {
-              Rx {
-                s"${variable()}, ${variable2()}, ${variable3.now()}"
-              }
-            }(implicitly)()
-          }).unsafeRunSync()()
+          s"${variable()}, ${variable2()}, ${variable3.now()}"
         }
-      }).unsafeRunSync()
-    }).unsafeRunSync()
+      }.apply().apply()
+    }.unsafeHot()
 
-    rx.now() shouldBe "1, 2, 3"
+    rx.nowIfSubscribed() shouldBe "1, 2, 3"
     liveCounter shouldBe 1
 
     variable.set(2)
 
-    rx.now() shouldBe "2, 2, 3"
+    rx.nowIfSubscribed() shouldBe "2, 2, 3"
     liveCounter shouldBe 2
 
     variable.set(2)
 
-    rx.now() shouldBe "2, 2, 3"
+    rx.nowIfSubscribed() shouldBe "2, 2, 3"
     liveCounter shouldBe 2
 
     variable2.set(10)
 
-    rx.now() shouldBe "2, 10, 3"
+    rx.nowIfSubscribed() shouldBe "2, 10, 3"
     liveCounter shouldBe 3
 
     variable3.set(5)
 
-    rx.now() shouldBe "2, 10, 3"
+    rx.nowIfSubscribed() shouldBe "2, 10, 3"
     liveCounter shouldBe 3
 
     variable2.set(100)
 
-    rx.now() shouldBe "2, 100, 5"
+    rx.nowIfSubscribed() shouldBe "2, 100, 5"
     liveCounter shouldBe 4
 
-  }).unsafeRunSync()
+  }
 
-  it should "diamond" in Owned(SyncIO {
+  it should "diamond" in {
     var liveCounter = 0
     var mapped1     = List.empty[Int]
     var mapped2     = List.empty[Int]
@@ -534,8 +526,8 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
     val stream1 = variable.map { x => mapped1 ::= x; x % 2 == 0 }
     val stream2 = variable.map { x => mapped2 ::= x; x % 2 == 0 }
 
-    stream1.foreach(received1 ::= _)
-    stream2.foreach(received2 ::= _)
+    stream1.unsafeForeach(received1 ::= _)
+    stream2.unsafeForeach(received2 ::= _)
 
     mapped1 shouldBe List(1)
     mapped2 shouldBe List(1)
@@ -547,14 +539,14 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
       s"${stream1()}:${stream2()}"
     }
 
-    rx.foreach(receivedRx ::= _)
+    rx.unsafeForeach(receivedRx ::= _)
 
     mapped1 shouldBe List(1)
     mapped2 shouldBe List(1)
     received1 shouldBe List(false)
     received2 shouldBe List(false)
     receivedRx shouldBe List("false:false")
-    rx.now() shouldBe "false:false"
+    rx.nowIfSubscribed() shouldBe "false:false"
     liveCounter shouldBe 1
 
     variable.set(2)
@@ -564,7 +556,7 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
     received1 shouldBe List(true, false)
     received2 shouldBe List(true, false)
     receivedRx shouldBe List("true:true", "true:false", "false:false") // glitch
-    rx.now() shouldBe "true:true"
+    rx.nowIfSubscribed() shouldBe "true:true"
     liveCounter shouldBe 3
 
     variable.set(2)
@@ -574,7 +566,7 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
     received1 shouldBe List(true, false)
     received2 shouldBe List(true, false)
     receivedRx shouldBe List("true:true", "true:false", "false:false")
-    rx.now() shouldBe "true:true"
+    rx.nowIfSubscribed() shouldBe "true:true"
     liveCounter shouldBe 3
 
     variable.set(4)
@@ -584,7 +576,7 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
     received1 shouldBe List(true, false)
     received2 shouldBe List(true, false)
     receivedRx shouldBe List("true:true", "true:false", "false:false")
-    rx.now() shouldBe "true:true"
+    rx.nowIfSubscribed() shouldBe "true:true"
     liveCounter shouldBe 3
 
     variable.set(5)
@@ -594,16 +586,16 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
     received1 shouldBe List(false, true, false)
     received2 shouldBe List(false, true, false)
     receivedRx shouldBe List("false:false", "false:true", "true:true", "true:false", "false:false") // glitch
-    rx.now() shouldBe "false:false"
+    rx.nowIfSubscribed() shouldBe "false:false"
     liveCounter shouldBe 5
-  }).unsafeRunSync()
+  }
 
-  it should "collect" in Owned(SyncIO {
+  it should "collect" in {
     val variable        = Var[Option[Int]](Some(1))
     val collected       = variable.collect { case Some(x) => x }(0)
     var collectedStates = Vector.empty[Int]
 
-    collected.foreach(collectedStates :+= _)
+    collected.unsafeForeach(collectedStates :+= _)
 
     collectedStates shouldBe Vector(1)
 
@@ -613,14 +605,14 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
     variable.set(Some(17))
     collectedStates shouldBe Vector(1, 17)
 
-  }).unsafeRunSync()
+  }
 
-  it should "collect initial none" in Owned(SyncIO {
+  it should "collect initial none" in {
     val variable        = Var[Option[Int]](None)
     val collected       = variable.collect { case Some(x) => x }(0)
     var collectedStates = Vector.empty[Int]
 
-    collected.foreach(collectedStates :+= _)
+    collected.unsafeForeach(collectedStates :+= _)
 
     collectedStates shouldBe Vector(0)
 
@@ -630,143 +622,147 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
     variable.set(Some(17))
     collectedStates shouldBe Vector(0, 17)
 
-  }).unsafeRunSync()
+  }
 
-  it should "sequence on Var[Seq[T]]" in Owned(SyncIO {
+  it should "sequence on Var[Seq[T]]" in {
     {
       // inner.set on seed value
       val variable                    = Var[Seq[Int]](Seq(1))
-      val sequence: Rx[Seq[Var[Int]]] = variable.sequence
+      val sequence: Rx[Seq[Var[Int]]] = variable.sequence.unsafeHot()
 
-      variable.now() shouldBe Seq(1)
-      sequence.now().map(_.now()) shouldBe Seq(1)
+      variable.nowIfSubscribed() shouldBe Seq(1)
+      sequence.nowIfSubscribed().map(_.nowIfSubscribed()) shouldBe Seq(1)
 
-      sequence.now()(0).set(2)
-      variable.now() shouldBe Seq(2)
+      sequence.nowIfSubscribed().apply(0).set(2)
+      variable.nowIfSubscribed() shouldBe Seq(2)
     }
 
     {
       // inner.set on value after seed
       val variable                    = Var[Seq[Int]](Seq.empty)
-      val sequence: Rx[Seq[Var[Int]]] = variable.sequence
+      val sequence: Rx[Seq[Var[Int]]] = variable.sequence.unsafeHot()
 
-      variable.now() shouldBe Seq.empty
-      sequence.now().map(_.now()) shouldBe Seq.empty
+      variable.nowIfSubscribed() shouldBe Seq.empty
+      sequence.nowIfSubscribed().map(_.nowIfSubscribed()) shouldBe Seq.empty
 
       variable.set(Seq(1))
-      sequence.now().map(_.now()) shouldBe Seq(1)
+      sequence.nowIfSubscribed().map(_.nowIfSubscribed()) shouldBe Seq(1)
 
-      sequence.now()(0).set(2)
-      variable.now() shouldBe Seq(2)
+      sequence.nowIfSubscribed().apply(0).set(2)
+      variable.nowIfSubscribed() shouldBe Seq(2)
     }
-  }).unsafeRunSync()
+  }
 
-  it should "sequence on Var[Option[T]]" in Owned(SyncIO {
+  it should "sequence on Var[Option[T]]" in {
     {
       // inner.set on seed value
       val variable                       = Var[Option[Int]](Some(1))
-      val sequence: Rx[Option[Var[Int]]] = variable.sequence
+      val sequence: Rx[Option[Var[Int]]] = variable.sequence.unsafeHot()
 
-      variable.now() shouldBe Some(1)
-      sequence.now().map(_.now()) shouldBe Some(1)
+      variable.nowIfSubscribed() shouldBe Some(1)
+      sequence.nowIfSubscribed().map(_.nowIfSubscribed()) shouldBe Some(1)
 
-      sequence.now().get.set(2)
-      variable.now() shouldBe Some(2)
+      sequence.nowIfSubscribed().get.set(2)
+      variable.nowIfSubscribed() shouldBe Some(2)
     }
 
     {
       // inner.set on value after seed
       val variable                       = Var[Option[Int]](Option.empty)
-      val sequence: Rx[Option[Var[Int]]] = variable.sequence
+      val sequence: Rx[Option[Var[Int]]] = variable.sequence.unsafeHot()
 
-      variable.now() shouldBe None
-      sequence.now().map(_.now()) shouldBe None
+      variable.nowIfSubscribed() shouldBe None
+      sequence.nowIfSubscribed().map(_.nowIfSubscribed()) shouldBe None
 
       variable.set(Option(1))
-      sequence.now().map(_.now()) shouldBe Option(1)
+      sequence.nowIfSubscribed().map(_.nowIfSubscribed()) shouldBe Option(1)
 
-      sequence.now().get.set(2)
-      variable.now() shouldBe Option(2)
+      sequence.nowIfSubscribed().get.set(2)
+      variable.nowIfSubscribed() shouldBe Option(2)
 
       variable.set(None)
-      sequence.now().map(_.now()) shouldBe None
+      sequence.nowIfSubscribed().map(_.nowIfSubscribed()) shouldBe None
     }
 
     {
       // inner.set on seed value
       val variable                       = Var[Option[Int]](Some(1))
-      val sequence: Rx[Option[Var[Int]]] = variable.sequence
+      val sequence: Rx[Option[Var[Int]]] = variable.sequence.unsafeHot()
 
       var outerTriggered = 0
       var innerTriggered = 0
-      sequence.foreach(_ => outerTriggered += 1)
-      sequence.now().foreach(_.foreach(_ => innerTriggered += 1))
+      sequence.unsafeForeach(_ => outerTriggered += 1)
+      sequence.nowIfSubscribed().foreach(_.unsafeForeach(_ => innerTriggered += 1))
 
-      variable.now() shouldBe Some(1)
-      sequence.now().map(_.now()) shouldBe Some(1)
+      variable.nowIfSubscribed() shouldBe Some(1)
+      sequence.nowIfSubscribed().map(_.nowIfSubscribed()) shouldBe Some(1)
       outerTriggered shouldBe 1
       innerTriggered shouldBe 1
-      val varRefA = sequence.now().get
+      val varRefA = sequence.nowIfSubscribed().get
 
       variable.set(Some(2))
-      variable.now() shouldBe Some(2)
-      sequence.now().map(_.now()) shouldBe Some(2)
+      variable.nowIfSubscribed() shouldBe Some(2)
+      sequence.nowIfSubscribed().map(_.nowIfSubscribed()) shouldBe Some(2)
       outerTriggered shouldBe 1
       innerTriggered shouldBe 2
-      val varRefB = sequence.now().get
+      val varRefB = sequence.nowIfSubscribed().get
       assert(varRefA eq varRefB)
     }
-  }).unsafeRunSync()
+  }
 
-  it should "lens" in Owned(SyncIO {
+  it should "lens" in {
     val a: Var[(Int, String)] = Var((0, "Wurst"))
     val b: Var[String]        = a.lens(_._2)((a, b) => a.copy(_2 = b))
     val c: Rx[String]         = b.map(_ + "q")
 
-    a.now() shouldBe ((0, "Wurst"))
-    b.now() shouldBe "Wurst"
-    c.now() shouldBe "Wurstq"
+    a.unsafeSubscribe()
+    b.unsafeSubscribe()
+    c.unsafeSubscribe()
+
+    a.nowIfSubscribed() shouldBe ((0, "Wurst"))
+    b.nowIfSubscribed() shouldBe "Wurst"
+    c.nowIfSubscribed() shouldBe "Wurstq"
 
     a.set((1, "hoho"))
-    a.now() shouldBe ((1, "hoho"))
-    b.now() shouldBe "hoho"
-    c.now() shouldBe "hohoq"
+    a.nowIfSubscribed() shouldBe ((1, "hoho"))
+    b.nowIfSubscribed() shouldBe "hoho"
+    c.nowIfSubscribed() shouldBe "hohoq"
 
     b.set("Voodoo")
-    a.now() shouldBe ((1, "Voodoo"))
-    b.now() shouldBe "Voodoo"
-    c.now() shouldBe "Voodooq"
+    a.nowIfSubscribed() shouldBe ((1, "Voodoo"))
+    b.nowIfSubscribed() shouldBe "Voodoo"
+    c.nowIfSubscribed() shouldBe "Voodooq"
 
     a.set((3, "genau"))
-    a.now() shouldBe ((3, "genau"))
-    b.now() shouldBe "genau"
-    c.now() shouldBe "genauq"
+    a.nowIfSubscribed() shouldBe ((3, "genau"))
+    b.nowIfSubscribed() shouldBe "genau"
+    c.nowIfSubscribed() shouldBe "genauq"
 
     b.set("Schwein")
-    a.now() shouldBe ((3, "Schwein"))
-    b.now() shouldBe "Schwein"
-    c.now() shouldBe "Schweinq"
-  }).unsafeRunSync()
+    a.nowIfSubscribed() shouldBe ((3, "Schwein"))
+    b.nowIfSubscribed() shouldBe "Schwein"
+    c.nowIfSubscribed() shouldBe "Schweinq"
+  }
 
   it should "lens with monocle" in {
     case class Company(name: String, zipcode: Int)
     case class Employee(name: String, company: Company)
 
-    Owned(SyncIO {
-      val employee = Var(Employee("jules", Company("wules", 7)))
-      val zipcode  = employee.lensO(GenLens[Employee](_.company.zipcode))
+    val employee = Var(Employee("jules", Company("wules", 7)))
+    val zipcode  = employee.lensO(GenLens[Employee](_.company.zipcode))
 
-      employee.now() shouldBe Employee("jules", Company("wules", 7))
-      zipcode.now() shouldBe 7
+    zipcode.unsafeSubscribe()
 
-      zipcode.set(8)
-      employee.now() shouldBe Employee("jules", Company("wules", 8))
-      zipcode.now() shouldBe 8
+    employee.nowIfSubscribed() shouldBe Employee("jules", Company("wules", 7))
+    zipcode.nowIfSubscribed() shouldBe 7
 
-      employee.set(Employee("gula", Company("bori", 6)))
-      employee.now() shouldBe Employee("gula", Company("bori", 6))
-      zipcode.now() shouldBe 6
-    }).unsafeRunSync()
+    zipcode.set(8)
+    employee.nowIfSubscribed() shouldBe Employee("jules", Company("wules", 8))
+    zipcode.nowIfSubscribed() shouldBe 8
+
+    employee.set(Employee("gula", Company("bori", 6)))
+    employee.nowIfSubscribed() shouldBe Employee("gula", Company("bori", 6))
+    zipcode.nowIfSubscribed() shouldBe 6
   }
 
   it should "optics operations" in {
@@ -774,48 +770,200 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
     case class EventA(i: Int)    extends Event
     case class EventB(s: String) extends Event
 
-    Owned(SyncIO {
-      val eventVar: Var[Event]     = Var[Event](EventA(0))
-      val eventNotAVar: Var[Event] = Var[Event](EventB(""))
+    val eventVar: Var[Event]    = Var[Event](EventA(0))
+    val eventNotVar: Var[Event] = Var[Event](EventB(""))
 
-      val eventAVarOption: Option[Var[EventA]]    = eventVar.prismO(GenPrism[Event, EventA])
-      val eventAVarOption2: Option[Var[EventA]]   = eventVar.subType[EventA]
-      val eventNotAVarOption: Option[Var[EventA]] = eventNotAVar.prismO(GenPrism[Event, EventA])
+    val eventAVar    = eventVar.prismO(GenPrism[Event, EventA])(null)
+    val eventAVar2   = eventVar.subType[EventA](null)
+    val eventNotAVar = eventNotVar.prismO(GenPrism[Event, EventA])(null)
 
-      eventAVarOption.isDefined shouldBe true
-      eventAVarOption2.isDefined shouldBe true
-      eventNotAVarOption.isDefined shouldBe false
+    eventAVar.unsafeSubscribe()
+    eventAVar2.unsafeSubscribe()
+    eventNotAVar.unsafeSubscribe()
 
-      val eventAVar  = eventAVarOption.get
-      val eventAVar2 = eventAVarOption2.get
+    eventVar.nowIfSubscribed() shouldBe EventA(0)
+    eventAVar.nowIfSubscribed() shouldBe EventA(0)
+    eventAVar2.nowIfSubscribed() shouldBe EventA(0)
+    eventNotAVar.nowIfSubscribed() shouldBe null
 
-      eventVar.now() shouldBe EventA(0)
-      eventAVar.now() shouldBe EventA(0)
-      eventAVar2.now() shouldBe EventA(0)
+    eventAVar.set(EventA(1))
 
-      eventAVar.set(EventA(1))
+    eventVar.nowIfSubscribed() shouldBe EventA(1)
+    eventAVar.nowIfSubscribed() shouldBe EventA(1)
+    eventAVar2.nowIfSubscribed() shouldBe EventA(1)
 
-      eventVar.now() shouldBe EventA(1)
-      eventAVar.now() shouldBe EventA(1)
-      eventAVar2.now() shouldBe EventA(1)
+    eventVar.set(EventB("he"))
 
-      eventVar.set(EventB("he"))
+    eventVar.nowIfSubscribed() shouldBe EventB("he")
+    eventAVar.nowIfSubscribed() shouldBe EventA(1)
+    eventAVar2.nowIfSubscribed() shouldBe EventA(1)
 
-      eventVar.now() shouldBe EventB("he")
-      eventAVar.now() shouldBe EventA(1)
-      eventAVar2.now() shouldBe EventA(1)
+    eventAVar.set(EventA(2))
 
-      eventAVar.set(EventA(2))
+    eventVar.nowIfSubscribed() shouldBe EventA(2)
+    eventAVar.nowIfSubscribed() shouldBe EventA(2)
+    eventAVar2.nowIfSubscribed() shouldBe EventA(2)
 
-      eventVar.now() shouldBe EventA(2)
-      eventAVar.now() shouldBe EventA(2)
-      eventAVar2.now() shouldBe EventA(2)
+    eventVar.set(EventA(3))
 
-      eventVar.set(EventA(3))
+    eventVar.nowIfSubscribed() shouldBe EventA(3)
+    eventAVar.nowIfSubscribed() shouldBe EventA(3)
+    eventAVar2.nowIfSubscribed() shouldBe EventA(3)
+  }
 
-      eventVar.now() shouldBe EventA(3)
-      eventAVar.now() shouldBe EventA(3)
-      eventAVar2.now() shouldBe EventA(3)
-    }).unsafeRunSync()
+  it should "map and now()" in {
+    val variable = Var(1)
+    val mapped = variable.map(_ + 1)
+
+    variable.nowOption() shouldBe Some(1)
+    variable.now() shouldBe 1
+    variable.nowOption() shouldBe Some(1)
+    mapped.nowOption() shouldBe None
+    mapped.now() shouldBe 2
+    mapped.nowOption() shouldBe None
+
+    variable.set(2)
+
+    variable.nowOption() shouldBe Some(2)
+    variable.now() shouldBe 2
+    variable.nowOption() shouldBe Some(2)
+    mapped.nowOption() shouldBe None
+    mapped.now() shouldBe 3
+    mapped.nowOption() shouldBe None
+  }
+
+  it should "subscribe and now on rx with lazy subscriptions" in {
+    var triggers1 = List.empty[Int]
+    var triggerRxCount = 0
+
+    val variable1 = Var(1)
+    val variable1Logged = variable1.tap(triggers1 ::= _)
+
+    val mapped = Rx {
+      triggerRxCount += 1
+      variable1Logged() + 1
+    }
+
+    val cancelable = mapped.unsafeSubscribe()
+
+    triggers1 shouldBe List(1)
+    triggerRxCount shouldBe 1
+
+    mapped.nowOption() shouldBe Some(2)
+    mapped.now() shouldBe 2
+    mapped.nowOption() shouldBe Some(2)
+
+    variable1.set(2)
+
+    triggers1 shouldBe List(2,1)
+    triggerRxCount shouldBe 2
+
+    mapped.nowOption() shouldBe Some(3)
+    mapped.now() shouldBe 3
+    mapped.nowOption() shouldBe Some(3)
+
+    cancelable.unsafeCancel()
+
+    mapped.nowOption() shouldBe None
+    mapped.now() shouldBe 3
+    mapped.nowOption() shouldBe None
+
+    triggers1 shouldBe List(2,2,1)
+    triggerRxCount shouldBe 3
+  }
+
+  it should "now() in Rx, and owners with lazy subscriptions" in {
+    var triggers1 = List.empty[Int]
+    var triggers2 = List.empty[Int]
+    var triggerRxCount = 0
+
+    val variable1 = Var(1)
+    val variable2 = Var(1)
+    val variable1Logged = variable1.tap(triggers1 ::= _)
+    val variable2Logged = variable2.tap(triggers2 ::= _)
+
+    // use mock locally
+    implicitly[NowOwner].isInstanceOf[LiveOwner] shouldBe false
+    val mapped = Rx {
+      // use mock locally
+      implicitly[NowOwner].isInstanceOf[LiveOwner] shouldBe true
+
+      triggerRxCount += 1
+      variable1Logged() + variable2Logged.now()
+    }
+
+    triggers1 shouldBe List.empty
+    triggers2 shouldBe List.empty
+    triggerRxCount shouldBe 0
+
+    mapped.nowOption() shouldBe None
+    mapped.now() shouldBe 2
+    mapped.nowOption() shouldBe None
+
+    triggers1 shouldBe List(1)
+    triggers2 shouldBe List(1)
+    triggerRxCount shouldBe 1
+
+    mapped.nowOption() shouldBe None
+    mapped.now() shouldBe 2
+    mapped.nowOption() shouldBe None
+
+    triggers1 shouldBe List(1,1)
+    triggers2 shouldBe List(1,1)
+    triggerRxCount shouldBe 2
+
+    val cancelable = mapped.unsafeSubscribe()
+
+    triggers1 shouldBe List(1,1,1)
+    triggers2 shouldBe List(1,1,1)
+    triggerRxCount shouldBe 3
+
+    mapped.nowOption() shouldBe Some(2)
+    mapped.now() shouldBe 2
+    mapped.nowOption() shouldBe Some(2)
+
+    variable1.set(2)
+
+    triggers1 shouldBe List(2,1,1,1)
+    triggers2 shouldBe List(1,1,1)
+    triggerRxCount shouldBe 4
+
+    mapped.nowOption() shouldBe Some(3)
+    mapped.now() shouldBe 3
+    mapped.nowOption() shouldBe Some(3)
+
+    triggers1 shouldBe List(2,1,1,1)
+    triggers2 shouldBe List(1,1,1)
+    triggerRxCount shouldBe 4
+
+    variable2.set(10)
+
+    mapped.nowOption() shouldBe Some(3)
+    mapped.now() shouldBe 3
+    mapped.nowOption() shouldBe Some(3)
+
+    triggers1 shouldBe List(2,1,1,1)
+    triggers2 shouldBe List(10,1,1,1)
+    triggerRxCount shouldBe 4
+
+    variable1.set(3)
+
+    mapped.nowOption() shouldBe Some(13)
+    mapped.now() shouldBe 13
+    mapped.nowOption() shouldBe Some(13)
+
+    triggers1 shouldBe List(3,2,1,1,1)
+    triggers2 shouldBe List(10,1,1,1)
+    triggerRxCount shouldBe 5
+
+    cancelable.unsafeCancel()
+
+    mapped.nowOption() shouldBe None
+    mapped.now() shouldBe 13
+    mapped.nowOption() shouldBe None
+
+    triggers1 shouldBe List(3,3,2,1,1,1)
+    triggers2 shouldBe List(10,10,1,1,1)
+    triggerRxCount shouldBe 6
   }
 }
