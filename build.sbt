@@ -136,7 +136,7 @@ lazy val zio = project
   .settings(
     name := "colibri-zio",
     libraryDependencies ++= Seq(
-      "io.github.cquiroz" %%% "scala-java-time" % "2.4.0",
+      "io.github.cquiroz" %%% "scala-java-time" % "2.5.0",
       "dev.zio"           %%% "zio"             % "2.0.2",
       "dev.zio"           %%% "zio-streams"     % "2.0.2",
     ),
