@@ -50,7 +50,7 @@ lazy val colibri = project
   .settings(
     name := "colibri",
     libraryDependencies ++= Seq(
-      "org.typelevel" %%% "cats-core"   % "2.8.0",
+      "org.typelevel" %%% "cats-core"   % "2.9.0",
       "org.typelevel" %%% "cats-effect" % "3.3.14",
     ),
   )
@@ -136,7 +136,7 @@ lazy val zio = project
   .settings(
     name := "colibri-zio",
     libraryDependencies ++= Seq(
-      "io.github.cquiroz" %%% "scala-java-time" % "2.4.0",
+      "io.github.cquiroz" %%% "scala-java-time" % "2.5.0",
       "dev.zio"           %%% "zio"             % "2.0.4",
       "dev.zio"           %%% "zio-streams"     % "2.0.4",
     ),
