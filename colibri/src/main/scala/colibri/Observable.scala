@@ -85,21 +85,6 @@ object Observable    {
     def flatMap[B](f: A => Observable[B]): Observable[B]
   }
 
-  trait Value[+A]      extends Observable[A] {
-    def now(): A
-  }
-  trait MaybeValue[+A] extends Observable[A] {
-    def now(): Option[A]
-  }
-
-  trait HasCancelable {
-    def cancelable: Cancelable
-  }
-
-  trait Hot[+A]           extends Observable[A] with HasCancelable
-  trait HotValue[+A]      extends Value[A] with HasCancelable
-  trait HotMaybeValue[+A] extends MaybeValue[A] with HasCancelable
-
   object Empty extends Observable[Nothing] {
     @inline def unsafeSubscribe(sink: Observer[Nothing]): Cancelable = Cancelable.empty
   }
@@ -1401,46 +1386,26 @@ object Observable    {
     }
 
     @inline def publish: Connectable[Observable[A]]                 = multicast(Subject.publish[A]())
-    @deprecated("Use replayLatest instead", "0.3.4")
-    @inline def replay: Connectable[Observable.MaybeValue[A]]       = replayLatest
-    @inline def replayLatest: Connectable[Observable.MaybeValue[A]] = multicastMaybeValue(Subject.replayLatest[A]())
+    @inline def replayLatest: Connectable[Observable[A]] = multicast(Subject.replayLatest[A]())
     @inline def replayAll: Connectable[Observable[A]]               = multicast(Subject.replayAll[A]())
-    @inline def behavior(seed: A): Connectable[Observable.Value[A]] = multicastValue(Subject.behavior(seed))
+    @inline def behavior(seed: A): Connectable[Observable[A]] = multicast(Subject.behavior(seed))
 
     @inline def publishShare: Observable[A]                 = publish.refCount
-    @inline def replayLatestShare: Observable.MaybeValue[A] = replayLatest.refCount
+    @inline def replayLatestShare: Observable[A] = replayLatest.refCount
     @inline def replayAllShare: Observable[A]               = replayAll.refCount
-    @inline def behaviorShare(seed: A): Observable.Value[A] = behavior(seed).refCount
+    @inline def behaviorShare(seed: A): Observable[A] = behavior(seed).refCount
 
     @inline def publishSelector[B](f: Observable[A] => Observable[B]): Observable[B]                  = transformSource(s => f(s.publish.refCount))
-    @deprecated("Use replayLatestSelector instead", "0.3.4")
-    @inline def replaySelector[B](f: Observable.MaybeValue[A] => Observable[B]): Observable[B]        = replayLatestSelector(f)
-    @inline def replayLatestSelector[B](f: Observable.MaybeValue[A] => Observable[B]): Observable[B]  =
+    @inline def replayLatestSelector[B](f: Observable[A] => Observable[B]): Observable[B]  =
       transformSource(s => f(s.replayLatest.refCount))
     @inline def replayAllSelector[B](f: Observable[A] => Observable[B]): Observable[B]                =
       transformSource(s => f(s.replayAll.refCount))
-    @inline def behaviorSelector[B](value: A)(f: Observable.Value[A] => Observable[B]): Observable[B] =
+    @inline def behaviorSelector[B](value: A)(f: Observable[A] => Observable[B]): Observable[B] =
       transformSource(s => f(s.behavior(value).refCount))
 
     def multicast(pipe: Subject[A]): Connectable[Observable[A]] = Connectable(
       new Observable[A] {
         def unsafeSubscribe(sink: Observer[A]): Cancelable = Source[Observable].unsafeSubscribe(pipe)(sink)
-      },
-      () => source.unsafeSubscribe(pipe),
-    )
-
-    def multicastValue(pipe: Subject.Value[A]): Connectable[Observable.Value[A]] = Connectable(
-      new Value[A] {
-        def now(): A                                       = pipe.now()
-        def unsafeSubscribe(sink: Observer[A]): Cancelable = pipe.unsafeSubscribe(sink)
-      },
-      () => source.unsafeSubscribe(pipe),
-    )
-
-    def multicastMaybeValue(pipe: Subject.MaybeValue[A]): Connectable[Observable.MaybeValue[A]] = Connectable(
-      new MaybeValue[A] {
-        def now(): Option[A]                               = pipe.now()
-        def unsafeSubscribe(sink: Observer[A]): Cancelable = pipe.unsafeSubscribe(sink)
       },
       () => source.unsafeSubscribe(pipe),
     )
@@ -1810,24 +1775,6 @@ object Observable    {
     @inline def flattenSwitch: Observable[A] = source.switchMap(o => ObservableLike[F].toObservable(o))
   }
 
-  @inline implicit class SubjectValueOperations[A](val handler: Subject.Value[A]) extends AnyVal {
-    def lens[B](read: A => B)(write: (A, B) => A): Subject.Value[B] = new Observer[B] with Observable.Value[B] {
-      @inline def now()                                          = read(handler.now())
-      @inline def unsafeOnNext(value: B): Unit                   = handler.unsafeOnNext(write(handler.now(), value))
-      @inline def unsafeOnError(error: Throwable): Unit          = handler.unsafeOnError(error)
-      @inline def unsafeSubscribe(sink: Observer[B]): Cancelable = handler.map(read).unsafeSubscribe(sink)
-    }
-  }
-
-  @inline implicit class SubjectMaybeValueOperations[A](val handler: Subject.MaybeValue[A]) extends AnyVal {
-    def lens[B](seed: => A)(read: A => B)(write: (A, B) => A): Subject.MaybeValue[B] = new Observer[B] with Observable.MaybeValue[B] {
-      @inline def now()                                          = handler.now().map(read)
-      @inline def unsafeOnNext(value: B): Unit                   = handler.unsafeOnNext(write(handler.now().getOrElse(seed), value))
-      @inline def unsafeOnError(error: Throwable): Unit          = handler.unsafeOnError(error)
-      @inline def unsafeSubscribe(sink: Observer[B]): Cancelable = handler.map(read).unsafeSubscribe(sink)
-    }
-  }
-
   @inline implicit class ProSubjectOperations[I, O](val handler: ProSubject[I, O]) extends AnyVal {
     @inline def transformSubjectSource[O2](g: Observable[O] => Observable[O2]): ProSubject[I, O2]                                   =
       ProSubject.from[I, O2](handler, g(handler))
@@ -1844,15 +1791,13 @@ object Observable    {
   }
 
   @inline implicit class ListSubjectOperations[A](val handler: Subject[Seq[A]]) extends AnyVal {
-    def sequence: Observable[Seq[Subject.Value[A]]] = new Observable[Seq[Subject.Value[A]]] {
-      def unsafeSubscribe(sink: Observer[Seq[Subject.Value[A]]]): Cancelable = {
+    def sequence: Observable[Seq[Subject[A]]] = new Observable[Seq[Subject[A]]] {
+      def unsafeSubscribe(sink: Observer[Seq[Subject[A]]]): Cancelable = {
         handler.unsafeSubscribe(
           Observer.create(
             { sequence =>
               sink.unsafeOnNext(sequence.zipWithIndex.map { case (a, idx) =>
-                new Observer[A] with Observable.Value[A] {
-                  def now(): A = a
-
+                new Observer[A] with Observable[A] {
                   def unsafeSubscribe(sink: Observer[A]): Cancelable = {
                     sink.unsafeOnNext(a)
                     Cancelable.empty

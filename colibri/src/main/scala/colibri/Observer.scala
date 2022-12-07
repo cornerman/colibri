@@ -90,8 +90,6 @@ object Observer    {
 
   @inline def combine[A](sinks: Observer[A]*): Observer[A] = combineIterable(sinks)
 
-  @deprecated("Use combineIterable instead", "0.5.0")
-  def combineSeq[A](sinks: Seq[Observer[A]]): Observer[A]           = combineIterable(sinks)
   def combineIterable[A](sinks: Iterable[Observer[A]]): Observer[A] = new Observer[A] {
     def unsafeOnNext(value: A): Unit          = sinks.foreach(_.unsafeOnNext(value))
     def unsafeOnError(error: Throwable): Unit = sinks.foreach(_.unsafeOnError(error))
@@ -232,7 +230,7 @@ object Observer    {
   }
 
   @inline implicit class UnitOperations(private val sink: Observer[Unit]) extends AnyVal {
-    @inline def void: Observer[Any] = sink.contramap(_ => ())
+    @inline def void: Observer[Any] = sink.as(())
   }
 
   @inline implicit class ThrowableOperations(private val sink: Observer[Throwable]) extends AnyVal {
