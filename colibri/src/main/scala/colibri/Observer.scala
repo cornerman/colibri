@@ -29,11 +29,6 @@ object Observer    {
       }
   }
 
-  @deprecated("Use createUnrecovered instead", "")
-  @inline def unsafeCreate[A](
-      consume: A => Unit,
-      failure: Throwable => Unit = UnhandledErrorReporter.errorSubject.unsafeOnNext,
-  ): Observer[A] = createUnrecovered(consume, failure)
   @inline def createUnrecovered[A](
       consume: A => Unit,
       failure: Throwable => Unit = UnhandledErrorReporter.errorSubject.unsafeOnNext,
@@ -214,11 +209,6 @@ object Observer    {
       val source  = transform(handler)
       Connectable(handler, () => source.unsafeSubscribe(sink))
     }
-
-    @deprecated("Use unsafeOnNext instead", "")
-    def onNext(value: A): Unit          = sink.unsafeOnNext(value)
-    @deprecated("Use unsafeOnError instead", "")
-    def onError(error: Throwable): Unit = sink.unsafeOnError(error)
 
     def onNextF[F[_]: Sync](value: A): F[Unit] = Sync[F].delay(sink.unsafeOnNext(value))
     def onNextIO(value: A): IO[Unit]           = onNextF[IO](value)
