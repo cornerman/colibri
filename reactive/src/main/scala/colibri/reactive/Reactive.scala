@@ -92,6 +92,7 @@ trait RxWriter[-A] {
 
   final def set(value: A): Unit = observer.unsafeOnNext(value)
 
+  final def as(value: A): RxWriter[Any] = contramap(_ => value)
   final def contramap[B](f: B => A): RxWriter[B]                   = transformRxWriter(_.contramap(f))
   final def contramapIterable[B](f: B => Iterable[A]): RxWriter[B] = transformRxWriter(_.contramapIterable(f))
 

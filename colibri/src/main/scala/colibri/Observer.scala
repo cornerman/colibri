@@ -172,6 +172,8 @@ object Observer    {
       def unsafeOnError(error: Throwable): Unit = sink.unsafeOnError(error)
     }
 
+    def as(value: A): Observer[Any] = sink.contramap(_ => value)
+
     def tap(f: A => Unit): Observer[A] = new Observer[A] {
       def unsafeOnNext(value: A): Unit          = {
         f(value)
