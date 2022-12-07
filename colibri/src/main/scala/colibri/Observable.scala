@@ -432,12 +432,11 @@ object Observable    {
       def unsafeSubscribe(sink2: Observer[A]): Cancelable = source.unsafeSubscribe(Observer.combine(sink, sink2))
     }
 
-    // TODO: this will become the normal foreach after the deprecated gready foreach is removed.
-    def foreach_(f: A => Unit): Observable[Unit] = to(Observer.create(f))
+    @deprecated("Use via instead", "0.7.8")
+    def to(sink: Observer[A]): Observable[Unit] = via(sink).void
 
-    def to(sink: Observer[A]): Observable[Unit] = new Observable[Unit] {
-      def unsafeSubscribe(sink2: Observer[Unit]): Cancelable = source.unsafeSubscribe(Observer.combine(sink, sink2.void))
-    }
+    // TODO: this will become the normal foreach after the deprecated gready foreach is removed.
+    def foreach_(f: A => Unit): Observable[Unit] = via(Observer.create(f)).void
 
     def subscribing[B](f: Observable[B]): Observable[A] = tapSubscribe(() => f.unsafeSubscribe())
 
@@ -1378,7 +1377,7 @@ object Observable    {
     @inline def distinctByOnEquals[B](f: A => B): Observable[A] = distinctBy(f)(Eq.fromUniversalEquals)
     @inline def distinctOnEquals: Observable[A]                 = distinct(Eq.fromUniversalEquals)
 
-    @deprecated("Manage subscriptions directly with subscribe, to, via, etc.", "0.4.3")
+    @deprecated("Manage subscriptions directly with subscribe, via, etc.", "0.4.3")
     def withDefaultSubscription(sink: Observer[A]): Observable[A] = new Observable[A] {
       private var defaultSubscription = source.unsafeSubscribe(sink)
 
