@@ -7,6 +7,7 @@ import monocle.{Iso, Lens, Prism}
 
 import scala.concurrent.Future
 import scala.reflect.ClassTag
+import collection.mutable
 
 trait Rx[+A] {
   def observable: Observable[A]
@@ -158,39 +159,43 @@ object Var {
   def combine[A](read: Rx[A], write: RxWriter[A]): Var[A] = new VarCombine(read, write)
 
   @inline implicit class SeqVarOperations[A](rxvar: Var[Seq[A]]) {
-    def sequence(implicit owner: Owner): Rx[Seq[Var[A]]] = Rx.observableSync(new Observable[Seq[Var[A]]] {
 
-      def unsafeSubscribe(sink: Observer[Seq[Var[A]]]): Cancelable = {
-        rxvar.observable.unsafeSubscribe(
-          Observer.create(
-            { seq =>
-              sink.unsafeOnNext(seq.zipWithIndex.map { case (a, idx) =>
-                val observer   = new Observer[A] {
-                  def unsafeOnNext(value: A): Unit = {
-                    rxvar.set(seq.updated(idx, value))
-                  }
+    def sequence(implicit owner: Owner): Rx[Seq[Var[A]]] = {
+      val observable = new Observable[Seq[Var[A]]] {
+        def unsafeSubscribe(sink: Observer[Seq[Var[A]]]): Cancelable = {
+          // keep a var for every index of the original sequence
+          val vars = mutable.ArrayBuffer.empty[Var[A]]
 
-                  def unsafeOnError(error: Throwable): Unit = {
-                    sink.unsafeOnError(error)
+          def createIndexVar(idx:Int, seed: A):Var[A] = {
+            Var[A](seed).transformVarRxWriter{ _.contramap{ newValue => 
+              rxvar.update(_.updated(idx, newValue))
+              newValue
+            }}
+          }
+
+          rxvar.observable.unsafeSubscribe(
+            Observer.create(
+              consume = { seq =>
+                if(seq.size < vars.size) {
+                  vars.remove(seq.size, vars.size - seq.size)
+                } else if(seq.size > vars.size) {
+                  for((elem,idx) <- seq.zipWithIndex.takeRight(seq.size - vars.size)) {
+                    vars += createIndexVar(idx, seed= elem)
                   }
                 }
-                val observable = new Observable.Value[A] {
-                  def now(): A = a
-
-                  def unsafeSubscribe(sink: Observer[A]): Cancelable = {
-                    sink.unsafeOnNext(a)
-                    Cancelable.empty
-                  }
-
+                assert(seq.size == vars.size)
+                for ((newValue, elemVar) <- seq.zip(vars)) {
+                  elemVar.set(newValue)
                 }
-                Var.combine(Rx.observable(observable)(seed = a), RxWriter.observer(observer))
-              })
-            },
-            sink.unsafeOnError,
-          ),
-        )
+                sink.unsafeOnNext(vars.toSeq)
+              },
+              failure = sink.unsafeOnError,
+            ),
+          )
+        }
       }
-    })
+      Rx.observableSync(observable)
+    }
   }
 
   @inline implicit class OptionVarOperations[A](rxvar: Var[Option[A]]) {
