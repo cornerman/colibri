@@ -49,7 +49,7 @@ object Rx extends RxPlatform {
       val liveOwner = LiveOwner.unsafeHotRef()
       val result    = f(liveOwner)
       Observable[R](result)
-        .subscribing(liveOwner.liveObservable.dropSyncAll.head.to(subject))
+        .subscribing(liveOwner.liveObservable.dropSyncAll.head.via(subject))
         .tapCancel(liveOwner.cancelable.unsafeCancel)
     }
 
