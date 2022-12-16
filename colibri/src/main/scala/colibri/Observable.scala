@@ -435,7 +435,7 @@ object Observable    {
     @deprecated("Use via instead", "0.7.8")
     def to(sink: Observer[A]): Observable[Unit] = via(sink).void
 
-    // TODO: this will become the normal foreach after the deprecated gready foreach is removed.
+    @deprecated("Use tap instead", "0.7.8")
     def foreach_(f: A => Unit): Observable[Unit] = via(Observer.create(f)).void
 
     def subscribing[B](f: Observable[B]): Observable[A] = tapSubscribe(() => f.unsafeSubscribe())
