@@ -2,14 +2,15 @@ package colibri.reactive
 
 import colibri._
 
-trait NowOwner {
+trait NowOwner  {
   def unsafeNow[A](rx: Rx[A]): A
 }
 object NowOwner {
   implicit object global extends NowOwner {
     def unsafeNow[A](rx: Rx[A]): A = {
       val cancelable = rx.unsafeSubscribe()
-      try(rx.nowIfSubscribed()) finally(cancelable.unsafeCancel())
+      try (rx.nowIfSubscribed())
+      finally (cancelable.unsafeCancel())
     }
   }
 }
@@ -17,7 +18,7 @@ object NowOwner {
 @annotation.implicitNotFound(
   "No implicit LiveOwner is available here! Wrap inside `Rx { <code> }`, or provide an implicit `LiveOwner`.",
 )
-trait LiveOwner extends NowOwner {
+trait LiveOwner  extends NowOwner          {
   def cancelable: Cancelable
 
   def liveObservable: Observable[Any]
