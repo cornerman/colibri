@@ -178,6 +178,11 @@ trait Var[A] extends RxWriter[A] with Rx[A] {
 object Var {
   def apply[A](seed: A): Var[A] = new VarSubject(seed)
 
+  def none[A](): Var[Option[A]] = new VarSubject(None)
+  def some[A](seed: A): Var[Option[A]] = new VarSubject(Some(seed))
+
+  def subjectSync[A](read: Subject[A]): Var[A] = combine(Rx.observableSync(read), RxWriter.observer(read))
+
   def combine[A](read: Rx[A], write: RxWriter[A]): Var[A] = new VarCombine(read, write)
 
   @inline implicit class SeqVarOperations[A](rxvar: Var[Seq[A]]) {
