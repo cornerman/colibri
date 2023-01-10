@@ -1637,9 +1637,9 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
     var errors   = 0
     val stream = for {
       a <- Observable(1).concat(Observable(2).delayMillis(1)).forSwitch
-      b <- Observable(10).concat(Observable(20).delayMillis(2)).forMerge
-      c <- Observable(100).concat(Observable(200).delayMillis(3)).forConcat
-      d <- Observable(1000).concat(Observable(2000).delayMillis(4))
+      b <- Observable(10).concat(Observable(20).delayMillis(5)).forMerge
+      c <- Observable(100).concat(Observable(200).delayMillis(10)).forConcat
+      d <- Observable(1000).concat(Observable(2000).delayMillis(15))
     } yield a + b + c + d
 
     val cancelable = stream.unsafeSubscribe(
