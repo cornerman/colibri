@@ -832,6 +832,54 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
     mapped.nowOption() shouldBe None
   }
 
+  it should "tapLater" in {
+    var triggers1      = List.empty[Int]
+    val variable1       = Var(1)
+    val variable1Logged = variable1.tapLater(triggers1 ::= _)
+
+    triggers1 shouldBe List.empty
+    variable1Logged.nowOption() shouldBe None
+    triggers1 shouldBe List.empty
+
+    val cancelable = variable1Logged.unsafeSubscribe()
+
+    triggers1 shouldBe List.empty
+    variable1Logged.nowOption() shouldBe Some(1)
+    triggers1 shouldBe List.empty
+
+    variable1.set(2)
+
+    triggers1 shouldBe List(2)
+    variable1Logged.nowOption() shouldBe Some(2)
+    triggers1 shouldBe List(2)
+
+    variable1.set(3)
+
+    triggers1 shouldBe List(3,2)
+    variable1Logged.nowOption() shouldBe Some(3)
+    triggers1 shouldBe List(3,2)
+
+    cancelable.unsafeCancel()
+
+    variable1.set(4)
+
+    triggers1 shouldBe List(3,2)
+    variable1Logged.nowOption() shouldBe None
+    triggers1 shouldBe List(3,2)
+
+    variable1Logged.now() shouldBe 4
+    triggers1 shouldBe List(3,2)
+
+    variable1.set(5)
+
+    triggers1 shouldBe List(3,2)
+    variable1Logged.nowOption() shouldBe None
+    triggers1 shouldBe List(3,2)
+
+    variable1Logged.now() shouldBe 5
+    triggers1 shouldBe List(3,2)
+  }
+
   it should "subscribe and now on rx with lazy subscriptions" in {
     var triggers1      = List.empty[Int]
     var triggerRxCount = 0

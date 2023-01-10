@@ -26,7 +26,7 @@ trait Rx[+A] {
   final def map[B](f: A => B): Rx[B]                                = transformRxSync(_.map(f))
   final def mapEither[B](f: A => Either[Throwable, B]): Rx[B]       = transformRxSync(_.mapEither(f))
   final def tap(f: A => Unit): Rx[A]                                = transformRxSync(_.tap(f))
-  final def tapLater(f: A => Unit): Rx[A]                           = transformRxSync(_.tail.tap(f))
+  final def tapLater(f: A => Unit): Rx[A]                           = transformRx(_.tail.tap(f))(nowIfSubscribed())
 
   final def mapSyncEffect[F[_]: RunSyncEffect, B](f: A => F[B]): Rx[B]     = transformRxSync(_.mapEffect(f))
   final def mapEffect[F[_]: RunEffect, B](f: A => F[B])(seed: => B): Rx[B] = transformRx(_.mapEffect(f))(seed)
