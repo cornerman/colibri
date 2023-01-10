@@ -94,6 +94,8 @@ object Rx extends RxPlatform {
   def observableSync[A](observable: Observable[A]): Rx[A] = new RxObservableSync(observable)
 
   @inline implicit final class RxOps[A](private val self: Rx[A]) extends AnyVal {
+    def scan(f: (A, A) => A): Rx[A] = scan(self.nowIfSubscribed())(f)
+
     def scan[B](seed: B)(f: (B, A) => B): Rx[B] = self.transformRxSync(_.scan0(seed)(f))
 
     def filter(f: A => Boolean)(seed: => A): Rx[A] = self.transformRx(_.filter(f))(seed)
