@@ -1016,7 +1016,7 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
 
     val test = for {
       cancelable <- stream
-                      .to(
+                      .via(
                         Observer.create[Int](
                           received ::= _,
                           _ => errors += 1,
@@ -1063,7 +1063,7 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
 
     val test = for {
       cancelable <- stream
-                      .to(
+                      .via(
                         Observer.create[Int](
                           received ::= _,
                           _ => errors += 1,
@@ -1097,7 +1097,7 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
 
     val test = for {
       cancelable <- stream
-                      .to(
+                      .via(
                         Observer.create[Int](
                           received ::= _,
                           _ => errors += 1,
@@ -1124,7 +1124,7 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
 
     val test = for {
       cancelable <- stream
-                      .to(
+                      .via(
                         Observer.create[Int](
                           received ::= _,
                           _ => errors += 1,
@@ -1157,7 +1157,7 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
 
     val test = for {
       cancelable <- stream
-                      .to(
+                      .via(
                         Observer.create[Int](
                           received ::= _,
                           _ => errors += 1,
@@ -1184,7 +1184,7 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
 
     val test = for {
       cancelable <- stream
-                      .to(
+                      .via(
                         Observer.create[Int](
                           received ::= _,
                           _ => errors += 1,
@@ -1211,7 +1211,7 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
 
     val test = for {
       cancelable <- stream
-                      .to(
+                      .via(
                         Observer.create[Int](
                           received ::= _,
                           _ => errors += 1,
@@ -1249,7 +1249,7 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
 
     val test = for {
       cancelable <- stream
-                      .to(
+                      .via(
                         Observer.create[Int](
                           received ::= _,
                           _ => errors += 1,
@@ -1279,7 +1279,7 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
 
     val test = for {
       cancelable <- stream
-                      .to(
+                      .via(
                         Observer.create[Int](
                           received ::= _,
                           _ => errors += 1,
@@ -1292,7 +1292,7 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
       _ = errors shouldBe 0
 
       cancelable2 <- stream.dropSyncGlitches
-                       .to(
+                       .via(
                          Observer.create[Int](
                            received ::= _,
                            _ => errors += 1,
@@ -1637,9 +1637,9 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
     var errors   = 0
     val stream = for {
       a <- Observable(1).concat(Observable(2).delayMillis(1)).forSwitch
-      b <- Observable(10).concat(Observable(20).delayMillis(2)).forMerge
-      c <- Observable(100).concat(Observable(200).delayMillis(3)).forConcat
-      d <- Observable(1000).concat(Observable(2000).delayMillis(4))
+      b <- Observable(10).concat(Observable(20).delayMillis(5)).forMerge
+      c <- Observable(100).concat(Observable(200).delayMillis(10)).forConcat
+      d <- Observable(1000).concat(Observable(2000).delayMillis(15))
     } yield a + b + c + d
 
     val cancelable = stream.unsafeSubscribe(
@@ -1822,5 +1822,53 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
     received shouldBe List(())
     errors shouldBe 0
     cancelable.isEmpty() shouldBe true
+  }
+
+  it should "lens" in {
+    case class Recipe(user: String, age: Int)
+
+    var receivedString = List.empty[String]
+    var receivedRecipe = List.empty[Recipe]
+    var errors   = 0
+
+    val hdlRecipe = Subject.behavior[Recipe](Recipe("hans", 12))
+
+    val hdlUser = hdlRecipe.lens[String](_.user)((state, newState) => state.copy(user = newState))
+
+    hdlRecipe.unsafeSubscribe(
+      Observer.create[Recipe](
+        receivedRecipe ::= _,
+        _ => errors += 1,
+      ),
+    )
+
+    hdlUser.unsafeSubscribe(
+      Observer.create[String](
+        receivedString ::= _,
+        _ => errors += 1,
+      ),
+    )
+
+    receivedString shouldBe List("hans")
+    receivedRecipe shouldBe List(Recipe("hans", 12))
+    errors shouldBe 0
+
+    hdlRecipe.unsafeOnNext(Recipe("hans", 13))
+
+    receivedString shouldBe List("hans", "hans")
+    receivedRecipe shouldBe List(Recipe("hans", 13), Recipe("hans", 12))
+    errors shouldBe 0
+
+    hdlRecipe.unsafeOnNext(Recipe("gisela", 14))
+
+    receivedString shouldBe List("gisela", "hans", "hans")
+    receivedRecipe shouldBe List(Recipe("gisela", 14), Recipe("hans", 13), Recipe("hans", 12))
+    errors shouldBe 0
+
+    hdlUser.unsafeOnNext("dieter")
+
+    receivedString shouldBe List("dieter", "gisela", "hans", "hans")
+    receivedRecipe shouldBe List(Recipe("dieter", 14), Recipe("gisela", 14), Recipe("hans", 13), Recipe("hans", 12))
+    errors shouldBe 0
   }
 }

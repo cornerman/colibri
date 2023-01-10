@@ -38,7 +38,7 @@ lazy val commonSettings = Seq(
       )
   }),
   libraryDependencies ++= Seq(
-    "org.scalatest" %%% "scalatest" % "3.2.14" % Test,
+    "org.scalatest" %%% "scalatest" % "3.2.15" % Test,
   ),
   /* scalacOptions --= Seq("-Xfatal-warnings"), // overwrite option from https://github.com/DavidGregory084/sbt-tpolecat */
 )
@@ -51,7 +51,7 @@ lazy val colibri = project
     name := "colibri",
     libraryDependencies ++= Seq(
       "org.typelevel" %%% "cats-core"   % "2.9.0",
-      "org.typelevel" %%% "cats-effect" % "3.3.14",
+      "org.typelevel" %%% "cats-effect" % "3.4.4",
     ),
   )
 
@@ -137,8 +137,8 @@ lazy val zio = project
     name := "colibri-zio",
     libraryDependencies ++= Seq(
       "io.github.cquiroz" %%% "scala-java-time" % "2.5.0",
-      "dev.zio"           %%% "zio"             % "2.0.4",
-      "dev.zio"           %%% "zio-streams"     % "2.0.4",
+      "dev.zio"           %%% "zio"             % "2.0.5",
+      "dev.zio"           %%% "zio-streams"     % "2.0.5",
     ),
   )
 

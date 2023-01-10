@@ -30,7 +30,9 @@ object Connectable                                                              
       def now()                                          = source.value.now()
       def unsafeSubscribe(sink: Observer[A]): Cancelable = Cancelable.composite(source.value.unsafeSubscribe(sink), source.connect())
     }
-    def hot: Observable.HotValue[A]   = new Observable.HotValue[A] {
+    @deprecated("Use unsafeHot instead", "0.7.8")
+    def hot: Observable.HotValue[A]   = unsafeHot()
+    def unsafeHot(): Observable.HotValue[A]   = new Observable.HotValue[A] {
       val cancelable                                     = source.connect()
       def now()                                          = source.value.now()
       def unsafeSubscribe(sink: Observer[A]): Cancelable = source.value.unsafeSubscribe(sink)
@@ -42,7 +44,9 @@ object Connectable                                                              
       def now()                                          = source.value.now()
       def unsafeSubscribe(sink: Observer[A]): Cancelable = Cancelable.composite(source.value.unsafeSubscribe(sink), source.connect())
     }
-    def hot: Observable.HotMaybeValue[A]   = new Observable.HotMaybeValue[A] {
+    @deprecated("Use unsafeHot instead", "0.7.8")
+    def hot: Observable.HotMaybeValue[A]   = unsafeHot()
+    def unsafeHot(): Observable.HotMaybeValue[A]   = new Observable.HotMaybeValue[A] {
       val cancelable                                     = source.connect()
       def now()                                          = source.value.now()
       def unsafeSubscribe(sink: Observer[A]): Cancelable = source.value.unsafeSubscribe(sink)

@@ -17,7 +17,7 @@ trait RunEffectLowPrio {
 object RunEffect extends RunEffectLowPrio {
   @inline def apply[F[_]](implicit run: RunEffect[F]): RunEffect[F] = run
 
-  def forAsync[F[_]: Async]: Resource[F, RunEffect[F]] = Dispatcher[F].map(forDispatcher(_))
+  def forAsync[F[_]: Async]: Resource[F, RunEffect[F]] = Dispatcher.parallel[F].map(forDispatcher(_))
 
   def forDispatcher[F[_]](dispatcher: Dispatcher[F]): RunEffect[F] = new RunEffectAsyncWithDispatcher(dispatcher)
 
@@ -45,7 +45,7 @@ private final class RunEffectIOWithRuntime(ioRuntime: unsafe.IORuntime) extends 
 
   override def unsafeRunSyncOrAsyncCancelable[T](effect: IO[T])(cb: Either[Throwable, T] => Unit): Cancelable = {
     try {
-      effect.syncStep.unsafeRunSync() match {
+      effect.syncStep(Int.MaxValue).unsafeRunSync() match {
         case Left(io)           =>
           unsafeRunAsyncCancelable(io)(cb)
         case right: Right[_, T] =>
