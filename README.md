@@ -201,7 +201,7 @@ println(variable2.now()) // "Foo"
 println(rx.now()) // "3 - Foo"
 ```
 
-[Outwatch](https://github.com/outwatch/outwatch) works perfectly with Rx as just like Observable.
+[Outwatch](https://github.com/outwatch/outwatch) works perfectly with Rx - just like Observable.
 
 ```scala
 
@@ -220,6 +220,21 @@ val component: VModifier = {
 
   div(rx)
 }
+```
+
+There also exist `RxEvent` and `VarEvent`, which are event observables with shared execution. That is they behave like `Rx` and `Var` such that transformations are only applied once and not per subscription. But `RxEvent` and `VarEvent` are not distinct and have no current value. They should be used for event streams.
+
+```
+import colibri.reactive._
+
+val variable = VarEvent[Int]()
+
+val stream1 = RxEvent.empty
+val stream2 = RxEvent.const(1)
+
+val mapped = RxEvent.merge(variable.tap(println(_)).map(_ + 1), stream1, stream2)
+
+val cancelable = mapped.unsafeForeach(println(_))
 ```
 
 ### Memory management
