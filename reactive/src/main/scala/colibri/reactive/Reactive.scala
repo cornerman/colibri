@@ -32,11 +32,11 @@ object RxSource {
 }
 
 trait RxEvent[+A] extends RxSource[A] {
-  final def collect[B](f: PartialFunction[A, B]): RxEvent[B] = transformRxEvent(_.collect(f))
-  final def map[B](f: A => B): RxEvent[B]                                = transformRxEvent(_.map(f))
-  final def mapEither[B](f: A => Either[Throwable, B]): RxEvent[B]       = transformRxEvent(_.mapEither(f))
-  final def tap(f: A => Unit): RxEvent[A]                                = transformRxEvent(_.tap(f))
-  final def tapLater(f: A => Unit): RxEvent[A]                           = transformRxEvent(obs => Observable.concatEffect(obs.headIO, obs.tail.tap(f)))
+  final def collect[B](f: PartialFunction[A, B]): RxEvent[B]       = transformRxEvent(_.collect(f))
+  final def map[B](f: A => B): RxEvent[B]                          = transformRxEvent(_.map(f))
+  final def mapEither[B](f: A => Either[Throwable, B]): RxEvent[B] = transformRxEvent(_.mapEither(f))
+  final def tap(f: A => Unit): RxEvent[A]                          = transformRxEvent(_.tap(f))
+  final def tapLater(f: A => Unit): RxEvent[A]                     = transformRxEvent(obs => Observable.concatEffect(obs.headIO, obs.tail.tap(f)))
 
   final def mapEffect[F[_]: RunEffect, B](f: A => F[B]): RxEvent[B] = transformRxEvent(_.mapEffect(f))
   final def mapFuture[B](f: A => Future[B]): RxEvent[B]             = transformRxEvent(_.mapFuture(f))
@@ -51,15 +51,17 @@ trait RxEvent[+A] extends RxSource[A] {
 
   final def switchMap[B](f: A => RxEvent[B]): RxEvent[B] = transformRxEvent(_.switchMap(f andThen (_.observable)))
   final def mergeMap[B](f: A => RxEvent[B]): RxEvent[B]  = transformRxEvent(_.mergeMap(f andThen (_.observable)))
-  final def concatMap[B](f: A => RxEvent[B]): RxEvent[B]  = transformRxEvent(_.concatMap(f andThen (_.observable)))
+  final def concatMap[B](f: A => RxEvent[B]): RxEvent[B] = transformRxEvent(_.concatMap(f andThen (_.observable)))
 
-  final def combineLatestMap[B, R](sourceB: RxEvent[B])(f: (A, B) => R): RxEvent[R] = transformRxEvent(_.combineLatestMap(sourceB.observable)(f))
-  final def combineLatest[B](sourceB: RxEvent[B]): RxEvent[(A,B)] = transformRxEvent(_.combineLatest(sourceB.observable))
+  final def combineLatestMap[B, R](sourceB: RxEvent[B])(f: (A, B) => R): RxEvent[R] = transformRxEvent(
+    _.combineLatestMap(sourceB.observable)(f),
+  )
+  final def combineLatest[B](sourceB: RxEvent[B]): RxEvent[(A, B)]                  = transformRxEvent(_.combineLatest(sourceB.observable))
 
   final def withLatestMap[B, R](sourceB: RxEvent[B])(f: (A, B) => R): RxEvent[R] = transformRxEvent(_.withLatestMap(sourceB.observable)(f))
-  final def withLatest[B](sourceB: RxEvent[B]): RxEvent[(A,B)] = transformRxEvent(_.withLatest(sourceB.observable))
+  final def withLatest[B](sourceB: RxEvent[B]): RxEvent[(A, B)]                  = transformRxEvent(_.withLatest(sourceB.observable))
 
-  final def transformRxEvent[B](f: Observable[A] => Observable[B]): RxEvent[B] = RxEvent.observable(f(observable))
+  final def transformRxEvent[B](f: Observable[A] => Observable[B]): RxEvent[B]         = RxEvent.observable(f(observable))
   final def transformRxEventUnshared[B](f: Observable[A] => Observable[B]): RxEvent[B] = RxEvent.observableUnshared(f(observable))
 
   final def hot: SyncIO[RxEvent[A]] = SyncIO(unsafeHot())
@@ -80,13 +82,13 @@ object RxEvent extends RxPlatform {
   def iterable[A](value: Iterable[A]): RxEvent[A] = observableUnshared(Observable.fromIterable(value))
 
   def effect[F[_]: RunEffect, A](value: F[A]): RxEvent[A] = observable(Observable.fromEffect(value))
-  def future[A](value: => Future[A]): RxEvent[A] = observable(Observable.fromFuture(value))
+  def future[A](value: => Future[A]): RxEvent[A]          = observable(Observable.fromFuture(value))
 
-  def merge[A](rxs: RxEvent[A]*): RxEvent[A] = observableUnshared(Observable.mergeIterable(rxs.map(_.observable)))
+  def merge[A](rxs: RxEvent[A]*): RxEvent[A]  = observableUnshared(Observable.mergeIterable(rxs.map(_.observable)))
   def switch[A](rxs: RxEvent[A]*): RxEvent[A] = observableUnshared(Observable.switchIterable(rxs.map(_.observable)))
   def concat[A](rxs: RxEvent[A]*): RxEvent[A] = observableUnshared(Observable.concatIterable(rxs.map(_.observable)))
 
-  def observable[A](observable: Observable[A]): RxEvent[A] = new RxEventObservable(observable.publish.refCount)
+  def observable[A](observable: Observable[A]): RxEvent[A]         = new RxEventObservable(observable.publish.refCount)
   def observableUnshared[A](observable: Observable[A]): RxEvent[A] = new RxEventObservable(observable)
 
   @inline implicit final class RxEventOps[A](private val self: RxEvent[A]) extends AnyVal {
@@ -233,13 +235,14 @@ object RxWriter {
 }
 
 trait VarEvent[A] extends RxWriter[A] with RxEvent[A] {
-  final def transformVar[A2](f: RxWriter[A] => RxWriter[A2])(g: RxEvent[A] => RxEvent[A2]): VarEvent[A2] = VarEvent.combine(g(this), f(this))
-  final def transformVarRxEvent(g: RxEvent[A] => RxEvent[A]): VarEvent[A]                                     = VarEvent.combine(g(this), this)
-  final def transformVarRxWriter(f: RxWriter[A] => RxWriter[A]): VarEvent[A]                   = VarEvent.combine(this, f(this))
+  final def transformVar[A2](f: RxWriter[A] => RxWriter[A2])(g: RxEvent[A] => RxEvent[A2]): VarEvent[A2] =
+    VarEvent.combine(g(this), f(this))
+  final def transformVarRxEvent(g: RxEvent[A] => RxEvent[A]): VarEvent[A]                                = VarEvent.combine(g(this), this)
+  final def transformVarRxWriter(f: RxWriter[A] => RxWriter[A]): VarEvent[A]                             = VarEvent.combine(this, f(this))
 }
 
 object VarEvent {
-  def apply[A](): VarEvent[A] = new VarEventSubject(Nil)
+  def apply[A](): VarEvent[A]        = new VarEventSubject(Nil)
   def apply[A](seed: A): VarEvent[A] = new VarEventSubject(seed :: Nil)
 
   def subject[A](read: Subject[A]): VarEvent[A] = combine(RxEvent.observable(read), RxWriter.observer(read))
@@ -368,15 +371,15 @@ private final class RxObservableSync[A](inner: Observable[A]) extends Rx[A] {
 
 private final class RxWriterObserver[A](val observer: Observer[A]) extends RxWriter[A]
 
-private final class VarEventSubject[A](inits: Iterable[A])                                   extends VarEvent[A] {
-  private val state = new PublishSubject[A]
+private final class VarEventSubject[A](inits: Iterable[A]) extends VarEvent[A] {
+  private val state             = new PublishSubject[A]
   val observable: Observable[A] = state.startWith(inits)
   val observer: Observer[A]     = state
 }
 
 private final class VarEventCombine[A](innerRead: RxEvent[A], innerWrite: RxWriter[A]) extends VarEvent[A] {
-  val observable                            = innerRead.observable
-  val observer                              = innerWrite.observer
+  val observable = innerRead.observable
+  val observer   = innerWrite.observer
 }
 
 private final class VarSubject[A](seed: A)                                   extends Var[A] {
