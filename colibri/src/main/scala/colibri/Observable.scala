@@ -512,9 +512,9 @@ object Observable    {
     @deprecated("Use scan0 instead", "0.7.8")
     def scan0ToList: Observable[List[A]] = scan0(List.empty[A])((list, x) => x :: list)
 
-    def scan0[B](seed: B)(f: (B, A) => B): Observable[B] = scan(seed)(f).prepend(seed)
+    def scan0[B](seed: => B)(f: (B, A) => B): Observable[B] = scan(seed)(f).prependEval(seed)
 
-    def scan[B](seed: B)(f: (B, A) => B): Observable[B] = new Observable[B] {
+    def scan[B](seed: => B)(f: (B, A) => B): Observable[B] = new Observable[B] {
       def unsafeSubscribe(sink: Observer[B]): Cancelable = source.unsafeSubscribe(sink.contrascan(seed)(f))
     }
 
