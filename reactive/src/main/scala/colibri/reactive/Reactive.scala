@@ -75,6 +75,8 @@ object RxEvent extends RxPlatform {
 
   def const[A](value: A): RxEvent[A] = observableUnshared(Observable.pure(value))
 
+  def apply[A](values: A*): RxEvent[A] = observableUnshared(Observable.fromIterable(values))
+
   def iterable[A](value: Iterable[A]): RxEvent[A] = observableUnshared(Observable.fromIterable(value))
 
   def effect[F[_]: RunEffect, A](value: F[A]): RxEvent[A] = observable(Observable.fromEffect(value))
