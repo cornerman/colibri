@@ -469,7 +469,7 @@ private final class RxObservableSync[A](inner: Observable[A]) extends Rx[A] {
   private val state = new ReplayLatestSubject[A]()
 
   val observable: Observable[A] =
-    inner.dropUntilSyncLatest.distinctOnEquals.tapCancel(state.unsafeResetState).multicast(state).refCount.distinctOnEquals
+    inner.dropUntilSyncLatest.distinctOnEquals.tapCancel(state.unsafeResetState).multicast(state).refCount
 
   def nowOption()                           = state.now()
   def now()(implicit owner: NowOwner)       = owner.unsafeNow(this)
