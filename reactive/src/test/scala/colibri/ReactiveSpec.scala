@@ -130,7 +130,7 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
     received2 shouldBe List(8, 7, 6, 5, 4, 3, 2)
   }
 
-  it should "nested owners" in {
+  it should "nested rx" in {
     var received1 = List.empty[Int]
     var innerRx   = List.empty[Int]
     var outerRx   = List.empty[Int]
@@ -185,7 +185,7 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
     received1 shouldBe List(12, 9, 6, 3, 2)
   }
 
-  it should "nested owners 2" in {
+  it should "nested rx 2" in {
     var received1 = List.empty[Int]
     var innerRx   = List.empty[Int]
     var outerRx   = List.empty[Int]
@@ -590,38 +590,91 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
     liveCounter shouldBe 5
   }
 
-  it should "collect" in {
+  it should "collect initial some" in {
+    var collectedStates = Vector.empty[Int]
+
     val variable        = Var[Option[Int]](Some(1))
     val collected       = variable.collect { case Some(x) => x }.toRx(0)
-    var collectedStates = Vector.empty[Int]
 
     collected.unsafeForeach(collectedStates :+= _)
 
+    collected.now() shouldBe 1
     collectedStates shouldBe Vector(1)
 
     variable.set(None)
+    collected.now() shouldBe 1
     collectedStates shouldBe Vector(1)
 
     variable.set(Some(17))
+    collected.now() shouldBe 17
     collectedStates shouldBe Vector(1, 17)
-
   }
 
   it should "collect initial none" in {
+    var collectedStates = Vector.empty[Int]
+
     val variable        = Var[Option[Int]](None)
     val collected       = variable.collect { case Some(x) => x }.toRx(0)
-    var collectedStates = Vector.empty[Int]
 
     collected.unsafeForeach(collectedStates :+= _)
 
+    collected.now() shouldBe 0
     collectedStates shouldBe Vector(0)
 
     variable.set(None)
+    collected.now() shouldBe 0
     collectedStates shouldBe Vector(0)
 
     variable.set(Some(17))
+    collected.now() shouldBe 17
     collectedStates shouldBe Vector(0, 17)
+  }
 
+  it should "collect later initial none" in {
+    var tapStates = Vector.empty[Int]
+    var collectedStates = Vector.empty[Int]
+
+    val variable        = Var[Option[Int]](None)
+    val collected       = variable.collect { case Some(x) => x }.tap(tapStates :+= _)
+
+    val cancelable = collected.unsafeForeach(collectedStates :+= _)
+
+    collectedStates shouldBe Vector.empty
+    tapStates shouldBe Vector.empty
+
+    variable.set(Some(0))
+    collectedStates shouldBe Vector(0)
+    tapStates shouldBe Vector(0)
+
+    collected.toRx.now() shouldBe Some(0)
+    collectedStates shouldBe Vector(0)
+    tapStates shouldBe Vector(0)
+
+    variable.set(None)
+    collectedStates shouldBe Vector(0)
+    tapStates shouldBe Vector(0)
+
+    collected.toRx.now() shouldBe Some(0)
+    collectedStates shouldBe Vector(0)
+    tapStates shouldBe Vector(0)
+
+    variable.set(Some(17))
+    collectedStates shouldBe Vector(0, 17)
+    tapStates shouldBe Vector(0, 17)
+
+    collected.toRx.now() shouldBe Some(17)
+    collectedStates shouldBe Vector(0, 17)
+    tapStates shouldBe Vector(0, 17)
+
+    cancelable.unsafeCancel()
+
+    variable.set(Some(18))
+    collectedStates shouldBe Vector(0, 17)
+    tapStates shouldBe Vector(0, 17)
+
+    collected.toRx.now() shouldBe Some(18)
+    collectedStates shouldBe Vector(0, 17)
+    tapStates shouldBe Vector(0, 17, 18)
   }
 
   it should "sequence on Var[Seq[T]]" in {
@@ -864,7 +917,7 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
   it should "drop" in {
     var triggers1       = List.empty[Int]
     val variable1       = Var(1)
-    val variable1Logged = variable1.drop(1).tap(triggers1 ::= _)
+    val variable1Logged = variable1.drop(1).tap(triggers1 ::= _).toRx
 
     triggers1 shouldBe List.empty
     variable1Logged.nowIfSubscribedOption() shouldBe None
@@ -947,6 +1000,112 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
 
     triggers1 shouldBe List(2, 2, 1)
     triggerRxCount shouldBe 3
+  }
+
+  it should "combine rx and rxlater in Rx" in {
+    var triggers1      = List.empty[Int]
+    var triggers2      = List.empty[Int]
+    var triggerRxCount = 0
+
+    val variable1       = VarLater[Int]()
+    val variable2       = Var(1)
+    val variable1Logged = variable1.tap(triggers1 ::= _)
+    val variable2Logged = variable2.tap(triggers2 ::= _)
+
+    val mapped = Rx {
+      triggerRxCount += 1
+      variable1Logged.toRx().getOrElse(0) + variable2Logged()
+    }
+
+    triggers1 shouldBe List.empty
+    triggers2 shouldBe List.empty
+    triggerRxCount shouldBe 0
+
+    mapped.nowIfSubscribedOption() shouldBe None
+    mapped.now() shouldBe 1
+    mapped.nowIfSubscribedOption() shouldBe None
+
+    triggers1 shouldBe List.empty
+    triggers2 shouldBe List(1)
+    triggerRxCount shouldBe 1
+
+    mapped.nowIfSubscribedOption() shouldBe None
+    mapped.now() shouldBe 1
+    mapped.nowIfSubscribedOption() shouldBe None
+
+    variable1.set(10)
+
+    triggers1 shouldBe List.empty
+    triggers2 shouldBe List(1, 1)
+    triggerRxCount shouldBe 2
+
+    mapped.nowIfSubscribedOption() shouldBe None
+    mapped.now() shouldBe 11
+    mapped.nowIfSubscribedOption() shouldBe None
+
+    triggers1 shouldBe List(10)
+    triggers2 shouldBe List(1, 1, 1)
+    triggerRxCount shouldBe 3
+
+    val cancelable = mapped.unsafeSubscribe()
+
+    triggers1 shouldBe List(10, 10)
+    triggers2 shouldBe List(1, 1, 1, 1)
+    triggerRxCount shouldBe 4
+
+    mapped.nowIfSubscribedOption() shouldBe Some(11)
+    mapped.now() shouldBe 11
+    mapped.nowIfSubscribedOption() shouldBe Some(11)
+
+    variable1.set(20)
+
+    triggers1 shouldBe List(20, 10, 10)
+    triggers2 shouldBe List(1, 1, 1, 1)
+    triggerRxCount shouldBe 5
+
+    mapped.nowIfSubscribedOption() shouldBe Some(21)
+    mapped.now() shouldBe 21
+    mapped.nowIfSubscribedOption() shouldBe Some(21)
+
+    variable2.set(2)
+
+    triggers1 shouldBe List(20, 10, 10)
+    triggers2 shouldBe List(2, 1, 1, 1, 1)
+    triggerRxCount shouldBe 6
+
+    mapped.nowIfSubscribedOption() shouldBe Some(22)
+    mapped.now() shouldBe 22
+    mapped.nowIfSubscribedOption() shouldBe Some(22)
+
+    variable2.set(3)
+
+    mapped.nowIfSubscribedOption() shouldBe Some(23)
+    mapped.now() shouldBe 23
+    mapped.nowIfSubscribedOption() shouldBe Some(23)
+
+    triggers1 shouldBe List(20, 10, 10)
+    triggers2 shouldBe List(3, 2, 1, 1, 1, 1)
+    triggerRxCount shouldBe 7
+
+    variable1.set(30)
+
+    mapped.nowIfSubscribedOption() shouldBe Some(33)
+    mapped.now() shouldBe 33
+    mapped.nowIfSubscribedOption() shouldBe Some(33)
+
+    triggers1 shouldBe List(30, 20, 10, 10)
+    triggers2 shouldBe List(3, 2, 1, 1, 1, 1)
+    triggerRxCount shouldBe 8
+
+    cancelable.unsafeCancel()
+
+    mapped.nowIfSubscribedOption() shouldBe None
+    mapped.now() shouldBe 33
+    mapped.nowIfSubscribedOption() shouldBe None
+
+    triggers1 shouldBe List(30, 30, 20, 10, 10)
+    triggers2 shouldBe List(3, 3, 2, 1, 1, 1, 1)
+    triggerRxCount shouldBe 9
   }
 
   it should "now() in Rx, and owners with lazy subscriptions" in {

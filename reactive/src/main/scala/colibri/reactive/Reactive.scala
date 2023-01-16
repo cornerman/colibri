@@ -133,12 +133,6 @@ trait RxState[+A] extends RxSource[A] {
 trait RxLater[+A] extends RxState[A] {
   type SelfSync[+X] = RxLater[X]
 
-  def apply()(implicit owner: LiveOwner): Option[A]
-  def now()(implicit owner: NowOwner): Option[A]
-  def nowIfSubscribedOption(): Option[Option[A]]
-
-  final def nowIfSubscribedOpt(): Option[A] = nowIfSubscribedOption().getOrElse(throw RxMissingNowException)
-
   final override def selfRxSourceSync: RxLater[A]                                            = this
   final override def transformRxSourceSync[B](f: Observable[A] => Observable[B]): RxLater[B] = RxLater.observable(f(observable))
 }
@@ -371,13 +365,7 @@ object Var {
 private final class RxEventObservable[A](val observable: Observable[A]) extends RxEvent[A]
 
 private object RxLaterEmpty extends RxLater[Nothing] {
-  private lazy val someNone = Some(None)
-
   def observable = Observable.empty
-
-  def apply()(implicit owner: LiveOwner) = None
-  def now()(implicit owner: NowOwner)    = None
-  def nowIfSubscribedOption()            = someNone
 }
 
 private final class RxConst[A](value: A) extends Rx[A] {
@@ -392,20 +380,13 @@ private final class RxConst[A](value: A) extends Rx[A] {
 
 private final class RxLaterWrap[A](state: Rx[A]) extends RxLater[A] {
   def observable: Observable[A] = state.observable
-
-  def apply()(implicit owner: LiveOwner) = Some(state())
-  def now()(implicit owner: NowOwner)    = Some(state.now())
-  def nowIfSubscribedOption()            = Some(state.nowIfSubscribedOption())
 }
 
 private final class RxLaterObservable[A](inner: Observable[A]) extends RxLater[A] {
-  private val state = Rx.observableSeed(inner.map[Option[A]](Some.apply))(None)
+  private val state = Subject.replayLatest[A]()
 
-  val observable: Observable[A] = state.observable.flattenOption
-
-  def apply()(implicit owner: LiveOwner) = state()
-  def now()(implicit owner: NowOwner)    = state.now()
-  def nowIfSubscribedOption()            = state.nowIfSubscribedOption()
+  val observable: Observable[A] =
+    inner.dropUntilSyncLatest.distinctOnEquals.tapCancel(state.unsafeResetState).multicast(state).refCount
 }
 
 private final class RxSyncObservable[A](inner: Observable[A]) extends Rx[A] {
@@ -441,34 +422,22 @@ private final class VarEventFromStateful[A](innerRead: RxEvent[A], innerWrite: R
 }
 
 private final class VarLaterSubject[A] extends VarLater[A] {
-  private val state = Var[Option[A]](None)
+  private val state = Subject.replayLatest[A]()
 
-  val observable: Observable[A] = state.observable.flattenOption
-  val observer: Observer[A]     = state.observer.contramap(Some.apply)
-
-  def apply()(implicit owner: LiveOwner) = state()
-  def now()(implicit owner: NowOwner)    = state.now()
-  def nowIfSubscribedOption()            = state.nowIfSubscribedOption()
+  val observable: Observable[A] = state.distinctOnEquals
+  def observer: Observer[A]     = state
 }
 
 private final class VarLaterFromStateless[A](innerRead: RxLater[A], innerWrite: RxWriter[A]) extends VarLater[A] {
   def observable = innerRead.observable
   def observer   = innerWrite.observer
-
-  def apply()(implicit owner: LiveOwner) = innerRead.apply()
-  def now()(implicit owner: NowOwner)    = innerRead.now()
-  def nowIfSubscribedOption()            = innerRead.nowIfSubscribedOption()
 }
 
 private final class VarLaterFromStateful[A](innerRead: RxLater[A], innerWrite: RxWriter[A]) extends VarLater[A] {
-  private val state: Var[Option[A]] = Var.from[Option[A]](innerRead.toRx, innerWrite.transformRxWriter(_.contraflattenOption))
+  private val state = Subject.replayLatest[A]()
 
-  val observable                            = state.observable.flattenOption
-  def observer                              = state.observer.contramap(Some.apply)
-
-  def apply()(implicit owner: LiveOwner)    = state()
-  def now()(implicit owner: NowOwner)       = state.now()
-  def nowIfSubscribedOption()               = state.nowIfSubscribedOption()
+  val observable                            = innerRead.observable.subscribing(state.via(innerWrite.observer)).multicast(state).refCount
+  def observer                              = state
 }
 
 private final class VarSubject[A](seed: A) extends Var[A] {
