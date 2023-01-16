@@ -592,7 +592,7 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
 
   it should "collect" in {
     val variable        = Var[Option[Int]](Some(1))
-    val collected       = variable.collect { case Some(x) => x }(0)
+    val collected       = variable.collect { case Some(x) => x }.toRx(0)
     var collectedStates = Vector.empty[Int]
 
     collected.unsafeForeach(collectedStates :+= _)
@@ -609,7 +609,7 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
 
   it should "collect initial none" in {
     val variable        = Var[Option[Int]](None)
-    val collected       = variable.collect { case Some(x) => x }(0)
+    val collected       = variable.collect { case Some(x) => x }.toRx(0)
     var collectedStates = Vector.empty[Int]
 
     collected.unsafeForeach(collectedStates :+= _)
@@ -832,31 +832,31 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
     mapped.nowOption() shouldBe None
   }
 
-  it should "tapLater" in {
+  it should "drop" in {
     var triggers1       = List.empty[Int]
     val variable1       = Var(1)
-    val variable1Logged = variable1.tapLater(triggers1 ::= _)
+    val variable1Logged = variable1.drop(1).tap(triggers1 ::= _)
 
     triggers1 shouldBe List.empty
-    variable1Logged.nowOption() shouldBe None
+    variable1Logged.nowOptionOpt() shouldBe None
     triggers1 shouldBe List.empty
 
     val cancelable = variable1Logged.unsafeSubscribe()
 
     triggers1 shouldBe List.empty
-    variable1Logged.nowOption() shouldBe Some(1)
+    variable1Logged.nowOptionOpt() shouldBe Some(None)
     triggers1 shouldBe List.empty
 
     variable1.set(2)
 
     triggers1 shouldBe List(2)
-    variable1Logged.nowOption() shouldBe Some(2)
+    variable1Logged.nowOptionOpt() shouldBe Some(Some(2))
     triggers1 shouldBe List(2)
 
     variable1.set(3)
 
     triggers1 shouldBe List(3, 2)
-    variable1Logged.nowOption() shouldBe Some(3)
+    variable1Logged.nowOptionOpt() shouldBe Some(Some(3))
     triggers1 shouldBe List(3, 2)
 
     cancelable.unsafeCancel()
@@ -864,19 +864,19 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
     variable1.set(4)
 
     triggers1 shouldBe List(3, 2)
-    variable1Logged.nowOption() shouldBe None
+    variable1Logged.nowOptionOpt() shouldBe None
     triggers1 shouldBe List(3, 2)
 
-    variable1Logged.now() shouldBe 4
+    variable1Logged.nowOpt() shouldBe Some(4)
     triggers1 shouldBe List(3, 2)
 
     variable1.set(5)
 
     triggers1 shouldBe List(3, 2)
-    variable1Logged.nowOption() shouldBe None
+    variable1Logged.nowOptionOpt() shouldBe None
     triggers1 shouldBe List(3, 2)
 
-    variable1Logged.now() shouldBe 5
+    variable1Logged.nowOpt() shouldBe Some(5)
     triggers1 shouldBe List(3, 2)
   }
 
@@ -1061,7 +1061,7 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
     var results1       = List.empty[Int]
     var results2       = List.empty[Int]
 
-    val variable1       = VarEvent(100)
+    val variable1       = VarEvent[Int]()
     val rx2             = RxEvent(1, 2)
     val variable1Logged = variable1.tap(triggers1 ::= _)
     val rx2Logged       = rx2.tap(triggers2 ::= _)
@@ -1079,6 +1079,14 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
     results2 shouldBe List.empty
 
     val cancelable1 = mapped.unsafeForeach(results1 ::= _)
+
+    triggers1 shouldBe List.empty
+    triggers2 shouldBe List(2, 1)
+    triggerRxCount shouldBe 0
+    results1 shouldBe List.empty
+    results2 shouldBe List.empty
+
+    variable1.set(100)
 
     triggers1 shouldBe List(100)
     triggers2 shouldBe List(2, 1)
