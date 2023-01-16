@@ -710,6 +710,35 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
     }
   }
 
+  it should "transform and keep state" in {
+    val original: Var[Int] = Var(1)
+    val encoded: Var[String] = original.transformVar[String](
+      _.contramapIterable(str => str.toIntOption)
+    )(
+      _.map(num => num.toString)
+    )
+
+    encoded.unsafeSubscribe()
+
+    original.nowIfSubscribed() shouldBe 1
+    encoded.nowIfSubscribed() shouldBe "1"
+
+    original.set(2)
+
+    original.nowIfSubscribed() shouldBe 2
+    encoded.nowIfSubscribed() shouldBe "2"
+
+    encoded.set("3")
+
+    original.nowIfSubscribed() shouldBe 3
+    encoded.nowIfSubscribed() shouldBe "3"
+
+    encoded.set("nope")
+
+    original.nowIfSubscribed() shouldBe 3
+    encoded.nowIfSubscribed() shouldBe "nope"
+  }
+
   it should "lens" in {
     val a: Var[(Int, String)] = Var((0, "Wurst"))
     val b: Var[String]        = a.lens(_._2)((a, b) => a.copy(_2 = b))
