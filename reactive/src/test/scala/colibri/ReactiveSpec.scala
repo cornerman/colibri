@@ -838,25 +838,25 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
     val variable1Logged = variable1.drop(1).tap(triggers1 ::= _)
 
     triggers1 shouldBe List.empty
-    variable1Logged.nowOptionOpt() shouldBe None
+    variable1Logged.nowOption() shouldBe None
     triggers1 shouldBe List.empty
 
     val cancelable = variable1Logged.unsafeSubscribe()
 
     triggers1 shouldBe List.empty
-    variable1Logged.nowOptionOpt() shouldBe Some(None)
+    variable1Logged.nowOption() shouldBe Some(None)
     triggers1 shouldBe List.empty
 
     variable1.set(2)
 
     triggers1 shouldBe List(2)
-    variable1Logged.nowOptionOpt() shouldBe Some(Some(2))
+    variable1Logged.nowOption() shouldBe Some(Some(2))
     triggers1 shouldBe List(2)
 
     variable1.set(3)
 
     triggers1 shouldBe List(3, 2)
-    variable1Logged.nowOptionOpt() shouldBe Some(Some(3))
+    variable1Logged.nowOption() shouldBe Some(Some(3))
     triggers1 shouldBe List(3, 2)
 
     cancelable.unsafeCancel()
@@ -864,19 +864,19 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
     variable1.set(4)
 
     triggers1 shouldBe List(3, 2)
-    variable1Logged.nowOptionOpt() shouldBe None
+    variable1Logged.nowOption() shouldBe None
     triggers1 shouldBe List(3, 2)
 
-    variable1Logged.nowOpt() shouldBe Some(4)
+    variable1Logged.now() shouldBe None
     triggers1 shouldBe List(3, 2)
 
     variable1.set(5)
 
     triggers1 shouldBe List(3, 2)
-    variable1Logged.nowOptionOpt() shouldBe None
+    variable1Logged.nowOption() shouldBe None
     triggers1 shouldBe List(3, 2)
 
-    variable1Logged.nowOpt() shouldBe Some(5)
+    variable1Logged.now() shouldBe None
     triggers1 shouldBe List(3, 2)
   }
 
@@ -1090,48 +1090,48 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
 
     triggers1 shouldBe List(100)
     triggers2 shouldBe List(2, 1)
-    triggerRxCount shouldBe 2
-    results1 shouldBe List(102, 101)
+    triggerRxCount shouldBe 1
+    results1 shouldBe List(102)
     results2 shouldBe List.empty
 
     variable1.set(200)
 
     triggers1 shouldBe List(200, 100)
     triggers2 shouldBe List(2, 1)
-    triggerRxCount shouldBe 3
-    results1 shouldBe List(202, 102, 101)
+    triggerRxCount shouldBe 2
+    results1 shouldBe List(202, 102)
     results2 shouldBe List.empty
 
     val cancelable2 = mapped.unsafeForeach(results2 ::= _)
 
     triggers1 shouldBe List(200, 100)
     triggers2 shouldBe List(2, 1)
-    triggerRxCount shouldBe 3
-    results1 shouldBe List(202, 102, 101)
+    triggerRxCount shouldBe 2
+    results1 shouldBe List(202, 102)
     results2 shouldBe List.empty
 
     variable1.set(300)
 
     triggers1 shouldBe List(300, 200, 100)
     triggers2 shouldBe List(2, 1)
-    triggerRxCount shouldBe 4
-    results1 shouldBe List(302, 202, 102, 101)
+    triggerRxCount shouldBe 3
+    results1 shouldBe List(302, 202, 102)
     results2 shouldBe List(302)
 
     cancelable1.unsafeCancel()
 
     triggers1 shouldBe List(300, 200, 100)
     triggers2 shouldBe List(2, 1)
-    triggerRxCount shouldBe 4
-    results1 shouldBe List(302, 202, 102, 101)
+    triggerRxCount shouldBe 3
+    results1 shouldBe List(302, 202, 102)
     results2 shouldBe List(302)
 
     variable1.set(400)
 
     triggers1 shouldBe List(400, 300, 200, 100)
     triggers2 shouldBe List(2, 1)
-    triggerRxCount shouldBe 5
-    results1 shouldBe List(302, 202, 102, 101)
+    triggerRxCount shouldBe 4
+    results1 shouldBe List(302, 202, 102)
     results2 shouldBe List(402, 302)
 
     cancelable2.unsafeCancel()
@@ -1139,33 +1139,33 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
 
     triggers1 shouldBe List(400, 300, 200, 100)
     triggers2 shouldBe List(2, 1)
-    triggerRxCount shouldBe 5
-    results1 shouldBe List(302, 202, 102, 101)
+    triggerRxCount shouldBe 4
+    results1 shouldBe List(302, 202, 102)
     results2 shouldBe List(402, 302)
 
     val cancelable1b = mapped.unsafeForeach(results1 ::= _)
 
-    triggers1 shouldBe List(100, 400, 300, 200, 100)
+    triggers1 shouldBe List(400, 300, 200, 100)
     triggers2 shouldBe List(2, 1, 2, 1)
-    triggerRxCount shouldBe 7
-    results1 shouldBe List(102, 101, 302, 202, 102, 101)
+    triggerRxCount shouldBe 4
+    results1 shouldBe List(302, 202, 102)
     results2 shouldBe List(402, 302)
 
     variable1.set(1000)
 
-    triggers1 shouldBe List(1000, 100, 400, 300, 200, 100)
+    triggers1 shouldBe List(1000, 400, 300, 200, 100)
     triggers2 shouldBe List(2, 1, 2, 1)
-    triggerRxCount shouldBe 8
-    results1 shouldBe List(1002, 102, 101, 302, 202, 102, 101)
+    triggerRxCount shouldBe 5
+    results1 shouldBe List(1002, 302, 202, 102)
     results2 shouldBe List(402, 302)
 
     cancelable1b.unsafeCancel()
     variable1.set(2000)
 
-    triggers1 shouldBe List(1000, 100, 400, 300, 200, 100)
+    triggers1 shouldBe List(1000, 400, 300, 200, 100)
     triggers2 shouldBe List(2, 1, 2, 1)
-    triggerRxCount shouldBe 8
-    results1 shouldBe List(1002, 102, 101, 302, 202, 102, 101)
+    triggerRxCount shouldBe 5
+    results1 shouldBe List(1002, 302, 202, 102)
     results2 shouldBe List(402, 302)
   }
 }
