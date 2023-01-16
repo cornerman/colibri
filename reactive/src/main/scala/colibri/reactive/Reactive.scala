@@ -368,7 +368,7 @@ object Var {
 
 private final class RxEventObservable[A](val observable: Observable[A]) extends RxEvent[A]
 
-private final object RxLaterEmpty extends RxLater[Nothing] {
+private object RxLaterEmpty extends RxLater[Nothing] {
   private lazy val someNone = Some(None)
 
   val observable = Observable.empty
