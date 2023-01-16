@@ -815,21 +815,21 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
     val variable = Var(1)
     val mapped   = variable.map(_ + 1)
 
-    variable.nowOption() shouldBe Some(1)
+    variable.nowIfSubscribedOption() shouldBe Some(1)
     variable.now() shouldBe 1
-    variable.nowOption() shouldBe Some(1)
-    mapped.nowOption() shouldBe None
+    variable.nowIfSubscribedOption() shouldBe Some(1)
+    mapped.nowIfSubscribedOption() shouldBe None
     mapped.now() shouldBe 2
-    mapped.nowOption() shouldBe None
+    mapped.nowIfSubscribedOption() shouldBe None
 
     variable.set(2)
 
-    variable.nowOption() shouldBe Some(2)
+    variable.nowIfSubscribedOption() shouldBe Some(2)
     variable.now() shouldBe 2
-    variable.nowOption() shouldBe Some(2)
-    mapped.nowOption() shouldBe None
+    variable.nowIfSubscribedOption() shouldBe Some(2)
+    mapped.nowIfSubscribedOption() shouldBe None
     mapped.now() shouldBe 3
-    mapped.nowOption() shouldBe None
+    mapped.nowIfSubscribedOption() shouldBe None
   }
 
   it should "drop" in {
@@ -838,25 +838,25 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
     val variable1Logged = variable1.drop(1).tap(triggers1 ::= _)
 
     triggers1 shouldBe List.empty
-    variable1Logged.nowOption() shouldBe None
+    variable1Logged.nowIfSubscribedOption() shouldBe None
     triggers1 shouldBe List.empty
 
     val cancelable = variable1Logged.unsafeSubscribe()
 
     triggers1 shouldBe List.empty
-    variable1Logged.nowOption() shouldBe Some(None)
+    variable1Logged.nowIfSubscribedOption() shouldBe Some(None)
     triggers1 shouldBe List.empty
 
     variable1.set(2)
 
     triggers1 shouldBe List(2)
-    variable1Logged.nowOption() shouldBe Some(Some(2))
+    variable1Logged.nowIfSubscribedOption() shouldBe Some(Some(2))
     triggers1 shouldBe List(2)
 
     variable1.set(3)
 
     triggers1 shouldBe List(3, 2)
-    variable1Logged.nowOption() shouldBe Some(Some(3))
+    variable1Logged.nowIfSubscribedOption() shouldBe Some(Some(3))
     triggers1 shouldBe List(3, 2)
 
     cancelable.unsafeCancel()
@@ -864,7 +864,7 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
     variable1.set(4)
 
     triggers1 shouldBe List(3, 2)
-    variable1Logged.nowOption() shouldBe None
+    variable1Logged.nowIfSubscribedOption() shouldBe None
     triggers1 shouldBe List(3, 2)
 
     variable1Logged.now() shouldBe None
@@ -873,7 +873,7 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
     variable1.set(5)
 
     triggers1 shouldBe List(3, 2)
-    variable1Logged.nowOption() shouldBe None
+    variable1Logged.nowIfSubscribedOption() shouldBe None
     triggers1 shouldBe List(3, 2)
 
     variable1Logged.now() shouldBe None
@@ -897,24 +897,24 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
     triggers1 shouldBe List(1)
     triggerRxCount shouldBe 1
 
-    mapped.nowOption() shouldBe Some(2)
+    mapped.nowIfSubscribedOption() shouldBe Some(2)
     mapped.now() shouldBe 2
-    mapped.nowOption() shouldBe Some(2)
+    mapped.nowIfSubscribedOption() shouldBe Some(2)
 
     variable1.set(2)
 
     triggers1 shouldBe List(2, 1)
     triggerRxCount shouldBe 2
 
-    mapped.nowOption() shouldBe Some(3)
+    mapped.nowIfSubscribedOption() shouldBe Some(3)
     mapped.now() shouldBe 3
-    mapped.nowOption() shouldBe Some(3)
+    mapped.nowIfSubscribedOption() shouldBe Some(3)
 
     cancelable.unsafeCancel()
 
-    mapped.nowOption() shouldBe None
+    mapped.nowIfSubscribedOption() shouldBe None
     mapped.now() shouldBe 3
-    mapped.nowOption() shouldBe None
+    mapped.nowIfSubscribedOption() shouldBe None
 
     triggers1 shouldBe List(2, 2, 1)
     triggerRxCount shouldBe 3
@@ -944,17 +944,17 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
     triggers2 shouldBe List.empty
     triggerRxCount shouldBe 0
 
-    mapped.nowOption() shouldBe None
+    mapped.nowIfSubscribedOption() shouldBe None
     mapped.now() shouldBe 2
-    mapped.nowOption() shouldBe None
+    mapped.nowIfSubscribedOption() shouldBe None
 
     triggers1 shouldBe List(1)
     triggers2 shouldBe List(1)
     triggerRxCount shouldBe 1
 
-    mapped.nowOption() shouldBe None
+    mapped.nowIfSubscribedOption() shouldBe None
     mapped.now() shouldBe 2
-    mapped.nowOption() shouldBe None
+    mapped.nowIfSubscribedOption() shouldBe None
 
     triggers1 shouldBe List(1, 1)
     triggers2 shouldBe List(1, 1)
@@ -966,9 +966,9 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
     triggers2 shouldBe List(1, 1, 1)
     triggerRxCount shouldBe 3
 
-    mapped.nowOption() shouldBe Some(2)
+    mapped.nowIfSubscribedOption() shouldBe Some(2)
     mapped.now() shouldBe 2
-    mapped.nowOption() shouldBe Some(2)
+    mapped.nowIfSubscribedOption() shouldBe Some(2)
 
     variable1.set(2)
 
@@ -976,9 +976,9 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
     triggers2 shouldBe List(1, 1, 1)
     triggerRxCount shouldBe 4
 
-    mapped.nowOption() shouldBe Some(3)
+    mapped.nowIfSubscribedOption() shouldBe Some(3)
     mapped.now() shouldBe 3
-    mapped.nowOption() shouldBe Some(3)
+    mapped.nowIfSubscribedOption() shouldBe Some(3)
 
     triggers1 shouldBe List(2, 1, 1, 1)
     triggers2 shouldBe List(1, 1, 1)
@@ -986,9 +986,9 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
 
     variable2.set(10)
 
-    mapped.nowOption() shouldBe Some(3)
+    mapped.nowIfSubscribedOption() shouldBe Some(3)
     mapped.now() shouldBe 3
-    mapped.nowOption() shouldBe Some(3)
+    mapped.nowIfSubscribedOption() shouldBe Some(3)
 
     triggers1 shouldBe List(2, 1, 1, 1)
     triggers2 shouldBe List(10, 1, 1, 1)
@@ -996,9 +996,9 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
 
     variable1.set(3)
 
-    mapped.nowOption() shouldBe Some(13)
+    mapped.nowIfSubscribedOption() shouldBe Some(13)
     mapped.now() shouldBe 13
-    mapped.nowOption() shouldBe Some(13)
+    mapped.nowIfSubscribedOption() shouldBe Some(13)
 
     triggers1 shouldBe List(3, 2, 1, 1, 1)
     triggers2 shouldBe List(10, 1, 1, 1)
@@ -1006,9 +1006,9 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
 
     cancelable.unsafeCancel()
 
-    mapped.nowOption() shouldBe None
+    mapped.nowIfSubscribedOption() shouldBe None
     mapped.now() shouldBe 13
-    mapped.nowOption() shouldBe None
+    mapped.nowIfSubscribedOption() shouldBe None
 
     triggers1 shouldBe List(3, 3, 2, 1, 1, 1)
     triggers2 shouldBe List(10, 10, 1, 1, 1)

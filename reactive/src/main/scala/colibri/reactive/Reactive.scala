@@ -11,7 +11,7 @@ import scala.reflect.ClassTag
 import scala.util.control.NonFatal
 
 object RxMissingNowException
-    extends Exception("Missing current value inside an Rx. Make sure, the Rx has active subscriptions when calling nowIfSubscribed.")
+    extends Exception("Missing current value inside an RxState (Rx or RxLater). Make sure, the RxState has active subscriptions when calling nowIfSubscribed.")
 
 trait RxSource[+A] {
   type Self[+X] <: RxSource[X]
@@ -131,12 +131,11 @@ trait RxState[+A] extends RxSource[A] {
 trait RxLater[+A] extends RxState[A] {
   type SelfSync[+X] = RxLater[X]
 
-  def nowOption(): Option[Option[A]]
-
   def apply()(implicit owner: LiveOwner): Option[A]
   def now()(implicit owner: NowOwner): Option[A]
+  def nowIfSubscribedOption(): Option[Option[A]]
 
-  final def nowIfSubscribedOpt(): Option[A] = nowOption().getOrElse(throw RxMissingNowException)
+  final def nowIfSubscribedOpt(): Option[A] = nowIfSubscribedOption().getOrElse(throw RxMissingNowException)
 
   final override def selfRxSourceSync: RxLater[A] = this
   final override def transformRxSourceSync[B](f: Observable[A] => Observable[B]): RxLater[B] = RxLater.observable(f(observable))
@@ -159,12 +158,11 @@ object RxLater {
 trait Rx[+A] extends RxState[A] {
   type SelfSync[+X] = Rx[X]
 
-  def nowOption(): Option[A]
-
   def apply()(implicit owner: LiveOwner): A
   def now()(implicit owner: NowOwner): A
+  def nowIfSubscribedOption(): Option[A]
 
-  final def nowIfSubscribed(): A = nowOption().getOrElse(throw RxMissingNowException)
+  final def nowIfSubscribed(): A = nowIfSubscribedOption().getOrElse(throw RxMissingNowException)
 
   final override def selfRxSourceSync: Rx[A] = this
   final override def transformRxSourceSync[B](f: Observable[A] => Observable[B]): Rx[B] = Rx.observableSync(f(observable))
@@ -372,9 +370,9 @@ private final object RxLaterEmpty extends RxLater[Nothing] {
 
   val observable             = Observable.empty
 
-  def nowOption()                = someNone
-  def now()(implicit owner: NowOwner)    = None
   def apply()(implicit owner: LiveOwner) = None
+  def now()(implicit owner: NowOwner)    = None
+  def nowIfSubscribedOption()                = someNone
 }
 
 private final class RxConst[A](value: A) extends Rx[A] {
@@ -382,17 +380,17 @@ private final class RxConst[A](value: A) extends Rx[A] {
 
   val observable: Observable[A]             = Observable.pure(value)
 
-  def nowOption(): Option[A]                = someValue
-  def now()(implicit owner: NowOwner): A    = value
   def apply()(implicit owner: LiveOwner): A = value
+  def now()(implicit owner: NowOwner): A    = value
+  def nowIfSubscribedOption(): Option[A]                = someValue
 }
 
 private final class RxLaterWrap[A](state: Rx[A]) extends RxLater[A] {
   val observable: Observable[A] = state.observable
 
-  def nowOption()                           = Some(state.nowOption())
-  def now()(implicit owner: NowOwner)       = Some(state.now())
   def apply()(implicit owner: LiveOwner) = Some(state())
+  def now()(implicit owner: NowOwner)       = Some(state.now())
+  def nowIfSubscribedOption()                           = Some(state.nowIfSubscribedOption())
 }
 
 private final class RxLaterObservable[A](inner: Observable[A]) extends RxLater[A] {
@@ -400,9 +398,9 @@ private final class RxLaterObservable[A](inner: Observable[A]) extends RxLater[A
 
   val observable: Observable[A] = state.observable.flattenOption
 
-  def nowOption()                           = state.nowOption()
-  def now()(implicit owner: NowOwner)       = state.now()
   def apply()(implicit owner: LiveOwner) = state()
+  def now()(implicit owner: NowOwner)       = state.now()
+  def nowIfSubscribedOption()                           = state.nowIfSubscribedOption()
 }
 
 private final class RxSyncObservable[A](inner: Observable[A]) extends Rx[A] {
@@ -411,9 +409,9 @@ private final class RxSyncObservable[A](inner: Observable[A]) extends Rx[A] {
   val observable: Observable[A] =
     inner.dropUntilSyncLatest.distinctOnEquals.tapCancel(state.unsafeResetState).multicast(state).refCount
 
-  def nowOption()                           = state.now()
-  def now()(implicit owner: NowOwner)       = owner.unsafeNow(this)
   def apply()(implicit owner: LiveOwner): A = owner.unsafeLive(this)
+  def now()(implicit owner: NowOwner)       = owner.unsafeNow(this)
+  def nowIfSubscribedOption()                           = state.now()
 }
 
 private final class RxWriterObserver[A](val observer: Observer[A]) extends RxWriter[A]
@@ -435,7 +433,7 @@ private final class VarLaterSubject[A]                                   extends
   val observable: Observable[A] = state.observable.flattenOption
   val observer: Observer[A]     = state.observer.contramap(Some.apply)
 
-  def nowOption()                           = state.nowOption()
+  def nowIfSubscribedOption()                           = state.nowIfSubscribedOption()
   def now()(implicit owner: NowOwner)       = state.now()
   def apply()(implicit owner: LiveOwner) = state()
 }
@@ -444,7 +442,7 @@ private final class VarLaterCombine[A](innerRead: RxLater[A], innerWrite: RxWrit
   val observable                            = innerRead.observable
   val observer                              = innerWrite.observer
 
-  def nowOption()                           = innerRead.nowOption()
+  def nowIfSubscribedOption()                           = innerRead.nowIfSubscribedOption()
   def now()(implicit owner: NowOwner)       = innerRead.now()
   def apply()(implicit owner: LiveOwner) = innerRead.apply()
 }
@@ -455,7 +453,7 @@ private final class VarSubject[A](seed: A)                                   ext
   val observable: Observable[A] = state.distinctOnEquals
   val observer: Observer[A]     = state
 
-  def nowOption()                           = Some(state.now())
+  def nowIfSubscribedOption()                           = Some(state.now())
   def now()(implicit owner: NowOwner)       = state.now()
   def apply()(implicit owner: LiveOwner): A = owner.unsafeLive(this)
 }
@@ -464,7 +462,7 @@ private final class VarCombine[A](innerRead: Rx[A], innerWrite: RxWriter[A]) ext
   val observable                            = innerRead.observable
   val observer                              = innerWrite.observer
 
-  def nowOption()                           = innerRead.nowOption()
+  def nowIfSubscribedOption()                           = innerRead.nowIfSubscribedOption()
   def now()(implicit owner: NowOwner)       = innerRead.now()
   def apply()(implicit owner: LiveOwner): A = innerRead()
 }
