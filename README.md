@@ -201,7 +201,44 @@ println(variable2.now()) // "Foo"
 println(rx.now()) // "3 - Foo"
 ```
 
-[Outwatch](https://github.com/outwatch/outwatch) works perfectly with Rx - just like Observable.
+Apart from `Rx` which always has an initial value, there is `RxLater` which will eventually have a value (both extend RxState which extends RxSource). It also meant for representing state just without an initial state. It is lazy, distinct and has shared execution just like `Rx`.
+
+```
+import colibri.reactive._
+
+val variable = VarLater[Int]()
+
+val stream1 = RxLater.empty
+val stream2 = RxLater.future(Future.successful(1)).map(_ + 1)
+
+val cancelable  = variable.unsafeForeach(println(_))
+val cancelable1 = stream1.unsafeForeach(println(_))
+val cancelable2 = stream2.unsafeForeach(println(_))
+
+println(variable.toRx.now()) // None
+println(stream1.toRx.now()) // None
+println(stream2.toRx.now()) // Some(2)
+
+variable.set(13)
+
+println(variable.toRx.now()) // Some(13)
+```
+
+There also exist `RxEvent` and `VarEvent`, which are event observables with shared execution. That is they behave like `Rx` and `Var` such that transformations are only applied once and not per subscription. But `RxEvent` and `VarEvent` are not distinct and have no current value. They should be used for event streams.
+
+```
+import colibri.reactive._
+
+val variable = VarEvent[Int]()
+
+val stream = RxEvent.empty
+
+val mapped = RxEvent.merge(variable.tap(println(_)).map(_ + 1), stream)
+
+val cancelable = mapped.unsafeForeach(println(_))
+```
+
+[Outwatch](https://github.com/outwatch/outwatch) works perfectly with Rx (or RxLater, RxEvent which all extend RxSource) - just like Observable.
 
 ```scala
 
@@ -220,21 +257,6 @@ val component: VModifier = {
 
   div(rx)
 }
-```
-
-There also exist `RxEvent` and `VarEvent`, which are event observables with shared execution. That is they behave like `Rx` and `Var` such that transformations are only applied once and not per subscription. But `RxEvent` and `VarEvent` are not distinct and have no current value. They should be used for event streams.
-
-```
-import colibri.reactive._
-
-val variable = VarEvent[Int]()
-
-val stream1 = RxEvent.empty
-val stream2 = RxEvent.const(1)
-
-val mapped = RxEvent.merge(variable.tap(println(_)).map(_ + 1), stream1, stream2)
-
-val cancelable = mapped.unsafeForeach(println(_))
 ```
 
 ### Memory management
