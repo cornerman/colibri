@@ -763,12 +763,11 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
     }
   }
 
-  it should "transform and keep state" in {
+  it should "transform stateful" in {
     val original: Var[Int] = Var(1)
-    val encoded: Var[String] = original.transformVar[String](
-      _.contramapIterable(str => str.toIntOption)
-    )(
-      _.map(num => num.toString)
+    val encoded: Var[String] = Var.createStateful(
+      original.contramapIterable(str => str.toIntOption),
+      original.map(num => num.toString),
     )
 
     encoded.unsafeSubscribe()
@@ -790,6 +789,34 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
 
     original.nowIfSubscribed() shouldBe 3
     encoded.nowIfSubscribed() shouldBe "nope"
+  }
+
+  it should "transform stateless" in {
+    val original: Var[Int] = Var(1)
+    val encoded: Var[String] = Var.createStateless(
+      original.contramapIterable(str => str.toIntOption),
+      original.map(num => num.toString),
+    )
+
+    encoded.unsafeSubscribe()
+
+    original.nowIfSubscribed() shouldBe 1
+    encoded.nowIfSubscribed() shouldBe "1"
+
+    original.set(2)
+
+    original.nowIfSubscribed() shouldBe 2
+    encoded.nowIfSubscribed() shouldBe "2"
+
+    encoded.set("3")
+
+    original.nowIfSubscribed() shouldBe 3
+    encoded.nowIfSubscribed() shouldBe "3"
+
+    encoded.set("nope")
+
+    original.nowIfSubscribed() shouldBe 3
+    encoded.nowIfSubscribed() shouldBe "3"
   }
 
   it should "lens" in {

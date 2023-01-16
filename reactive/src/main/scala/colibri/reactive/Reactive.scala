@@ -232,15 +232,15 @@ object RxWriter {
 }
 
 trait VarEvent[A] extends RxWriter[A] with RxEvent[A] {
-  final def transformVarEvent[A2](f: RxWriter[A] => RxWriter[A2])(g: RxEvent[A] => RxEvent[A2]): VarEvent[A2] = VarEvent.createStateful(g(this), f(this))
-  final def transformVarEventRxEvent(g: RxEvent[A] => RxEvent[A]): VarEvent[A]                                = VarEvent.createStateful(g(this), this)
-  final def transformVarEventRxWriter(f: RxWriter[A] => RxWriter[A]): VarEvent[A]                             = VarEvent.createStateless(this, f(this))
+  final def transformVarEvent[A2](f: RxWriter[A] => RxWriter[A2])(g: RxEvent[A] => RxEvent[A2]): VarEvent[A2] = VarEvent.create(f(this), g(this))
+  final def transformVarEventRxEvent(g: RxEvent[A] => RxEvent[A]): VarEvent[A]                                = VarEvent.create(this, g(this))
+  final def transformVarEventRxWriter(f: RxWriter[A] => RxWriter[A]): VarEvent[A]                             = VarEvent.create(f(this), this)
 }
 
 object VarEvent {
   def apply[A](): VarEvent[A] = new VarEventSubject
 
-  def subject[A](read: Subject[A]): VarEvent[A] = createStateless(RxEvent.observable(read), RxWriter.observer(read))
+  def subject[A](read: Subject[A]): VarEvent[A] = create(RxWriter.observer(read), RxEvent.observable(read))
 
   def create[A](write: RxWriter[A], read: RxEvent[A]): VarEvent[A] = new VarEventCreate(write, read)
 }
@@ -249,15 +249,15 @@ trait VarState[A] extends RxWriter[A] with RxState[A]
 
 trait VarLater[A] extends VarState[A] with RxLater[A] {
   final def transformVarLater[A2](f: RxWriter[A] => RxWriter[A2])(g: RxLater[A] => RxLater[A2]): VarLater[A2] =
-    VarLater.createStateful(g(this), f(this))
-  final def transformVarLaterRx(g: RxLater[A] => RxLater[A]): VarLater[A]                                     = VarLater.createStateful(g(this), this)
-  final def transformVarLaterRxWriter(f: RxWriter[A] => RxWriter[A]): VarLater[A]                             = VarLater.createStateful(this, f(this))
+    VarLater.createStateless(f(this), g(this))
+  final def transformVarLaterRx(g: RxLater[A] => RxLater[A]): VarLater[A]                                     = VarLater.createStateless(this, g(this))
+  final def transformVarLaterRxWriter(f: RxWriter[A] => RxWriter[A]): VarLater[A]                             = VarLater.createStateless(f(this), this)
 }
 
 object VarLater {
   def apply[A](): VarLater[A] = new VarLaterSubject
 
-  def subject[A](read: Subject[A]): VarLater[A] = createStateless(RxLater.observable(read), RxWriter.observer(read))
+  def subject[A](read: Subject[A]): VarLater[A] = createStateless(RxWriter.observer(read), RxLater.observable(read))
 
   def createStateful[A](write: RxWriter[A], read: RxLater[A]): VarLater[A] = new VarLaterCreateStateful(write, read)
   def createStateless[A](write: RxWriter[A], read: RxLater[A]): VarLater[A] = new VarLaterCreateStateless(write, read)
@@ -292,10 +292,10 @@ trait Var[A] extends VarState[A] with Rx[A] {
 object Var {
   def apply[A](seed: A): Var[A] = new VarSubject(seed)
 
-  def subjectSync[A](read: Subject[A]): Var[A] = createStateless(Rx.observableSync(read), RxWriter.observer(read))
+  def subjectSync[A](read: Subject[A]): Var[A] = createStateless(RxWriter.observer(read), Rx.observableSync(read))
 
-  def createStateful[A](write: RxWriter[A], read: Rx[A]): Var[A] = new VarCreateStateful(write, rread)
-  def createStateless[A](write: RxWriter[A], read: Rx[A]): Var[A] = new VarCreateStateless(write, rread)
+  def createStateful[A](write: RxWriter[A], read: Rx[A]): Var[A] = new VarCreateStateful(write, read)
+  def createStateless[A](write: RxWriter[A], read: Rx[A]): Var[A] = new VarCreateStateless(write, read)
 
   @inline implicit class SeqVarOperations[A](rxvar: Var[Seq[A]]) {
     def sequence: Rx[Seq[Var[A]]] = Rx.observableSync(new Observable[Seq[Var[A]]] {
@@ -314,7 +314,7 @@ object Var {
                     sink.unsafeOnError(error)
                   }
                 }
-                Var.createStateless(Rx.const(a), RxWriter.observer(observer))
+                Var.createStateless(RxWriter.observer(observer), Rx.const(a))
               })
             },
             sink.unsafeOnError,
