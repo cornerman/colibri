@@ -15,10 +15,7 @@ object RxMissingNowException
       "Missing current value inside an RxState (Rx or RxLater). Make sure, the RxState has active subscriptions when calling nowIfSubscribed.",
     )
 
-trait RxSource[+A] {
-  type Self[+X] <: RxSource[X]
-  type SelfSync[+X] <: RxSource[X]
-
+trait RxSourceSelf[+Self[+X] <: RxSource[X], +SelfSync[+X] <: RxSource[X], +A] {
   def observable: Observable[A]
 
   def selfRxSourceSync: SelfSync[A]
@@ -72,33 +69,32 @@ trait RxSource[+A] {
     transformRxSource(_.withLatest(sourceB.observable))
 }
 
-object RxSource {
+object RxSourceSelf {
   implicit object source extends Source[RxSource] {
     def unsafeSubscribe[A](source: RxSource[A])(sink: Observer[A]): Cancelable = source.observable.unsafeSubscribe(sink)
   }
 
-  @inline implicit final class RxSourceOps[A](val self: RxSource[A]) extends AnyVal {
-    def scan[B](seed: => B)(f: (B, A) => B): self.SelfSync[B] = self.transformRxSourceSync(_.scan(seed)(f))
+  @inline implicit final class RxSourceOps[Self[+X] <: RxSource[X], SelfSync[+X] <: RxSource[X], A](val self: RxSourceSelf[Self, SelfSync, A]) extends AnyVal {
+    def scan[B](seed: => B)(f: (B, A) => B): SelfSync[B] = self.transformRxSourceSync(_.scan(seed)(f))
 
-    def filter(f: A => Boolean): self.Self[A] = self.transformRxSource(_.filter(f))
+    def filter(f: A => Boolean): Self[A] = self.transformRxSource(_.filter(f))
   }
 
-  @inline implicit final class RxSourceBooleanOps(val self: RxSource[Boolean]) extends AnyVal {
-    @inline def toggle[A](ifTrue: => A, ifFalse: => A): self.SelfSync[A] = self.map {
+  @inline implicit final class RxSourceBooleanOps[Self[+X] <: RxSource[X], SelfSync[+X] <: RxSource[X]](private val self: RxSourceSelf[Self, SelfSync, Boolean]) extends AnyVal {
+    @inline def toggle[A](ifTrue: => A, ifFalse: => A): SelfSync[A] = self.map {
       case true  => ifTrue
       case false => ifFalse
     }
 
-    @inline def toggle[A: Monoid](ifTrue: => A): self.SelfSync[A] = toggle(ifTrue, Monoid[A].empty)
+    @inline def toggle[A: Monoid](ifTrue: => A): SelfSync[A] = toggle(ifTrue, Monoid[A].empty)
 
-    @inline def negated: self.SelfSync[Boolean] = self.map(x => !x)
+    @inline def negated: SelfSync[Boolean] = self.map(x => !x)
   }
 }
 
-trait RxEvent[+A] extends RxSource[A] {
-  type Self[+X]     = RxEvent[X]
-  type SelfSync[+X] = RxEvent[X]
+trait RxSource[+A] extends RxSourceSelf[RxSource, RxSource, A]
 
+trait RxEvent[+A] extends RxSource[A] with RxSourceSelf[RxEvent, RxEvent, A] {
   final override def selfRxSourceSync: RxEvent[A]                                            = this
   final override def transformRxSource[B](f: Observable[A] => Observable[B]): RxEvent[B]     = RxEvent.observable(f(observable))
   final override def transformRxSourceSync[B](f: Observable[A] => Observable[B]): RxEvent[B] = RxEvent.observable(f(observable))
@@ -123,14 +119,11 @@ object RxEvent extends RxPlatform {
   private def observableUnshared[A](observable: Observable[A]): RxEvent[A] = new RxEventObservable(observable)
 }
 
-trait RxState[+A] extends RxSource[A] {
-  type Self[+X] = RxLater[X]
-  type SelfSync[+X] <: RxState[X]
-
+trait RxState[+A] extends RxSource[A] with RxSourceSelf[RxLater, RxState, A] {
   final override def transformRxSource[B](f: Observable[A] => Observable[B]): RxLater[B] = RxLater.observable(f(observable))
 }
 
-trait RxLater[+A] extends RxState[A] {
+trait RxLater[+A] extends RxState[A] with RxSourceSelf[RxLater, RxLater, A] {
   type SelfSync[+X] = RxLater[X]
 
   final override def selfRxSourceSync: RxLater[A]                                            = this
@@ -151,7 +144,7 @@ object RxLater {
   }
 }
 
-trait Rx[+A] extends RxState[A] {
+trait Rx[+A] extends RxState[A] with RxSourceSelf[RxLater, Rx, A] {
   type SelfSync[+X] = Rx[X]
 
   def apply()(implicit owner: LiveOwner): A
@@ -271,21 +264,21 @@ trait Var[A] extends VarState[A] with Rx[A] {
   final def transformVarRx(g: Rx[A] => Rx[A]): Var[A]                                     = Var.createStateless(this, g(this))
   final def transformVarRxWriter(f: RxWriter[A] => RxWriter[A]): Var[A]                   = Var.createStateless(f(this), this)
 
-  def imap[A2](f: A2 => A)(g: A => A2): Var[A2]         = transformVar(_.contramap(f))(_.map(g))
-  def lens[B](read: A => B)(write: (A, B) => A): Var[B] =
+  final def imap[A2](f: A2 => A)(g: A => A2): Var[A2]         = transformVar(_.contramap(f))(_.map(g))
+  final def lens[B](read: A => B)(write: (A, B) => A): Var[B] =
     transformVar(_.contramap(write(nowIfSubscribed(), _)))(_.map(read))
 
-  def prism[A2](f: A2 => A)(g: A => Option[A2])(seed: => A2): Var[A2] =
+  final def prism[A2](f: A2 => A)(g: A => Option[A2])(seed: => A2): Var[A2] =
     transformVar(_.contramap(f))(rx => Rx.observableSync(rx.observable.mapFilter(g).prependEval(seed)))
 
-  def subType[A2 <: A: ClassTag](seed: => A2): Var[A2] = prism[A2]((x: A2) => x) {
+  final def subType[A2 <: A: ClassTag](seed: => A2): Var[A2] = prism[A2]((x: A2) => x) {
     case a: A2 => Some(a)
     case _     => None
   }(seed)
 
-  def imapO[B](optic: Iso[A, B]): Var[B]                = imap(optic.reverseGet(_))(optic.get(_))
-  def lensO[B](optic: Lens[A, B]): Var[B]               = lens(optic.get(_))((base, zoomed) => optic.replace(zoomed)(base))
-  def prismO[B](optic: Prism[A, B])(seed: => B): Var[B] =
+  final def imapO[B](optic: Iso[A, B]): Var[B]                = imap(optic.reverseGet(_))(optic.get(_))
+  final def lensO[B](optic: Lens[A, B]): Var[B]               = lens(optic.get(_))((base, zoomed) => optic.replace(zoomed)(base))
+  final def prismO[B](optic: Prism[A, B])(seed: => B): Var[B] =
     prism(optic.reverseGet(_))(optic.getOption(_))(seed)
 }
 
