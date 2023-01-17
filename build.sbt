@@ -137,8 +137,8 @@ lazy val zio = project
     name := "colibri-zio",
     libraryDependencies ++= Seq(
       "io.github.cquiroz" %%% "scala-java-time" % "2.5.0",
-      "dev.zio"           %%% "zio"             % "2.0.5",
-      "dev.zio"           %%% "zio-streams"     % "2.0.5",
+      "dev.zio"           %%% "zio"             % "2.0.6",
+      "dev.zio"           %%% "zio-streams"     % "2.0.6",
     ),
   )
 
@@ -150,6 +150,6 @@ lazy val fs2 = project
   .settings(
     name := "colibri-fs2",
     libraryDependencies ++= Seq(
-      "co.fs2" %%% "fs2-core" % "3.4.0",
+      "co.fs2" %%% "fs2-core" % "3.5.0",
     ),
   )
