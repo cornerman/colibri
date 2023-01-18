@@ -123,6 +123,13 @@ object RxEvent extends RxPlatform {
 
   def observable[A](observable: Observable[A]): RxEvent[A]                 = observableUnshared(observable.publish.refCount)
   private def observableUnshared[A](observable: Observable[A]): RxEvent[A] = new RxEventObservable(observable)
+
+  @inline implicit final class RxEventOps[A](private val self: RxEvent[A]) extends AnyVal {
+    def toRxLater: RxLater[A] = RxLater.observable(self.observable)
+
+    def toRx: Rx[Option[A]]     = Rx.observableSeed(self.observable.map[Option[A]](Some.apply))(None)
+    def toRx(seed: => A): Rx[A] = Rx.observableSeed(self.observable)(seed)
+  }
 }
 
 trait RxState[+A] extends RxSource[A] with RxSourceSelf[RxLater, RxState, A] {
@@ -144,7 +151,11 @@ object RxLater {
 
   def observable[A](observable: Observable[A]): RxLater[A] = new RxLaterObservable(observable)
 
+  def wrap[A](rx: Rx[A]): RxLater[A] = new RxLaterWrap(rx)
+
   @inline implicit final class RxLaterOps[A](private val self: RxLater[A]) extends AnyVal {
+    def toRxEvent: RxEvent[A]     = RxEvent.observable(self.observable)
+
     def toRx: Rx[Option[A]]     = Rx.observableSeed(self.observable.map[Option[A]](Some.apply))(None)
     def toRx(seed: => A): Rx[A] = Rx.observableSeed(self.observable)(seed)
   }
@@ -194,7 +205,9 @@ object Rx extends RxPlatform {
   def observableSync[A](observable: Observable[A]): Rx[A] = new RxSyncObservable(observable)
 
   @inline implicit final class RxLaterOps[A](private val self: Rx[A]) extends AnyVal {
-    def toRxLater: RxLater[A] = new RxLaterWrap(self)
+    def toRxEvent: RxEvent[A]     = RxEvent.observable(self.observable)
+
+    def toRxLater: RxLater[A] = RxLater.wrap(self)
   }
 }
 
