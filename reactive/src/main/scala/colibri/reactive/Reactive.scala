@@ -70,10 +70,6 @@ trait RxSourceSelf[+Self[+X] <: RxSource[X], +SelfSync[+X] <: RxSource[X], +A] {
 }
 
 object RxSourceSelf {
-  implicit object source extends Source[RxSource] {
-    def unsafeSubscribe[A](source: RxSource[A])(sink: Observer[A]): Cancelable = source.observable.unsafeSubscribe(sink)
-  }
-
   @inline implicit final class RxSourceOps[Self[+X] <: RxSource[X], SelfSync[+X] <: RxSource[X], A](
       val self: RxSourceSelf[Self, SelfSync, A],
   ) extends AnyVal {
@@ -97,6 +93,12 @@ object RxSourceSelf {
 }
 
 trait RxSource[+A] extends RxSourceSelf[RxSource, RxSource, A]
+
+object RxSource {
+  implicit object source extends Source[RxSource] {
+    def unsafeSubscribe[A](source: RxSource[A])(sink: Observer[A]): Cancelable = source.observable.unsafeSubscribe(sink)
+  }
+}
 
 trait RxEvent[+A] extends RxSource[A] with RxSourceSelf[RxEvent, RxEvent, A] {
   final override def selfRxSync: RxEvent[A]                                            = this
