@@ -593,8 +593,8 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
   it should "collect initial some" in {
     var collectedStates = Vector.empty[Int]
 
-    val variable        = Var[Option[Int]](Some(1))
-    val collected       = variable.collect { case Some(x) => x }.toRx(0)
+    val variable  = Var[Option[Int]](Some(1))
+    val collected = variable.collect { case Some(x) => x }.toRx(0)
 
     collected.unsafeForeach(collectedStates :+= _)
 
@@ -613,8 +613,8 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
   it should "collect initial none" in {
     var collectedStates = Vector.empty[Int]
 
-    val variable        = Var[Option[Int]](None)
-    val collected       = variable.collect { case Some(x) => x }.toRx(0)
+    val variable  = Var[Option[Int]](None)
+    val collected = variable.collect { case Some(x) => x }.toRx(0)
 
     collected.unsafeForeach(collectedStates :+= _)
 
@@ -631,11 +631,11 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
   }
 
   it should "collect later initial none" in {
-    var tapStates = Vector.empty[Int]
+    var tapStates       = Vector.empty[Int]
     var collectedStates = Vector.empty[Int]
 
-    val variable        = Var[Option[Int]](None)
-    val collected       = variable.collect { case Some(x) => x }.tap(tapStates :+= _)
+    val variable  = Var[Option[Int]](None)
+    val collected = variable.collect { case Some(x) => x }.tap(tapStates :+= _)
 
     val cancelable = collected.unsafeForeach(collectedStates :+= _)
 
@@ -764,7 +764,7 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
   }
 
   it should "transform stateful" in {
-    val original: Var[Int] = Var(1)
+    val original: Var[Int]   = Var(1)
     val encoded: Var[String] = Var.createStateful(
       original.contramapIterable(str => str.toIntOption),
       original.map(num => num.toString),
@@ -792,7 +792,7 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
   }
 
   it should "transform stateless" in {
-    val original: Var[Int] = Var(1)
+    val original: Var[Int]   = Var(1)
     val encoded: Var[String] = Var.createStateless(
       original.contramapIterable(str => str.toIntOption),
       original.map(num => num.toString),

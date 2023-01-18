@@ -74,13 +74,17 @@ object RxSourceSelf {
     def unsafeSubscribe[A](source: RxSource[A])(sink: Observer[A]): Cancelable = source.observable.unsafeSubscribe(sink)
   }
 
-  @inline implicit final class RxSourceOps[Self[+X] <: RxSource[X], SelfSync[+X] <: RxSource[X], A](val self: RxSourceSelf[Self, SelfSync, A]) extends AnyVal {
+  @inline implicit final class RxSourceOps[Self[+X] <: RxSource[X], SelfSync[+X] <: RxSource[X], A](
+      val self: RxSourceSelf[Self, SelfSync, A],
+  ) extends AnyVal {
     def scan[B](seed: => B)(f: (B, A) => B): SelfSync[B] = self.transformRxSync(_.scan(seed)(f))
 
     def filter(f: A => Boolean): Self[A] = self.transformRx(_.filter(f))
   }
 
-  @inline implicit final class RxSourceBooleanOps[Self[+X] <: RxSource[X], SelfSync[+X] <: RxSource[X]](private val self: RxSourceSelf[Self, SelfSync, Boolean]) extends AnyVal {
+  @inline implicit final class RxSourceBooleanOps[Self[+X] <: RxSource[X], SelfSync[+X] <: RxSource[X]](
+      private val self: RxSourceSelf[Self, SelfSync, Boolean],
+  ) extends AnyVal {
     @inline def toggle[A](ifTrue: => A, ifFalse: => A): SelfSync[A] = self.map {
       case true  => ifTrue
       case false => ifFalse
@@ -228,8 +232,8 @@ trait VarSource[A] extends RxWriter[A] with RxSource[A]
 
 trait VarEvent[A] extends VarSource[A] with RxEvent[A] {
   final def transformVar[A2](f: RxWriter[A] => RxWriter[A2])(g: RxEvent[A] => RxEvent[A2]): VarEvent[A2] = VarEvent.create(f(this), g(this))
-  final def transformVarRead(g: RxEvent[A] => RxEvent[A]): VarEvent[A]                                = VarEvent.create(this, g(this))
-  final def transformVarWrite(f: RxWriter[A] => RxWriter[A]): VarEvent[A]                             = VarEvent.create(f(this), this)
+  final def transformVarRead(g: RxEvent[A] => RxEvent[A]): VarEvent[A]                                   = VarEvent.create(this, g(this))
+  final def transformVarWrite(f: RxWriter[A] => RxWriter[A]): VarEvent[A]                                = VarEvent.create(f(this), this)
 }
 
 object VarEvent {
@@ -245,8 +249,8 @@ trait VarState[A] extends RxWriter[A] with RxState[A]
 trait VarLater[A] extends VarState[A] with RxLater[A] {
   final def transformVar[A2](f: RxWriter[A] => RxWriter[A2])(g: RxLater[A] => RxLater[A2]): VarLater[A2] =
     VarLater.createStateless(f(this), g(this))
-  final def transformVarRead(g: RxLater[A] => RxLater[A]): VarLater[A]                                     = VarLater.createStateless(this, g(this))
-  final def transformVarWrite(f: RxWriter[A] => RxWriter[A]): VarLater[A]                             = VarLater.createStateless(f(this), this)
+  final def transformVarRead(g: RxLater[A] => RxLater[A]): VarLater[A]                                   = VarLater.createStateless(this, g(this))
+  final def transformVarWrite(f: RxWriter[A] => RxWriter[A]): VarLater[A]                                = VarLater.createStateless(f(this), this)
 }
 
 object VarLater {
@@ -254,7 +258,7 @@ object VarLater {
 
   def subject[A](read: Subject[A]): VarLater[A] = createStateless(RxWriter.observer(read), RxLater.observable(read))
 
-  def createStateful[A](write: RxWriter[A], read: RxLater[A]): VarLater[A] = new VarLaterCreateStateful(write, read)
+  def createStateful[A](write: RxWriter[A], read: RxLater[A]): VarLater[A]  = new VarLaterCreateStateful(write, read)
   def createStateless[A](write: RxWriter[A], read: RxLater[A]): VarLater[A] = new VarLaterCreateStateless(write, read)
 }
 
@@ -263,8 +267,8 @@ trait Var[A] extends VarState[A] with Rx[A] {
   final def update(f: A => A): Unit             = set(f(now()))
 
   final def transformVar[A2](f: RxWriter[A] => RxWriter[A2])(g: Rx[A] => Rx[A2]): Var[A2] = Var.createStateless(f(this), g(this))
-  final def transformVarRead(g: Rx[A] => Rx[A]): Var[A]                                     = Var.createStateless(this, g(this))
-  final def transformVarWrite(f: RxWriter[A] => RxWriter[A]): Var[A]                   = Var.createStateless(f(this), this)
+  final def transformVarRead(g: Rx[A] => Rx[A]): Var[A]                                   = Var.createStateless(this, g(this))
+  final def transformVarWrite(f: RxWriter[A] => RxWriter[A]): Var[A]                      = Var.createStateless(f(this), this)
 
   final def imap[A2](f: A2 => A)(g: A => A2): Var[A2]         = transformVar(_.contramap(f))(_.map(g))
   final def lens[B](read: A => B)(write: (A, B) => A): Var[B] =
@@ -289,7 +293,7 @@ object Var {
 
   def subjectSync[A](read: Subject[A]): Var[A] = createStateless(RxWriter.observer(read), Rx.observableSync(read))
 
-  def createStateful[A](write: RxWriter[A], read: Rx[A]): Var[A] = new VarCreateStateful(write, read)
+  def createStateful[A](write: RxWriter[A], read: Rx[A]): Var[A]  = new VarCreateStateful(write, read)
   def createStateless[A](write: RxWriter[A], read: Rx[A]): Var[A] = new VarCreateStateless(write, read)
 
   @inline implicit class SeqVarOperations[A](rxvar: Var[Seq[A]]) {
@@ -379,8 +383,8 @@ private final class RxSyncObservable[A](inner: Observable[A]) extends Rx[A] {
     inner.dropUntilSyncLatest.distinctOnEquals.tapCancel(state.unsafeResetState).multicast(state).refCount
 
   def apply()(implicit owner: LiveOwner) = owner.unsafeLive(this)
-  def now()(implicit owner: NowOwner)       = owner.unsafeNow(this)
-  def nowIfSubscribedOption()               = state.now()
+  def now()(implicit owner: NowOwner)    = owner.unsafeNow(this)
+  def nowIfSubscribedOption()            = state.now()
 }
 
 // RxLater
@@ -407,7 +411,7 @@ private final class RxWriterObserver[A](val observer: Observer[A]) extends RxWri
 // VarEvent
 
 private final class VarEventSubject[A] extends VarEvent[A] {
-  private val state             = Subject.publish[A]()
+  private val state = Subject.publish[A]()
 
   def observable: Observable[A] = state
   def observer: Observer[A]     = state
@@ -433,8 +437,8 @@ private final class VarLaterCreateStateless[A](innerWrite: RxWriter[A], innerRea
 private final class VarLaterCreateStateful[A](innerWrite: RxWriter[A], innerRead: RxLater[A]) extends VarLater[A] {
   private val state = Subject.replayLatest[A]()
 
-  val observable                            = innerRead.observable.subscribing(state.via(innerWrite.observer)).multicast(state).refCount
-  def observer                              = state
+  val observable = innerRead.observable.subscribing(state.via(innerWrite.observer)).multicast(state).refCount
+  def observer   = state
 }
 
 // Var
@@ -446,8 +450,8 @@ private final class VarSubject[A](seed: A) extends Var[A] {
   def observer: Observer[A]     = state
 
   def apply()(implicit owner: LiveOwner) = owner.unsafeLive(this)
-  def now()(implicit owner: NowOwner)       = state.now()
-  def nowIfSubscribedOption()               = Some(state.now())
+  def now()(implicit owner: NowOwner)    = state.now()
+  def nowIfSubscribedOption()            = Some(state.now())
 }
 
 private final class VarCreateStateless[A](innerWrite: RxWriter[A], innerRead: Rx[A]) extends Var[A] {
@@ -455,18 +459,17 @@ private final class VarCreateStateless[A](innerWrite: RxWriter[A], innerRead: Rx
   val observer   = innerWrite.observer
 
   def apply()(implicit owner: LiveOwner) = innerRead()
-  def now()(implicit owner: NowOwner)       = innerRead.now()
-  def nowIfSubscribedOption()               = innerRead.nowIfSubscribedOption()
+  def now()(implicit owner: NowOwner)    = innerRead.now()
+  def nowIfSubscribedOption()            = innerRead.nowIfSubscribedOption()
 }
 
 private final class VarCreateStateful[A](innerWrite: RxWriter[A], innerRead: Rx[A]) extends Var[A] {
   private val state = Subject.replayLatest[A]()
 
-  val observable                            = innerRead.observable.subscribing(state.via(innerWrite.observer)).multicast(state).refCount
-  def observer                              = state
+  val observable = innerRead.observable.subscribing(state.via(innerWrite.observer)).multicast(state).refCount
+  def observer   = state
 
   def apply()(implicit owner: LiveOwner) = owner.unsafeLive(this)
-  def now()(implicit owner: NowOwner)       = owner.unsafeNow(this)
-  def nowIfSubscribedOption()               = state.now()
+  def now()(implicit owner: NowOwner)    = owner.unsafeNow(this)
+  def nowIfSubscribedOption()            = state.now()
 }
-
