@@ -518,7 +518,8 @@ object Observable    {
       def unsafeSubscribe(sink: Observer[B]): Cancelable = source.unsafeSubscribe(sink.contrascan(seed)(f))
     }
 
-    def scanReduce(f: (A, A) => A): Observable[A] = scan[Option[A]](None)((previous, current) => Some(previous.fold(current)(f(_, current)))).flattenOption
+    def scanReduce(f: (A, A) => A): Observable[A] =
+      scan[Option[A]](None)((previous, current) => Some(previous.fold(current)(f(_, current)))).flattenOption
 
     def switchScan[B](seed: B)(f: (B, A) => Observable[B]): Observable[B] = new Observable[B] {
       override def unsafeSubscribe(sink: Observer[B]): Cancelable = {
@@ -875,17 +876,17 @@ object Observable    {
     }
 
     def forMerge: ForSemantic[A] = new ForSemantic[A] {
-      def map[B](f: A => B): Observable[B] = source.map(f)
+      def map[B](f: A => B): Observable[B]                 = source.map(f)
       def flatMap[B](f: A => Observable[B]): Observable[B] = source.mergeMap(f)
     }
 
     def forSwitch: ForSemantic[A] = new ForSemantic[A] {
-      def map[B](f: A => B): Observable[B] = source.map(f)
+      def map[B](f: A => B): Observable[B]                 = source.map(f)
       def flatMap[B](f: A => Observable[B]): Observable[B] = source.switchMap(f)
     }
 
     def forConcat: ForSemantic[A] = new ForSemantic[A] {
-      def map[B](f: A => B): Observable[B] = source.map(f)
+      def map[B](f: A => B): Observable[B]                 = source.map(f)
       def flatMap[B](f: A => Observable[B]): Observable[B] = source.concatMap(f)
     }
 
@@ -1515,16 +1516,16 @@ object Observable    {
 
     @inline def syncAll: Observable[A] = Observable.fromEffect(syncAllSyncIO).flattenIterable
 
-    @inline def collectFirst[B](f: PartialFunction[A, B]): Observable[B] = Observable.fromEffect(collectFirstIO(f))
-    @inline def collectFirstIO[B](f: PartialFunction[A, B]): IO[B] = collectFirstF[IO, B](f)
+    @inline def collectFirst[B](f: PartialFunction[A, B]): Observable[B]      = Observable.fromEffect(collectFirstIO(f))
+    @inline def collectFirstIO[B](f: PartialFunction[A, B]): IO[B]            = collectFirstF[IO, B](f)
     @inline def collectFirstF[F[_]: Async, B](f: PartialFunction[A, B]): F[B] = mapFilterFirstF(f.lift)
 
-    @inline def mapFilterFirst[B](f: A => Option[B]): Observable[B] = Observable.fromEffect(mapFilterFirstIO(f))
-    @inline def mapFilterFirstIO[B](f: A => Option[B]): IO[B] = mapFilterFirstF[IO, B](f)
+    @inline def mapFilterFirst[B](f: A => Option[B]): Observable[B]      = Observable.fromEffect(mapFilterFirstIO(f))
+    @inline def mapFilterFirstIO[B](f: A => Option[B]): IO[B]            = mapFilterFirstF[IO, B](f)
     @inline def mapFilterFirstF[F[_]: Async, B](f: A => Option[B]): F[B] = mapFilter(f).headF
 
     @inline def collectWhile[B](f: PartialFunction[A, B]): Observable[B] = mapFilterWhile(f.lift)
-    @inline def mapFilterWhile[B](f: A => Option[B]): Observable[B] = map(f).takeWhile(_.isDefined).flattenOption
+    @inline def mapFilterWhile[B](f: A => Option[B]): Observable[B]      = map(f).takeWhile(_.isDefined).flattenOption
 
     def headF[F[_]: Async]: F[A] = Async[F].async[A] { callback =>
       Async[F].delay {
@@ -1701,7 +1702,7 @@ object Observable    {
 
         Cancelable.composite(
           replacedSubscription,
-          subscription
+          subscription,
         )
       }
     }

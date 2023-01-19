@@ -92,7 +92,7 @@ trait RxWriter[-A] {
 
   final def set(value: A): Unit = observer.unsafeOnNext(value)
 
-  final def as(value: A): RxWriter[Any] = contramap(_ => value)
+  final def as(value: A): RxWriter[Any]                            = contramap(_ => value)
   final def contramap[B](f: B => A): RxWriter[B]                   = transformRxWriter(_.contramap(f))
   final def contramapIterable[B](f: B => Iterable[A]): RxWriter[B] = transformRxWriter(_.contramapIterable(f))
 
@@ -247,7 +247,7 @@ private final class RxObservableSync[A](inner: Observable[A])(implicit owner: Ow
 
 private final class RxWriterObserver[A](val observer: Observer[A]) extends RxWriter[A]
 
-private final class VarSubject[A](seed: A) extends Var[A] {
+private final class VarSubject[A](seed: A)                                   extends Var[A] {
   private val state = new BehaviorSubject[A](seed)
 
   val observable: Observable[A] = state.distinctOnEquals
