@@ -26,13 +26,13 @@ object Connectable                                                              
   }
 
   @inline implicit class ConnectableObservableValueOperations[A](val source: Connectable[Observable.Value[A]]) extends AnyVal {
-    def refCount: Observable.Value[A] = new Observable.Value[A] {
+    def refCount: Observable.Value[A]       = new Observable.Value[A] {
       def now()                                          = source.value.now()
       def unsafeSubscribe(sink: Observer[A]): Cancelable = Cancelable.composite(source.value.unsafeSubscribe(sink), source.connect())
     }
     @deprecated("Use unsafeHot instead", "0.7.8")
-    def hot: Observable.HotValue[A]   = unsafeHot()
-    def unsafeHot(): Observable.HotValue[A]   = new Observable.HotValue[A] {
+    def hot: Observable.HotValue[A]         = unsafeHot()
+    def unsafeHot(): Observable.HotValue[A] = new Observable.HotValue[A] {
       val cancelable                                     = source.connect()
       def now()                                          = source.value.now()
       def unsafeSubscribe(sink: Observer[A]): Cancelable = source.value.unsafeSubscribe(sink)
@@ -40,13 +40,13 @@ object Connectable                                                              
   }
 
   @inline implicit class ConnectableObservableMaybeValueOperations[A](val source: Connectable[Observable.MaybeValue[A]]) extends AnyVal {
-    def refCount: Observable.MaybeValue[A] = new Observable.MaybeValue[A] {
+    def refCount: Observable.MaybeValue[A]       = new Observable.MaybeValue[A] {
       def now()                                          = source.value.now()
       def unsafeSubscribe(sink: Observer[A]): Cancelable = Cancelable.composite(source.value.unsafeSubscribe(sink), source.connect())
     }
     @deprecated("Use unsafeHot instead", "0.7.8")
-    def hot: Observable.HotMaybeValue[A]   = unsafeHot()
-    def unsafeHot(): Observable.HotMaybeValue[A]   = new Observable.HotMaybeValue[A] {
+    def hot: Observable.HotMaybeValue[A]         = unsafeHot()
+    def unsafeHot(): Observable.HotMaybeValue[A] = new Observable.HotMaybeValue[A] {
       val cancelable                                     = source.connect()
       def now()                                          = source.value.now()
       def unsafeSubscribe(sink: Observer[A]): Cancelable = source.value.unsafeSubscribe(sink)
