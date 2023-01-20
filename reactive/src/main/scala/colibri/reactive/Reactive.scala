@@ -154,7 +154,7 @@ object RxLater {
   def wrap[A](rx: Rx[A]): RxLater[A] = new RxLaterWrap(rx)
 
   @inline implicit final class RxLaterOps[A](private val self: RxLater[A]) extends AnyVal {
-    def toRxEvent: RxEvent[A]     = RxEvent.observable(self.observable)
+    def toRxEvent: RxEvent[A] = RxEvent.observable(self.observable)
 
     def toRx: Rx[Option[A]]     = Rx.observableSeed(self.observable.map[Option[A]](Some.apply))(None)
     def toRx(seed: => A): Rx[A] = Rx.observableSeed(self.observable)(seed)
@@ -205,7 +205,7 @@ object Rx extends RxPlatform {
   def observableSync[A](observable: Observable[A]): Rx[A] = new RxSyncObservable(observable)
 
   @inline implicit final class RxLaterOps[A](private val self: Rx[A]) extends AnyVal {
-    def toRxEvent: RxEvent[A]     = RxEvent.observable(self.observable)
+    def toRxEvent: RxEvent[A] = RxEvent.observable(self.observable)
 
     def toRxLater: RxLater[A] = RxLater.wrap(self)
   }
