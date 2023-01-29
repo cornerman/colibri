@@ -63,8 +63,8 @@ lazy val reactive = project
   .settings(
     name := "colibri-reactive",
     libraryDependencies ++= Seq(
-      "dev.optics" %%% "monocle-core"  % "3.1.0",
-      "dev.optics" %%% "monocle-macro" % "3.1.0" % Test,
+      "dev.optics" %%% "monocle-core"  % "3.2.0",
+      "dev.optics" %%% "monocle-macro" % "3.2.0" % Test,
     ),
   )
 
