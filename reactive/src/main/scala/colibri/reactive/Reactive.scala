@@ -120,7 +120,10 @@ object RxWriter {
 }
 
 trait Var[A] extends Rx[A] with RxWriter[A] {
-  final def update(f: A => A) = this.set(f(this.now()))
+  final def update(f: PartialFunction[A, A]) = {
+    val value = this.now()
+    this.set(f.applyOrElse(value, _ => value))
+  }
 
   final def transformVar[A2](f: RxWriter[A] => RxWriter[A2])(g: Rx[A] => Rx[A2]): Var[A2] = Var.combine(g(this), f(this))
   final def transformVarRx(g: Rx[A] => Rx[A]): Var[A]                                     = Var.combine(g(this), this)
