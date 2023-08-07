@@ -25,7 +25,7 @@ jobs:
       - uses: olafurpg/setup-scala@v14
 
       - name: Test
-        with:
+        env:
           NODE_OPTIONS: "--openssl-legacy-provider"
         run: sbt "++${{matrix.scalaVersion}} -v test"
 
