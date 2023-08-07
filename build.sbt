@@ -27,7 +27,7 @@ inThisBuild(
 )
 
 lazy val commonSettings = Seq(
-  crossScalaVersions := Seq("2.13.10", "3.2.2"),
+  crossScalaVersions := Seq("2.13.10", "3.3.0"),
   scalaVersion       := "2.13.10",
   libraryDependencies ++= (CrossVersion.partialVersion(scalaVersion.value) match {
     case Some((3, _)) => Seq.empty
