@@ -27,7 +27,7 @@ inThisBuild(
 )
 
 lazy val commonSettings = Seq(
-  crossScalaVersions := Seq("2.13.11", "3.2.2"),
+  crossScalaVersions := Seq("2.13.11", "3.3.0"),
   scalaVersion       := "2.13.11",
   libraryDependencies ++= (CrossVersion.partialVersion(scalaVersion.value) match {
     case Some((3, _)) => Seq.empty
@@ -150,6 +150,6 @@ lazy val fs2 = project
   .settings(
     name := "colibri-fs2",
     libraryDependencies ++= Seq(
-      "co.fs2" %%% "fs2-core" % "3.6.1",
+      "co.fs2" %%% "fs2-core" % "3.8.0",
     ),
   )
