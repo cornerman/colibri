@@ -1,10 +1,15 @@
 name: Test
+
 on:
   push:
     branches: [master]
     tags: [ v* ]
   pull_request:
   workflow_dispatch:
+
+env:
+  SBT_OPTS: "-Xms1G -Xmx4G" # Default runner has 7G of RAM. https://docs.github.com/en/actions/using-github-hosted-runners/about-github-hosted-runners#supported-runners-and-hardware-resources
+
 jobs:
   build:
     strategy:
@@ -20,6 +25,8 @@ jobs:
       - uses: olafurpg/setup-scala@v14
 
       - name: Test
+        with:
+          NODE_OPTIONS: "--openssl-legacy-provider"
         run: sbt "++${{matrix.scalaVersion}} -v test"
 
       # - name: Debug over SSH (tmate)
