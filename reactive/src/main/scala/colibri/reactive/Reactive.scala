@@ -279,7 +279,11 @@ object VarLater {
 
 trait Var[A] extends VarState[A] with Rx[A] {
   final def updateIfSubscribed(f: A => A): Unit = set(f(nowIfSubscribed()))
-  final def update(f: A => A): Unit             = set(f(now()))
+
+  final def update(f: PartialFunction[A, A]) = {
+    val value = this.now()
+    this.set(f.applyOrElse(value, (_: A) => value))
+  }
 
   final def transformVar[A2](f: RxWriter[A] => RxWriter[A2])(g: Rx[A] => Rx[A2]): Var[A2] = Var.createStateless(f(this), g(this))
   final def transformVarRead(g: Rx[A] => Rx[A]): Var[A]                                   = Var.createStateless(this, g(this))
