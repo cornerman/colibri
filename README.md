@@ -201,7 +201,7 @@ println(variable2.now()) // "Foo"
 println(rx.now()) // "3 - Foo"
 ```
 
-Apart from `Rx` which always has an initial value, there is `RxLater` which will eventually have a value (both extend RxState which extends RxSource). It also meant for representing state just without an initial state. It is lazy, distinct and has shared execution just like `Rx`.
+Apart from `Rx` which always has an initial value, there is `RxLater` (and `VarLater`) which will eventually have a value (both extend RxState which extends RxSource). It also meant for representing state just without an initial state. It is lazy, distinct and has shared execution just like `Rx`.
 
 ```
 import colibri.reactive._

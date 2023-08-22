@@ -108,9 +108,9 @@ trait RxEvent[+A] extends RxSource[A] with RxSourceSelf[RxEvent, RxEvent, A] {
 
 object RxEvent extends RxPlatform {
   private val _empty: RxEvent[Nothing] = observableUnshared(Observable.empty)
-  def empty[A]: RxEvent[A]             = _empty
+  @inline def empty[A]: RxEvent[A]     = _empty
 
-  def apply[A](values: A*): RxEvent[A] = iterable(values)
+  @inline def apply[A](values: A*): RxEvent[A] = iterable(values)
 
   def iterable[A](values: Iterable[A]): RxEvent[A] = observableUnshared(Observable.fromIterable(values))
 
@@ -121,8 +121,8 @@ object RxEvent extends RxPlatform {
   def switch[A](rxs: RxEvent[A]*): RxEvent[A] = observableUnshared(Observable.switchIterable(rxs.map(_.observable)))
   def concat[A](rxs: RxEvent[A]*): RxEvent[A] = observableUnshared(Observable.concatIterable(rxs.map(_.observable)))
 
-  def observable[A](observable: Observable[A]): RxEvent[A]                 = observableUnshared(observable.publish.refCount)
-  private def observableUnshared[A](observable: Observable[A]): RxEvent[A] = new RxEventObservable(observable)
+  def observable[A](observable: Observable[A]): RxEvent[A]                 = new RxEventObservableShared(observable)
+  private def observableUnshared[A](observable: Observable[A]): RxEvent[A] = new RxEventObservableUnshared(observable)
 
   @inline implicit final class RxEventOps[A](private val self: RxEvent[A]) extends AnyVal {
     def toRxLater: RxLater[A] = RxLater.observable(self.observable)
@@ -144,14 +144,14 @@ trait RxLater[+A] extends RxState[A] with RxSourceSelf[RxLater, RxLater, A] {
 }
 
 object RxLater {
-  def empty[A]: RxLater[A] = RxLaterEmpty
+  @inline def empty[A]: RxLater[A] = RxLaterEmpty
 
   def future[A](future: => Future[A]): RxLater[A]          = observable(Observable.fromFuture(future))
   def effect[F[_]: RunEffect, A](effect: F[A]): RxLater[A] = observable(Observable.fromEffect(effect))
 
   def observable[A](observable: Observable[A]): RxLater[A] = new RxLaterObservable(observable)
 
-  def wrap[A](rx: Rx[A]): RxLater[A] = new RxLaterWrap(rx)
+  def rx[A](rx: Rx[A]): RxLater[A] = new RxLaterWrap(rx)
 
   @inline implicit final class RxLaterOps[A](private val self: RxLater[A]) extends AnyVal {
     def toRxEvent: RxEvent[A] = RxEvent.observable(self.observable)
@@ -166,6 +166,7 @@ trait Rx[+A] extends RxState[A] with RxSourceSelf[RxLater, Rx, A] {
 
   def apply()(implicit owner: LiveOwner): A
   def now()(implicit owner: NowOwner): A
+
   def nowIfSubscribedOption(): Option[A]
 
   final def nowIfSubscribed(): A = nowIfSubscribedOption().getOrElse(throw RxMissingNowException)
@@ -207,7 +208,7 @@ object Rx extends RxPlatform {
   @inline implicit final class RxLaterOps[A](private val self: Rx[A]) extends AnyVal {
     def toRxEvent: RxEvent[A] = RxEvent.observable(self.observable)
 
-    def toRxLater: RxLater[A] = RxLater.wrap(self)
+    def toRxLater: RxLater[A] = RxLater.rx(self)
   }
 }
 
@@ -381,7 +382,11 @@ object Var {
 
 // RxEvent
 
-private final class RxEventObservable[A](val observable: Observable[A]) extends RxEvent[A]
+private final class RxEventObservableShared[A](inner: Observable[A]) extends RxEvent[A] {
+  val observable: Observable[A] = inner.publish.refCount
+}
+
+private final class RxEventObservableUnshared[A](val observable: Observable[A]) extends RxEvent[A]
 
 // Rx
 

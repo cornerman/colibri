@@ -41,7 +41,7 @@ object LiveOwner extends LiveOwnerPlatform {
     }
 
     def unsafeLive[A](rx: Rx[A]): A = {
-      ref.unsafeAdd(() => rx.observable.via(subject).unsafeSubscribe())
+      ref.unsafeAdd(() => rx.observable.unsafeSubscribe(subject))
       rx.nowIfSubscribed()
     }
   }
