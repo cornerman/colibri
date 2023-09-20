@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/cornerman/colibri.svg?branch=master)](https://travis-ci.org/cornerman/colibri)
+ [![Build Status](https://travis-ci.org/cornerman/colibri.svg?branch=master)](https://travis-ci.org/cornerman/colibri)
 
 # Colibri
 
@@ -21,7 +21,7 @@ libraryDependencies += "com.github.cornerman" %%% "colibri" % "0.8.0"
 import colibri._
 ```
 
-Reactive variables with lazy, distinct, shared state variables (a bit like scala-rx):
+Reactive variables with lazy, distinct, shared state variables (a bit like scala-rx, but lazy):
 ```scala
 libraryDependencies += "com.github.cornerman" %%% "colibri-reactive" % "0.8.0"
 ```
