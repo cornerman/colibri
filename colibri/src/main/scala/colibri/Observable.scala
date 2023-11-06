@@ -432,7 +432,6 @@ object Observable    {
       def unsafeSubscribe(sink2: Observer[A]): Cancelable = source.unsafeSubscribe(Observer.combine(sink, sink2))
     }
 
-    @deprecated("Use via instead", "0.7.8")
     def to(sink: Observer[A]): Observable[Unit] = via(sink).void
 
     @deprecated("Use tap instead", "0.7.8")

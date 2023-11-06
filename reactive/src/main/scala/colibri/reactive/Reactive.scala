@@ -36,7 +36,7 @@ trait RxSourceSelf[+Self[+X] <: RxSource[X], +SelfSync[+X] <: RxSource[X], +A] {
 
   final def map[B](f: A => B): SelfSync[B] = transformRxSync(_.map(f))
   final def tap(f: A => Unit): SelfSync[A] = transformRxSync(_.tap(f))
-  final def void: SelfSync[Unit] = map(_ => ())
+  final def void: SelfSync[Unit]           = map(_ => ())
 
   final def collect[B](f: PartialFunction[A, B]): Self[B]       = transformRx(_.collect(f))
   final def mapEither[B](f: A => Either[Throwable, B]): Self[B] = transformRx(_.mapEither(f))
@@ -53,7 +53,8 @@ trait RxSourceSelf[+Self[+X] <: RxSource[X], +SelfSync[+X] <: RxSource[X], +A] {
   final def asEffect[F[_]: RunEffect, B](value: F[B]): Self[B]             = transformRx(_.asEffect(value))
   final def asFuture[B](value: => Future[B]): Self[B]                      = transformRx(_.asFuture(value))
 
-  final def via(writer: RxWriter[A]): SelfSync[A] = transformRxSync(_.via(writer.observer))
+  final def via(writer: RxWriter[A]): SelfSync[A]   = transformRxSync(_.via(writer.observer))
+  final def to(writer: RxWriter[A]): SelfSync[Unit] = transformRxSync(_.to(writer.observer))
 
   final def switchMap[B](f: A => RxSource[B]): Self[B] = transformRx(_.switchMap(f andThen (_.observable)))
   final def mergeMap[B](f: A => RxSource[B]): Self[B]  = transformRx(_.mergeMap(f andThen (_.observable)))
