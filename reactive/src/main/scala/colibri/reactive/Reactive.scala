@@ -281,9 +281,7 @@ object VarLater {
 }
 
 trait Var[A] extends VarState[A] with Rx[A] {
-  final def updateIfSubscribed(f: A => A): Unit = set(f(nowIfSubscribed()))
-
-  final def update(f: PartialFunction[A, A]) = {
+  final def update(f: PartialFunction[A, A])(implicit owner: NowOwner) = {
     val value = this.now()
     this.set(f.applyOrElse(value, (_: A) => value))
   }
@@ -292,9 +290,9 @@ trait Var[A] extends VarState[A] with Rx[A] {
   final def transformVarRead(g: Rx[A] => Rx[A]): Var[A]                                   = Var.createStateless(this, g(this))
   final def transformVarWrite(f: RxWriter[A] => RxWriter[A]): Var[A]                      = Var.createStateless(f(this), this)
 
-  final def imap[A2](f: A2 => A)(g: A => A2): Var[A2]         = transformVar(_.contramap(f))(_.map(g))
-  final def lens[B](read: A => B)(write: (A, B) => A): Var[B] =
-    transformVar(_.contramap(write(nowIfSubscribed(), _)))(_.map(read))
+  final def imap[A2](f: A2 => A)(g: A => A2): Var[A2]                                   = transformVar(_.contramap(f))(_.map(g))
+  final def lens[B](read: A => B)(write: (A, B) => A)(implicit owner: NowOwner): Var[B] =
+    transformVar(_.contramap(write(now(), _)))(_.map(read))
 
   final def prism[A2](f: A2 => A)(g: A => Option[A2])(seed: => A2): Var[A2] =
     transformVar(_.contramap(f))(rx => Rx.observableSync(rx.observable.mapFilter(g).prependEval(seed)))
