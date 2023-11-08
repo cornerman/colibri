@@ -262,7 +262,7 @@ object VarEvent {
   def create[A](write: RxWriter[A], read: RxEvent[A]): VarEvent[A] = new VarEventCreate(write, read)
 }
 
-trait VarState[A] extends RxWriter[A] with RxState[A]
+trait VarState[A] extends VarSource[A] with RxState[A]
 
 trait VarLater[A] extends VarState[A] with RxLater[A] {
   final def transformVar[A2](f: RxWriter[A] => RxWriter[A2])(g: RxLater[A] => RxLater[A2]): VarLater[A2] =
