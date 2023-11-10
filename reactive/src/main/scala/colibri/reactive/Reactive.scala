@@ -1,56 +1,201 @@
 package colibri.reactive
 
 import cats.Monoid
+import cats.effect.SyncIO
 import colibri._
 import colibri.effect._
 import monocle.{Iso, Lens, Prism}
 
 import scala.concurrent.Future
 import scala.reflect.ClassTag
+import scala.util.control.NonFatal
 
-trait Rx[+A] {
+object RxMissingNowException
+    extends Exception(
+      "Missing current value inside an RxState (Rx or RxLater). Make sure, the RxState has active subscriptions when calling nowIfSubscribed.",
+    )
+
+trait RxSourceSelf[+Self[+X] <: RxSource[X], +SelfSync[+X] <: RxSource[X], +A] {
   def observable: Observable[A]
-  def now(): A
 
-  final def apply()(implicit liveOwner: LiveOwner): A = liveOwner.unsafeLive(this)
+  def selfRxSync: SelfSync[A]
+  def transformRx[B](f: Observable[A] => Observable[B]): Self[B]
+  def transformRxSync[B](f: Observable[A] => Observable[B]): SelfSync[B]
 
-  final def map[B](f: A => B)(implicit owner: Owner): Rx[B]                          = transformRxSync(_.map(f))
-  final def mapEither[B](f: A => Either[Throwable, B])(implicit owner: Owner): Rx[B] = transformRxSync(_.mapEither(f))
-  final def tap(f: A => Unit)(implicit owner: Owner): Rx[A]                          = transformRxSync(_.tap(f))
+  final def subscribe: SyncIO[Cancelable] = observable.subscribeSyncIO
 
-  final def collect[B](f: PartialFunction[A, B])(seed: => B)(implicit owner: Owner): Rx[B] = transformRx(_.collect(f))(seed)
+  final def unsafeSubscribe(): Cancelable                    = observable.unsafeSubscribe()
+  final def unsafeSubscribe(writer: RxWriter[A]): Cancelable = observable.unsafeSubscribe(writer.observer)
+  final def unsafeForeach(f: A => Unit): Cancelable          = observable.unsafeForeach(f)
 
-  final def mapSyncEffect[F[_]: RunSyncEffect, B](f: A => F[B])(implicit owner: Owner): Rx[B]     = transformRxSync(_.mapEffect(f))
-  final def mapEffect[F[_]: RunEffect, B](f: A => F[B])(seed: => B)(implicit owner: Owner): Rx[B] = transformRx(_.mapEffect(f))(seed)
-  final def mapFuture[B](f: A => Future[B])(seed: => B)(implicit owner: Owner): Rx[B]             = transformRx(_.mapFuture(f))(seed)
+  final def hot: SyncIO[SelfSync[A]] = SyncIO(unsafeHot())
+  final def unsafeHot(): SelfSync[A] = {
+    val _ = unsafeSubscribe()
+    selfRxSync
+  }
 
-  final def as[B](value: B)(implicit owner: Owner): Rx[B]        = transformRxSync(_.as(value))
-  final def asEval[B](value: => B)(implicit owner: Owner): Rx[B] = transformRxSync(_.asEval(value))
+  final def map[B](f: A => B): SelfSync[B] = transformRxSync(_.map(f))
+  final def tap(f: A => Unit): SelfSync[A] = transformRxSync(_.tap(f))
+  final def void: SelfSync[Unit]           = map(_ => ())
 
-  final def asSyncEffect[F[_]: RunSyncEffect, B](value: F[B])(implicit owner: Owner): Rx[B]     = transformRxSync(_.asEffect(value))
-  final def asEffect[F[_]: RunEffect, B](value: F[B])(seed: => B)(implicit owner: Owner): Rx[B] = transformRx(_.asEffect(value))(seed)
-  final def asFuture[B](value: => Future[B])(seed: => B)(implicit owner: Owner): Rx[B]          = transformRx(_.asFuture(value))(seed)
+  final def collect[B](f: PartialFunction[A, B]): Self[B]       = transformRx(_.collect(f))
+  final def mapEither[B](f: A => Either[Throwable, B]): Self[B] = transformRx(_.mapEither(f))
+  final def drop(n: Int): Self[A]                               = transformRx(_.drop(n))
 
-  final def switchMap[B](f: A => Rx[B])(implicit owner: Owner): Rx[B] = transformRxSync(_.switchMap(f andThen (_.observable)))
-  final def mergeMap[B](f: A => Rx[B])(implicit owner: Owner): Rx[B]  = transformRxSync(_.mergeMap(f andThen (_.observable)))
+  final def mapSyncEffect[F[_]: RunSyncEffect, B](f: A => F[B]): SelfSync[B] = transformRxSync(_.mapEffect(f))
+  final def mapEffect[F[_]: RunEffect, B](f: A => F[B]): Self[B]             = transformRx(_.mapEffect(f))
+  final def mapFuture[B](f: A => Future[B]): Self[B]                         = transformRx(_.mapFuture(f))
 
-  final def foreach(f: A => Unit)(implicit owner: Owner): Unit      = owner.unsafeOwn(() => observable.unsafeForeach(f))
-  final def foreachLater(f: A => Unit)(implicit owner: Owner): Unit = owner.unsafeOwn(() => observable.tail.unsafeForeach(f))
+  final def as[B](value: B): SelfSync[B]        = transformRxSync(_.as(value))
+  final def asEval[B](value: => B): SelfSync[B] = transformRxSync(_.asEval(value))
 
-  final def transformRx[B](f: Observable[A] => Observable[B])(seed: => B)(implicit owner: Owner): Rx[B] = Rx.observable(f(observable))(seed)
-  final def transformRxSync[B](f: Observable[A] => Observable[B])(implicit owner: Owner): Rx[B]         = Rx.observableSync(f(observable))
+  final def asSyncEffect[F[_]: RunSyncEffect, B](value: F[B]): SelfSync[B] = transformRxSync(_.asEffect(value))
+  final def asEffect[F[_]: RunEffect, B](value: F[B]): Self[B]             = transformRx(_.asEffect(value))
+  final def asFuture[B](value: => Future[B]): Self[B]                      = transformRx(_.asFuture(value))
+
+  final def via(writer: RxWriter[A]): SelfSync[A]   = transformRxSync(_.via(writer.observer))
+  final def to(writer: RxWriter[A]): SelfSync[Unit] = transformRxSync(_.to(writer.observer))
+
+  final def switchMap[B](f: A => RxSource[B]): Self[B] = transformRx(_.switchMap(f andThen (_.observable)))
+  final def mergeMap[B](f: A => RxSource[B]): Self[B]  = transformRx(_.mergeMap(f andThen (_.observable)))
+  final def concatMap[B](f: A => RxSource[B]): Self[B] = transformRx(_.concatMap(f andThen (_.observable)))
+
+  final def combineLatestMap[B, R](sourceB: RxSource[B])(f: (A, B) => R): Self[R] =
+    transformRx(_.combineLatestMap(sourceB.observable)(f))
+  final def combineLatest[B](sourceB: RxSource[B]): Self[(A, B)]                  =
+    transformRx(_.combineLatest(sourceB.observable))
+
+  final def withLatestMap[B, R](sourceB: RxSource[B])(f: (A, B) => R): Self[R] =
+    transformRx(_.withLatestMap(sourceB.observable)(f))
+  final def withLatest[B](sourceB: RxSource[B]): Self[(A, B)]                  =
+    transformRx(_.withLatest(sourceB.observable))
+}
+
+object RxSourceSelf {
+  @inline implicit final class RxSourceOps[Self[+X] <: RxSource[X], SelfSync[+X] <: RxSource[X], A](
+      val self: RxSourceSelf[Self, SelfSync, A],
+  ) extends AnyVal {
+    def scan[B](seed: => B)(f: (B, A) => B): SelfSync[B] = self.transformRxSync(_.scan(seed)(f))
+
+    def filter(f: A => Boolean): Self[A] = self.transformRx(_.filter(f))
+  }
+
+  @inline implicit final class RxSourceBooleanOps[Self[+X] <: RxSource[X], SelfSync[+X] <: RxSource[X]](
+      private val self: RxSourceSelf[Self, SelfSync, Boolean],
+  ) extends AnyVal {
+    @inline def toggle[A](ifTrue: => A, ifFalse: => A): SelfSync[A] = self.map {
+      case true  => ifTrue
+      case false => ifFalse
+    }
+
+    @inline def toggle[A: Monoid](ifTrue: => A): SelfSync[A] = toggle(ifTrue, Monoid[A].empty)
+
+    @inline def negated: SelfSync[Boolean] = self.map(x => !x)
+  }
+}
+
+trait RxSource[+A] extends RxSourceSelf[RxSource, RxSource, A]
+
+object RxSource {
+  implicit object source extends Source[RxSource] {
+    def unsafeSubscribe[A](source: RxSource[A])(sink: Observer[A]): Cancelable = source.observable.unsafeSubscribe(sink)
+  }
+}
+
+trait RxEvent[+A] extends RxSource[A] with RxSourceSelf[RxEvent, RxEvent, A] {
+  final override def selfRxSync: RxEvent[A]                                            = this
+  final override def transformRx[B](f: Observable[A] => Observable[B]): RxEvent[B]     = RxEvent.observable(f(observable))
+  final override def transformRxSync[B](f: Observable[A] => Observable[B]): RxEvent[B] = RxEvent.observable(f(observable))
+}
+
+object RxEvent extends RxPlatform {
+  private val _empty: RxEvent[Nothing] = observableUnshared(Observable.empty)
+  @inline def empty[A]: RxEvent[A]     = _empty
+
+  @inline def apply[A](values: A*): RxEvent[A] = iterable(values)
+
+  def iterable[A](values: Iterable[A]): RxEvent[A] = observableUnshared(Observable.fromIterable(values))
+
+  def future[A](future: => Future[A]): RxEvent[A]          = observable(Observable.fromFuture(future))
+  def effect[F[_]: RunEffect, A](effect: F[A]): RxEvent[A] = observable(Observable.fromEffect(effect))
+
+  def merge[A](rxs: RxEvent[A]*): RxEvent[A]  = observableUnshared(Observable.mergeIterable(rxs.map(_.observable)))
+  def switch[A](rxs: RxEvent[A]*): RxEvent[A] = observableUnshared(Observable.switchIterable(rxs.map(_.observable)))
+  def concat[A](rxs: RxEvent[A]*): RxEvent[A] = observableUnshared(Observable.concatIterable(rxs.map(_.observable)))
+
+  def observable[A](observable: Observable[A]): RxEvent[A]                 = new RxEventObservableShared(observable)
+  private def observableUnshared[A](observable: Observable[A]): RxEvent[A] = new RxEventObservableUnshared(observable)
+
+  @inline implicit final class RxEventOps[A](private val self: RxEvent[A]) extends AnyVal {
+    def toRxLater: RxLater[A] = RxLater.observable(self.observable)
+
+    def toRx: Rx[Option[A]]     = Rx.observableSeed(self.observable.map[Option[A]](Some.apply))(None)
+    def toRx(seed: => A): Rx[A] = Rx.observableSeed(self.observable)(seed)
+  }
+}
+
+trait RxState[+A] extends RxSource[A] with RxSourceSelf[RxLater, RxState, A] {
+  final override def transformRx[B](f: Observable[A] => Observable[B]): RxLater[B] = RxLater.observable(f(observable))
+}
+
+trait RxLater[+A] extends RxState[A] with RxSourceSelf[RxLater, RxLater, A] {
+  type SelfSync[+X] = RxLater[X]
+
+  final override def selfRxSync: RxLater[A]                                            = this
+  final override def transformRxSync[B](f: Observable[A] => Observable[B]): RxLater[B] = RxLater.observable(f(observable))
+}
+
+object RxLater {
+  @inline def empty[A]: RxLater[A] = RxLaterEmpty
+
+  def future[A](future: => Future[A]): RxLater[A]          = observable(Observable.fromFuture(future))
+  def effect[F[_]: RunEffect, A](effect: F[A]): RxLater[A] = observable(Observable.fromEffect(effect))
+
+  def observable[A](observable: Observable[A]): RxLater[A] = new RxLaterObservable(observable)
+
+  def rx[A](rx: Rx[A]): RxLater[A] = new RxLaterWrap(rx)
+
+  @inline implicit final class RxLaterOps[A](private val self: RxLater[A]) extends AnyVal {
+    def toRxEvent: RxEvent[A] = RxEvent.observable(self.observable)
+
+    def toRx: Rx[Option[A]]     = Rx.observableSeed(self.observable.map[Option[A]](Some.apply))(None)
+    def toRx(seed: => A): Rx[A] = Rx.observableSeed(self.observable)(seed)
+  }
+}
+
+trait Rx[+A] extends RxState[A] with RxSourceSelf[RxLater, Rx, A] {
+  type SelfSync[+X] = Rx[X]
+
+  def apply()(implicit owner: LiveOwner): A
+  def now()(implicit owner: NowOwner): A
+
+  def nowIfSubscribedOption(): Option[A]
+
+  final def nowIfSubscribed(): A = nowIfSubscribedOption().getOrElse(throw RxMissingNowException)
+
+  final override def selfRxSync: Rx[A]                                            = this
+  final override def transformRxSync[B](f: Observable[A] => Observable[B]): Rx[B] = Rx.observableSync(f(observable))
 }
 
 object Rx extends RxPlatform {
-  def function[R](f: LiveOwner => R)(implicit owner: Owner): Rx[R] = {
+  def function[R](f: LiveOwner => R): Rx[R] = {
     val subject = Subject.behavior[Any](())
 
     val observable = subject.switchMap { _ =>
-      val liveOwner = LiveOwner.unsafeHotRef()
-      val result    = f(liveOwner)
-      Observable[R](result)
-        .subscribing(liveOwner.liveObservable.dropSyncAll.head.via(subject))
-        .tapCancel(liveOwner.cancelable.unsafeCancel)
+      val owner = LiveOwner.unsafeHotRef()
+      try {
+        val result = f(owner)
+        Observable[R](result)
+          .subscribing(owner.liveObservable.dropSyncAll.head.via(subject))
+          .tapCancel(owner.cancelable.unsafeCancel)
+      } catch {
+        case NonFatal(t) =>
+          owner.cancelable.unsafeCancel()
+          Observable.raiseError(t)
+        case t: Throwable =>
+          owner.cancelable.unsafeCancel()
+          throw t
+      }
     }
 
     Rx.observableSync(observable)
@@ -58,33 +203,15 @@ object Rx extends RxPlatform {
 
   def const[A](value: A): Rx[A] = new RxConst(value)
 
-  def observable[A](observable: Observable[A])(seed: => A)(implicit owner: Owner): Rx[A] = observableSync(observable.prependEval(seed))
+  def observableSeed[A](observable: Observable[A])(seed: => A): Rx[A] = observableSync(observable.prependEval(seed))
 
-  def observableSync[A](observable: Observable[A])(implicit owner: Owner): Rx[A] = new RxObservableSync(observable)
+  def observableSync[A](observable: Observable[A]): Rx[A] = new RxSyncObservable(observable)
 
-  @inline implicit final class RxOps[A](private val self: Rx[A]) extends AnyVal {
-    def scan(f: (A, A) => A)(implicit owner: Owner): Rx[A] = scan(self.now())(f)
+  @inline implicit final class RxLaterOps[A](private val self: Rx[A]) extends AnyVal {
+    def toRxEvent: RxEvent[A] = RxEvent.observable(self.observable)
 
-    def scan[B](seed: B)(f: (B, A) => B)(implicit owner: Owner): Rx[B] = self.transformRxSync(_.scan0(seed)(f))
-
-    def filter(f: A => Boolean)(seed: => A)(implicit owner: Owner): Rx[A] = self.transformRx(_.filter(f))(seed)
+    def toRxLater: RxLater[A] = RxLater.rx(self)
   }
-
-  @inline implicit class RxBooleanOps(private val source: Rx[Boolean]) extends AnyVal {
-    @inline def toggle[A](ifTrue: => A, ifFalse: A)(implicit owner: Owner): Rx[A] = source.map {
-      case true  => ifTrue
-      case false => ifFalse
-    }
-
-    @inline def toggle[A: Monoid](ifTrue: => A)(implicit owner: Owner): Rx[A] = toggle(ifTrue, Monoid[A].empty)
-
-    @inline def negated(implicit owner: Owner): Rx[Boolean] = source.map(x => !x)
-  }
-
-  implicit object source extends Source[Rx] {
-    def unsafeSubscribe[A](source: Rx[A])(sink: Observer[A]): Cancelable = source.observable.unsafeSubscribe(sink)
-  }
-
 }
 
 trait RxWriter[-A] {
@@ -119,57 +246,85 @@ object RxWriter {
   }
 }
 
-trait Var[A] extends Rx[A] with RxWriter[A] {
-  final def update(f: PartialFunction[A, A]) = {
+trait VarSource[A] extends RxWriter[A] with RxSource[A]
+
+trait VarEvent[A] extends VarSource[A] with RxEvent[A] {
+  final def transformVar[A2](f: RxWriter[A] => RxWriter[A2])(g: RxEvent[A] => RxEvent[A2]): VarEvent[A2] = VarEvent.create(f(this), g(this))
+  final def transformVarRead(g: RxEvent[A] => RxEvent[A]): VarEvent[A]                                   = VarEvent.create(this, g(this))
+  final def transformVarWrite(f: RxWriter[A] => RxWriter[A]): VarEvent[A]                                = VarEvent.create(f(this), this)
+}
+
+object VarEvent {
+  def apply[A](): VarEvent[A] = new VarEventSubject
+
+  def subject[A](read: Subject[A]): VarEvent[A] = create(RxWriter.observer(read), RxEvent.observable(read))
+
+  def create[A](write: RxWriter[A], read: RxEvent[A]): VarEvent[A] = new VarEventCreate(write, read)
+}
+
+trait VarState[A] extends VarSource[A] with RxState[A]
+
+trait VarLater[A] extends VarState[A] with RxLater[A] {
+  final def transformVar[A2](f: RxWriter[A] => RxWriter[A2])(g: RxLater[A] => RxLater[A2]): VarLater[A2] =
+    VarLater.createStateless(f(this), g(this))
+  final def transformVarRead(g: RxLater[A] => RxLater[A]): VarLater[A]                                   = VarLater.createStateless(this, g(this))
+  final def transformVarWrite(f: RxWriter[A] => RxWriter[A]): VarLater[A]                                = VarLater.createStateless(f(this), this)
+}
+
+object VarLater {
+  def apply[A](): VarLater[A] = new VarLaterSubject
+
+  def subject[A](read: Subject[A]): VarLater[A] = createStateless(RxWriter.observer(read), RxLater.observable(read))
+
+  def createStateful[A](write: RxWriter[A], read: RxLater[A]): VarLater[A]  = new VarLaterCreateStateful(write, read)
+  def createStateless[A](write: RxWriter[A], read: RxLater[A]): VarLater[A] = new VarLaterCreateStateless(write, read)
+}
+
+trait Var[A] extends VarState[A] with Rx[A] {
+  final def update(f: PartialFunction[A, A])(implicit owner: NowOwner) = {
     val value = this.now()
     this.set(f.applyOrElse(value, (_: A) => value))
   }
 
-  final def transformVar[A2](f: RxWriter[A] => RxWriter[A2])(g: Rx[A] => Rx[A2]): Var[A2] = Var.combine(g(this), f(this))
-  final def transformVarRx(g: Rx[A] => Rx[A]): Var[A]                                     = Var.combine(g(this), this)
-  final def transformVarRxWriter(f: RxWriter[A] => RxWriter[A]): Var[A]                   = Var.combine(this, f(this))
+  final def transformVar[A2](f: RxWriter[A] => RxWriter[A2])(g: Rx[A] => Rx[A2]): Var[A2] = Var.createStateless(f(this), g(this))
+  final def transformVarRead(g: Rx[A] => Rx[A]): Var[A]                                   = Var.createStateless(this, g(this))
+  final def transformVarWrite(f: RxWriter[A] => RxWriter[A]): Var[A]                      = Var.createStateless(f(this), this)
 
-  final def imap[A2](f: A2 => A)(g: A => A2)(implicit owner: Owner): Var[A2]         = transformVar(_.contramap(f))(_.map(g))
-  final def lens[B](read: A => B)(write: (A, B) => A)(implicit owner: Owner): Var[B] =
+  final def imap[A2](f: A2 => A)(g: A => A2): Var[A2]                                   = transformVar(_.contramap(f))(_.map(g))
+  final def lens[B](read: A => B)(write: (A, B) => A)(implicit owner: NowOwner): Var[B] =
     transformVar(_.contramap(write(now(), _)))(_.map(read))
 
-  final def prismInit[A2](f: A2 => A)(g: A => Option[A2])(initial: A2)(implicit owner: Owner): Var[A2] =
-    transformVar(_.contramap(f))(rx => Rx.observableSync(rx.observable.mapFilter(g).prepend(initial)))
+  final def prism[A2](f: A2 => A)(g: A => Option[A2])(seed: => A2): Var[A2] =
+    transformVar(_.contramap(f))(rx => Rx.observableSync(rx.observable.mapFilter(g).prependEval(seed)))
 
-  final def prism[A2](f: A2 => A)(g: A => Option[A2])(implicit owner: Owner): Option[Var[A2]] =
-    g(now()).map(prismInit(f)(g)(_))
-
-  final def subType[A2 <: A: ClassTag](implicit owner: Owner): Option[Var[A2]] = prism[A2]((x: A2) => x) {
+  final def subType[A2 <: A: ClassTag](seed: => A2): Var[A2] = prism[A2]((x: A2) => x) {
     case a: A2 => Some(a)
     case _     => None
-  }
+  }(seed)
 
-  final def subTypeInit[A2 <: A: ClassTag](initial: A2)(implicit owner: Owner): Var[A2] = prismInit[A2]((x: A2) => x) {
-    case a: A2 => Some(a)
-    case _     => None
-  }(initial)
-
-  final def imapO[B](optic: Iso[A, B])(implicit owner: Owner): Var[B]                    = imap(optic.reverseGet(_))(optic.get(_))
-  final def lensO[B](optic: Lens[A, B])(implicit owner: Owner): Var[B]                   = lens(optic.get(_))((base, zoomed) => optic.replace(zoomed)(base))
-  final def prismO[B](optic: Prism[A, B])(implicit owner: Owner): Option[Var[B]]         = prism(optic.reverseGet(_))(optic.getOption(_))
-  final def prismInitO[B](optic: Prism[A, B])(initial: B)(implicit owner: Owner): Var[B] =
-    prismInit(optic.reverseGet(_))(optic.getOption(_))(initial)
+  final def imapO[B](optic: Iso[A, B]): Var[B]                = imap(optic.reverseGet(_))(optic.get(_))
+  final def lensO[B](optic: Lens[A, B]): Var[B]               = lens(optic.get(_))((base, zoomed) => optic.replace(zoomed)(base))
+  final def prismO[B](optic: Prism[A, B])(seed: => B): Var[B] =
+    prism(optic.reverseGet(_))(optic.getOption(_))(seed)
 }
 
 object Var {
   def apply[A](seed: A): Var[A] = new VarSubject(seed)
 
-  def combine[A](read: Rx[A], write: RxWriter[A]): Var[A] = new VarCombine(read, write)
+  def subjectSync[A](read: Subject[A]): Var[A] = createStateless(RxWriter.observer(read), Rx.observableSync(read))
+
+  def createStateful[A](write: RxWriter[A], read: Rx[A]): Var[A]  = new VarCreateStateful(write, read)
+  def createStateless[A](write: RxWriter[A], read: Rx[A]): Var[A] = new VarCreateStateless(write, read)
 
   @inline implicit class SeqVarOperations[A](rxvar: Var[Seq[A]]) {
-    def sequence(implicit owner: Owner): Rx[Seq[Var[A]]] = Rx.observableSync(new Observable[Seq[Var[A]]] {
+    def sequence: Rx[Seq[Var[A]]] = Rx.observableSync(new Observable[Seq[Var[A]]] {
 
       def unsafeSubscribe(sink: Observer[Seq[Var[A]]]): Cancelable = {
         rxvar.observable.unsafeSubscribe(
           Observer.create(
             { seq =>
               sink.unsafeOnNext(seq.zipWithIndex.map { case (a, idx) =>
-                val observer   = new Observer[A] {
+                val observer = new Observer[A] {
                   def unsafeOnNext(value: A): Unit = {
                     rxvar.set(seq.updated(idx, value))
                   }
@@ -178,16 +333,7 @@ object Var {
                     sink.unsafeOnError(error)
                   }
                 }
-                val observable = new Observable.Value[A] {
-                  def now(): A = a
-
-                  def unsafeSubscribe(sink: Observer[A]): Cancelable = {
-                    sink.unsafeOnNext(a)
-                    Cancelable.empty
-                  }
-
-                }
-                Var.combine(Rx.observable(observable)(seed = a), RxWriter.observer(observer))
+                Var.createStateless(RxWriter.observer(observer), Rx.const(a))
               })
             },
             sink.unsafeOnError,
@@ -198,7 +344,7 @@ object Var {
   }
 
   @inline implicit class OptionVarOperations[A](rxvar: Var[Option[A]]) {
-    def sequence(implicit owner: Owner): Rx[Option[Var[A]]] = Rx.observableSync(new Observable[Option[Var[A]]] {
+    def sequence: Rx[Option[Var[A]]] = Rx.observableSync(new Observable[Option[Var[A]]] {
 
       def unsafeSubscribe(outerSink: Observer[Option[Var[A]]]): Cancelable = {
         var cache = Option.empty[Var[A]]
@@ -234,32 +380,120 @@ object Var {
   }
 }
 
+// RxEvent
+
+private final class RxEventObservableShared[A](inner: Observable[A]) extends RxEvent[A] {
+  val observable: Observable[A] = inner.publish.refCount
+}
+
+private final class RxEventObservableUnshared[A](val observable: Observable[A]) extends RxEvent[A]
+
+// Rx
+
 private final class RxConst[A](value: A) extends Rx[A] {
+  private lazy val someValue = Some(value)
+
   val observable: Observable[A] = Observable.pure(value)
-  def now(): A                  = value
+
+  def apply()(implicit owner: LiveOwner): A = value
+  def now()(implicit owner: NowOwner): A    = value
+  def nowIfSubscribedOption(): Option[A]    = someValue
 }
 
-private final class RxObservableSync[A](inner: Observable[A])(implicit owner: Owner) extends Rx[A] {
-  private val state = new ReplayLatestSubject[A]()
+private final class RxSyncObservable[A](inner: Observable[A]) extends Rx[A] {
+  private val state = Subject.replayLatest[A]()
 
-  val observable: Observable[A] = inner.dropUntilSyncLatest.distinctOnEquals.multicast(state).refCount
-  owner.unsafeOwn(() => observable.unsafeSubscribe())
+  val observable: Observable[A] =
+    inner.dropUntilSyncLatest.distinctOnEquals.tapCancel(state.unsafeResetState).multicast(state).refCount
 
-  def now(): A = state.now().get
+  def apply()(implicit owner: LiveOwner) = owner.unsafeLive(this)
+  def now()(implicit owner: NowOwner)    = owner.unsafeNow(this)
+  def nowIfSubscribedOption()            = state.now()
 }
+
+// RxLater
+
+private object RxLaterEmpty extends RxLater[Nothing] {
+  def observable = Observable.empty
+}
+
+private final class RxLaterWrap[A](state: Rx[A]) extends RxLater[A] {
+  def observable: Observable[A] = state.observable
+}
+
+private final class RxLaterObservable[A](inner: Observable[A]) extends RxLater[A] {
+  private val state = Subject.replayLatest[A]()
+
+  val observable: Observable[A] =
+    inner.dropUntilSyncLatest.distinctOnEquals.tapCancel(state.unsafeResetState).multicast(state).refCount
+}
+
+// RxWriter
 
 private final class RxWriterObserver[A](val observer: Observer[A]) extends RxWriter[A]
 
-private final class VarSubject[A](seed: A)                                   extends Var[A] {
-  private val state = new BehaviorSubject[A](seed)
+// VarEvent
+
+private final class VarEventSubject[A] extends VarEvent[A] {
+  private val state = Subject.publish[A]()
+
+  def observable: Observable[A] = state
+  def observer: Observer[A]     = state
+}
+
+private final class VarEventCreate[A](innerWrite: RxWriter[A], innerRead: RxEvent[A]) extends VarEvent[A] {
+  def observable = innerRead.observable
+  def observer   = innerWrite.observer
+}
+
+private final class VarLaterSubject[A] extends VarLater[A] {
+  private val state = Subject.replayLatest[A]()
 
   val observable: Observable[A] = state.distinctOnEquals
-  val observer: Observer[A]     = state
-
-  def now(): A = state.now()
+  def observer: Observer[A]     = state
 }
-private final class VarCombine[A](innerRead: Rx[A], innerWrite: RxWriter[A]) extends Var[A] {
-  def now()      = innerRead.now()
+
+private final class VarLaterCreateStateless[A](innerWrite: RxWriter[A], innerRead: RxLater[A]) extends VarLater[A] {
+  def observable = innerRead.observable
+  def observer   = innerWrite.observer
+}
+
+private final class VarLaterCreateStateful[A](innerWrite: RxWriter[A], innerRead: RxLater[A]) extends VarLater[A] {
+  private val state = Subject.replayLatest[A]()
+
+  val observable = innerRead.observable.subscribing(state.via(innerWrite.observer)).multicast(state).refCount
+  def observer   = state
+}
+
+// Var
+
+private final class VarSubject[A](seed: A) extends Var[A] {
+  private val state = Subject.behavior[A](seed)
+
+  val observable: Observable[A] = state.distinctOnEquals
+  def observer: Observer[A]     = state
+
+  def apply()(implicit owner: LiveOwner) = owner.unsafeLive(this)
+  def now()(implicit owner: NowOwner)    = state.now()
+  def nowIfSubscribedOption()            = Some(state.now())
+}
+
+private final class VarCreateStateless[A](innerWrite: RxWriter[A], innerRead: Rx[A]) extends Var[A] {
   val observable = innerRead.observable
   val observer   = innerWrite.observer
+
+  def apply()(implicit owner: LiveOwner) = innerRead()
+  def now()(implicit owner: NowOwner)    = innerRead.now()
+  def nowIfSubscribedOption()            = innerRead.nowIfSubscribedOption()
+}
+
+private final class VarCreateStateful[A](innerWrite: RxWriter[A], innerRead: Rx[A]) extends Var[A] {
+  private val state = Subject.replayLatest[A]()
+
+  val observable = innerRead.observable.subscribing(state.via(innerWrite.observer)).multicast(state).refCount
+  def observer   = state
+
+  def apply()(implicit owner: LiveOwner) = owner.unsafeLive(this)
+  def now()(implicit owner: NowOwner)    = owner.unsafeNow(this)
+  def nowIfSubscribedOption()            = state.now()
 }
