@@ -46,7 +46,8 @@ object Cancelable {
 
     def unsafeAdd(subscription: () => Cancelable): Unit = if (buffer != null) {
       val cancelable = subscription()
-      buffer.push(cancelable)
+      if (buffer == null) cancelable.unsafeCancel()
+      else buffer.push(cancelable)
       ()
     }
 

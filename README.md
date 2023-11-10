@@ -14,16 +14,16 @@ This library includes:
 
 Reactive core library with typeclasses:
 ```scala
-libraryDependencies += "com.github.cornerman" %%% "colibri" % "0.5.0"
+libraryDependencies += "com.github.cornerman" %%% "colibri" % "0.8.0"
 ```
 
 ```scala
 import colibri._
 ```
 
-Reactive variables with hot distinct observables (a bit like scala-rx):
+Reactive variables with lazy, distinct, shared state variables (a bit like scala-rx, but lazy):
 ```scala
-libraryDependencies += "com.github.cornerman" %%% "colibri-reactive" % "0.5.0"
+libraryDependencies += "com.github.cornerman" %%% "colibri-reactive" % "0.8.0"
 ```
 
 ```scala
@@ -32,7 +32,7 @@ import colibri.reactive._
 
 For jsdom-based operations in the browser (`EventObservable`, `Storage`):
 ```scala
-libraryDependencies += "com.github.cornerman" %%% "colibri-jsdom" % "0.5.0"
+libraryDependencies += "com.github.cornerman" %%% "colibri-jsdom" % "0.8.0"
 ```
 
 ```scala
@@ -41,7 +41,7 @@ import colibri.jsdom._
 
 For scala.rx support (only Scala 2.x):
 ```scala
-libraryDependencies += "com.github.cornerman" %%% "colibri-rx" % "0.5.0"
+libraryDependencies += "com.github.cornerman" %%% "colibri-rx" % "0.8.0"
 ```
 
 ```scala
@@ -50,7 +50,7 @@ import colibri.ext.rx._
 
 For airstream support:
 ```scala
-libraryDependencies += "com.github.cornerman" %%% "colibri-airstream" % "0.5.0"
+libraryDependencies += "com.github.cornerman" %%% "colibri-airstream" % "0.8.0"
 ```
 
 ```scala
@@ -59,7 +59,7 @@ import colibri.ext.airstream._
 
 For zio support:
 ```scala
-libraryDependencies += "com.github.cornerman" %%% "colibri-zio" % "0.5.0"
+libraryDependencies += "com.github.cornerman" %%% "colibri-zio" % "0.8.0"
 ```
 
 ```scala
@@ -68,7 +68,7 @@ import colibri.ext.zio._
 
 For fs2 support (`Source` only):
 ```scala
-libraryDependencies += "com.github.cornerman" %%% "colibri-fs2" % "0.5.0"
+libraryDependencies += "com.github.cornerman" %%% "colibri-fs2" % "0.8.0"
 ```
 
 ```scala
@@ -146,17 +146,21 @@ You can convert any `Source` into an `Observable` with `Observable.lift(source)`
 
 ## Reactive variables
 
-The module `colibri-reactive` exposes reactive variables. This is hot, distinct observables that always have a value. These reactive variables are meant for managing state - opposed to managing events which is a perfect fit for lazy `Observable` in the core `colibri` library.
+The module `colibri-reactive` exposes reactive variables. This is lazy, distinct shared state variables (internally using observables) that always have a value. These reactive variables are meant for managing state - opposed to managing events which is a perfect fit for lazy `Observable` in the core `colibri` library.
 
-This module behaves very similar to scala-rx - just built on top of colibri Observables for seamless integration and powerful operators. It is not entirely glitch-free because invalid state can appear in operators like map or foreach, but you always have a consistent state in `now()` and it reduces the number of intermediate triggers or glitches. You can become completely glitch-free by converting back to observable and using `dropSyncGlitches` which will introduce an async boundary (micro-task).
+This module behaves similar to scala-rx - though variables are not hot and it is built on top of colibri Observables for seamless integration and powerful operators.
+
+The whole thing is not entirely glitch-free, as invalid state can appear in operators like map or foreach. But you always have a consistent state in `now()` and it reduces the number of intermediate triggers or glitches. You can become completely glitch-free by converting back to observable and using `dropSyncGlitches` which will introduce an async boundary (micro-task).
+
+A state variable is of type `Var[A] extends Rx[A] with RxWriter[A]`.
+
+The laziness of variables means that the current value is only tracked if anyone subscribes to the `Rx[A]`. So an Rx does not compute anything on its own. You can still always call `now()` on it - if it is currently not subscribed, it will lazily calculate the current value.
 
 Example:
 
 ```scala
 
 import colibri.reactive._
-
-import colibri.owner.unsafeImplicits._ // dangerous. This never cancels subscriptions. See below!
 
 val variable = Var(1)
 val variable2 = Var("Test")
@@ -165,60 +169,76 @@ val rx = Rx {
   s"${variable()} - ${variable2()}"
 }
 
-rx.foreach(println(_))
+val cancelable = rx.unsafeForeach(println(_))
 
 println(variable.now()) // 1
 println(variable2.now()) // "Test"
 println(rx.now()) // "1 - Test"
 
-variable.set(2)
+variable.set(2) // println("2 - Test")
 
 println(variable.now()) // 2
 println(variable2.now()) // "Test"
 println(rx.now()) // "2 - Test"
 
-variable2.set("Foo")
+variable2.set("Foo") // println("2 - Foo")
 
 println(variable.now()) // 2
 println(variable2.now()) // "Foo"
 println(rx.now()) // "2 - Foo"
 
+cancelable.unsafeCancel()
+
+println(variable.now()) // 2
+println(variable2.now()) // "Foo"
+println(rx.now()) // "2 - Foo"
+
+variable.set(3) // no println
+
+// now calculates new value lazily
+println(variable.now()) // 3
+println(variable2.now()) // "Foo"
+println(rx.now()) // "3 - Foo"
 ```
 
-If you want to work with reactive variables (hot observable), then someone need to cleanup the subscriptions. We call this concept an `Owner`. We use an *unsafe* owner in the above example. It actually never cleans up. It should only ever be used in your main method or for global state.
+Apart from `Rx` which always has an initial value, there is `RxLater` (and `VarLater`) which will eventually have a value (both extend RxState which extends RxSource). It also meant for representing state just without an initial state. It is lazy, distinct and has shared execution just like `Rx`.
 
-You can even work without ever using the unsafe owner or having to pass it implictly. You can use `Owned` blocks instead. Inside an `Owned` block, you will have to return a type that has a `SubscriptionOwner` instance. Example:
-
-```scala
-
-import colibri._
+```
 import colibri.reactive._
-import cats.effect.SyncIO
 
-sealed trait Modifier
-object Modifier {
-  case class ReactiveModifier(rx: Rx[String]) extends Modifier
-  case class SubscriptionModifier(subscription: () => Cancelable) extends Modifier
-  case class CombineModifier(modifierA: Modifier, modifierB: Modifier) extends Modifier
+val variable = VarLater[Int]()
 
-  implicit object subcriptionOwner extends SubscriptionOwner[Modifier] {
-    def own(owner: Modifier)(subscription: () => Cancelable): Modifier = CombineModifier(owner, SubscriptionModifier(subscription))
-  }
-}
+val stream1 = RxLater.empty
+val stream2 = RxLater.future(Future.successful(1)).map(_ + 1)
 
-val component: SyncIO[Modifier] = Owned {
-  val variable = Var(1)
-  val mapped = rx.map(_ + 1)
+val cancelable  = variable.unsafeForeach(println(_))
+val cancelable1 = stream1.unsafeForeach(println(_))
+val cancelable2 = stream2.unsafeForeach(println(_))
 
-  val rx = Rx {
-    "Hallo: ${mapped()}"
-  }
+println(variable.toRx.now()) // None
+println(stream1.toRx.now()) // None
+println(stream2.toRx.now()) // Some(2)
 
-  ReactiveModifier(rx)
-}
+variable.set(13)
+
+println(variable.toRx.now()) // Some(13)
 ```
 
-For example, [Outwatch](https://github.com/outwatch/outwatch) supports `Owned`:
+There also exist `RxEvent` and `VarEvent`, which are event observables with shared execution. That is they behave like `Rx` and `Var` such that transformations are only applied once and not per subscription. But `RxEvent` and `VarEvent` are not distinct and have no current value. They should be used for event streams.
+
+```
+import colibri.reactive._
+
+val variable = VarEvent[Int]()
+
+val stream = RxEvent.empty
+
+val mapped = RxEvent.merge(variable.tap(println(_)).map(_ + 1), stream)
+
+val cancelable = mapped.unsafeForeach(println(_))
+```
+
+[Outwatch](https://github.com/outwatch/outwatch) works perfectly with Rx (or RxLater, RxEvent which all extend RxSource) - just like Observable.
 
 ```scala
 
@@ -227,7 +247,7 @@ import outwatch.dsl._
 import colibri.reactive._
 import cats.effect.SyncIO
 
-val component: SyncIO[VModifier] = Owned {
+val component: VModifier = {
   val variable = Var(1)
   val mapped = rx.map(_ + 1)
 
@@ -241,9 +261,9 @@ val component: SyncIO[VModifier] = Owned {
 
 ### Memory management
 
-Every subscription that is created inside of colibri-reactive methods is owned by an implicit `Owner`. For example `map` or `foreach` take an implicit `Owner`. As long as the `Owner` is cancelled when it is not needed anymore, all subscriptions will be cleaned up. The exception is the `Owner.unsafeGlobal` that never cleans up and is meant for global state.
+The same principles as for Observables hold. Any cancelable that is returned from the API needs to be handled by the the caller. Best practice: use subscribe/foreach as seldomly as possible - only in selected spots or within a library.
 
-If you are working with `Outwatch`, you can just use `Owned`-blocks returning `VModifier` and everything is handled automatically for you. No memory leaks.
+If you are working with `Outwatch`, you can just use `Rx` without ever subscribing yourself. Then all memory management is handled for you automatically. No memory leaks.
 
 ## Information
 
