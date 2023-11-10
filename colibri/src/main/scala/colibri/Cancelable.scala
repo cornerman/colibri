@@ -10,9 +10,6 @@ trait Cancelable  {
   def isEmpty(): Boolean
   def unsafeCancel(): Unit
 
-  @deprecated("Use unsafeCancel() instead", "0.2.7")
-  @inline final def cancel(): Unit = unsafeCancel()
-
   final def cancelF[F[_]: Sync]: F[Unit] = Sync[F].delay(unsafeCancel())
   final def cancelIO: IO[Unit]           = cancelF[IO]
   final def cancelSyncIO: SyncIO[Unit]   = cancelF[SyncIO]
