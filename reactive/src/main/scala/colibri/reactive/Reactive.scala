@@ -189,9 +189,12 @@ object Rx extends RxPlatform {
           .subscribing(owner.liveObservable.dropSyncAll.head.via(subject))
           .tapCancel(owner.cancelable.unsafeCancel)
       } catch {
-        case NonFatal(t) => Observable.raiseError(t)
-      } finally {
-        owner.cancelable.unsafeCancel()
+        case NonFatal(t) =>
+          owner.cancelable.unsafeCancel()
+          Observable.raiseError(t)
+        case t: Throwable =>
+          owner.cancelable.unsafeCancel()
+          throw t
       }
     }
 
