@@ -76,7 +76,7 @@ lazy val jsdom = project
   .settings(
     name := "colibri-jsdom",
     libraryDependencies ++= Seq(
-      "org.scala-js" %%% "scalajs-dom" % "2.6.0",
+      "org.scala-js" %%% "scalajs-dom" % "2.8.0",
     ),
   )
 
@@ -150,6 +150,6 @@ lazy val fs2 = project
   .settings(
     name := "colibri-fs2",
     libraryDependencies ++= Seq(
-      "co.fs2" %%% "fs2-core" % "3.9.1",
+      "co.fs2" %%% "fs2-core" % "3.9.3",
     ),
   )

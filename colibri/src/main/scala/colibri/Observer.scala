@@ -154,9 +154,9 @@ object Observer    {
       def unsafeOnError(error: Throwable): Unit = sink.unsafeOnError(error)
     }
 
-    def contraflattenIterable[B]: Observer[Iterable[A]]        = contramapIterable(identity)
-    def contraflattenEither[B]: Observer[Either[Throwable, A]] = contramapEither(identity)
-    def contraflattenOption[B]: Observer[Option[A]]            = contramapFilter(identity)
+    def contraflattenIterable: Observer[Iterable[A]]        = contramapIterable(identity)
+    def contraflattenEither: Observer[Either[Throwable, A]] = contramapEither(identity)
+    def contraflattenOption: Observer[Option[A]]            = contramapFilter(identity)
 
     // TODO return effect
     def contrascan[B](seed: A)(f: (A, B) => A): Observer[B] = new Observer[B] {
