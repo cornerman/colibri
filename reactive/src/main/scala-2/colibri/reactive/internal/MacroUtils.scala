@@ -1,30 +1,23 @@
 package colibri.reactive.internal
 
-import colibri.reactive.{Rx, Owner, LiveOwner}
-import colibri.effect.SyncEmbed
-import colibri.SubscriptionOwner
+import colibri.reactive.{Rx, NowOwner, LiveOwner}
 import scala.reflect.macros._
 
 // Inspired by scala.rx
 object MacroUtils {
 
-  private val ownerName     = "colibriOwner"
-  private val liveOwnerName = "colibriLiveOwner"
-
-  def injectOwner[T](c: blackbox.Context)(src: c.Tree, newOwner: c.universe.TermName, exceptOwner: c.Type): c.Tree = {
+  def injectOwner[T](c: blackbox.Context)(src: c.Tree, newOwner: c.universe.TermName, replaces: Set[c.Type]): c.Tree = {
     import c.universe._
 
-    val implicitOwnerAtCaller     = c.inferImplicitValue(typeOf[Owner], silent = false)
-    val implicitLiveOwnerAtCaller = c.inferImplicitValue(typeOf[LiveOwner], silent = false)
+    val implicitOwnerAtCallers = replaces.map(c.inferImplicitValue(_, silent = false))
 
     object transformer extends c.universe.Transformer {
       override def transform(tree: c.Tree): c.Tree = {
         val shouldReplaceOwner = tree != null &&
           tree.isTerm &&
-          (tree.tpe =:= implicitOwnerAtCaller.tpe || tree.tpe =:= implicitLiveOwnerAtCaller.tpe) &&
-          tree.tpe <:< typeOf[Owner] &&
-          !(tree.tpe =:= typeOf[Nothing]) &&
-          !(tree.tpe <:< exceptOwner)
+          implicitOwnerAtCallers.exists(_.tpe =:= tree.tpe) &&
+          tree.tpe <:< typeOf[NowOwner] &&
+          !(tree.tpe =:= typeOf[Nothing])
 
         if (shouldReplaceOwner) q"$newOwner"
         else super.transform(tree)
@@ -33,37 +26,23 @@ object MacroUtils {
     transformer.transform(src)
   }
 
-  def ownedImpl[R](
-      c: blackbox.Context,
-  )(f: c.Expr[R])(subscriptionOwner: c.Expr[SubscriptionOwner[R]], syncEmbed: c.Expr[SyncEmbed[R]]): c.Expr[R] = {
+  def rxImpl[R](c: blackbox.Context)(f: c.Expr[R]): c.Expr[Rx[R]] = {
     import c.universe._
 
-    val newOwner = c.freshName(TermName(ownerName))
+    val newOwner = c.freshName(TermName("colibriLiveOwner"))
 
-    val newTree = c.untypecheck(injectOwner(c)(f.tree, newOwner, typeOf[LiveOwner]))
-
-    val tree = q"""
-    _root_.colibri.reactive.Owned.function { ($newOwner: _root_.colibri.reactive.Owner) =>
-      $newTree
-    }($subscriptionOwner, $syncEmbed)
-    """
-
-    // println(tree)
-
-    c.Expr(tree)
-  }
-
-  def rxImpl[R](c: blackbox.Context)(f: c.Expr[R])(owner: c.Expr[Owner]): c.Expr[Rx[R]] = {
-    import c.universe._
-
-    val newOwner = c.freshName(TermName(liveOwnerName))
-
-    val newTree = c.untypecheck(injectOwner(c)(f.tree, newOwner, typeOf[Nothing]))
+    val newTree = c.untypecheck(
+      injectOwner(c)(
+        f.tree,
+        newOwner,
+        replaces = Set(typeOf[LiveOwner], typeOf[NowOwner]),
+      ),
+    )
 
     val tree = q"""
     _root_.colibri.reactive.Rx.function { ($newOwner: _root_.colibri.reactive.LiveOwner) =>
       $newTree
-    }($owner)
+    }
     """
 
     // println(tree)

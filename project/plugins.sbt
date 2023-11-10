@@ -1,8 +1,8 @@
-addSbtPlugin("org.scala-js" % "sbt-scalajs" % "1.13.0")
+addSbtPlugin("org.scala-js" % "sbt-scalajs" % "1.14.0")
 
 addSbtPlugin("ch.epfl.scala" % "sbt-scalajs-bundler" % "0.21.1")
 
-addSbtPlugin("com.github.sbt" % "sbt-ci-release" % "1.5.11")
+addSbtPlugin("com.github.sbt" % "sbt-ci-release" % "1.5.12")
 
 // sane scalac options
 addSbtPlugin("io.github.davidgregory084" % "sbt-tpolecat" % "0.4.4")
