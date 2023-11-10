@@ -13,6 +13,10 @@ final class ReplayLatestSubject[A] extends Observer[A] with Observable.MaybeValu
 
   @inline def now(): Option[A] = current
 
+  def unsafeResetState(): Unit = {
+    current = None
+  }
+
   def unsafeOnNext(value: A): Unit = {
     current = Some(value)
     state.unsafeOnNext(value)
@@ -36,6 +40,10 @@ final class ReplayAllSubject[A] extends Observer[A] with Observable[A] {
   def hasSubscribers: Boolean = state.hasSubscribers
 
   @inline def now(): Seq[A] = current.toSeq
+
+  def unsafeResetState(): Unit = {
+    current.clear()
+  }
 
   def unsafeOnNext(value: A): Unit = {
     current += value
