@@ -1,7 +1,6 @@
 package colibri.ext
 
-import com.raquo.airstream.core.{Observable, Observer}
-import com.raquo.airstream.custom.{CustomSource, CustomStreamSource}
+import com.raquo.airstream.core.{Observable, Observer, EventStream}
 import com.raquo.airstream.ownership.Subscription
 import com.raquo.airstream.ownership.internalcolibri.NoopOwner
 
@@ -30,14 +29,12 @@ package object airstream {
 
   implicit object liftSource extends colibri.LiftSource[Observable] {
     def lift[H[_]: colibri.Source, A](source: H[A]): Observable[A] = {
-      val stream = CustomStreamSource[A] { (fireValue, fireError, _, _) =>
-        var cancelable = colibri.Cancelable.empty
-        CustomSource.Config(
-          onStart = () => cancelable = colibri.Source[H].unsafeSubscribe(source)(colibri.Observer.create(fireValue, fireError)),
-          onStop = () => cancelable.unsafeCancel(),
-        )
-      }
-      stream
+      var cancelable = colibri.Cancelable.empty
+      EventStream.fromCustomSource[A](
+        start = (fireValue, fireError, _, _) =>
+          cancelable = colibri.Source[H].unsafeSubscribe(source)(colibri.Observer.create(fireValue, fireError)),
+        stop = _ => cancelable.unsafeCancel(),
+      )
     }
   }
 
