@@ -41,6 +41,7 @@ lazy val commonSettings = Seq(
     "org.scalatest" %%% "scalatest" % "3.2.17" % Test,
   ),
   /* scalacOptions --= Seq("-Xfatal-warnings"), // overwrite option from https://github.com/DavidGregory084/sbt-tpolecat */
+  Test / scalacOptions --= Seq("-Wnonunit-statement"), // otherwise there is a warning for every test-assertion
 )
 
 lazy val colibri = project

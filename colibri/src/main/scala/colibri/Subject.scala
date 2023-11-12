@@ -102,7 +102,7 @@ final class PublishSubject[A] extends Observer[A] with Observable[A] {
 
   def unsafeSubscribe(sink: Observer[A]): Cancelable = {
     val observer = Observer.lift(sink)
-    subscribers.push(observer)
+    subscribers.push(observer): Unit
     Cancelable { () =>
       if (isRunning) subscribers = JSArrayHelper.removeElementCopied(subscribers)(observer)
       else JSArrayHelper.removeElement(subscribers)(observer)

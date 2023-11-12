@@ -18,8 +18,7 @@ private[colibri] object RunEffectExecution {
 
     Cancelable.withIsEmpty(isCancel) { () =>
       isCancel = true
-      cancelRun()
-      ()
+      cancelRun(): Unit
     }
   }
 }
