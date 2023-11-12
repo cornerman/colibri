@@ -9,6 +9,7 @@ import monocle.{Iso, Lens, Prism}
 import scala.concurrent.Future
 import scala.reflect.ClassTag
 import scala.util.control.NonFatal
+import scala.annotation.unused
 
 object RxMissingNowException
     extends Exception(
@@ -395,9 +396,9 @@ private final class RxConst[A](value: A) extends Rx[A] {
 
   val observable: Observable[A] = Observable.pure(value)
 
-  def apply()(implicit owner: LiveOwner): A = value
-  def now()(implicit owner: NowOwner): A    = value
-  def nowIfSubscribedOption(): Option[A]    = someValue
+  def apply()(implicit @unused owner: LiveOwner): A = value
+  def now()(implicit @unused owner: NowOwner): A    = value
+  def nowIfSubscribedOption(): Option[A]            = someValue
 }
 
 private final class RxSyncObservable[A](inner: Observable[A]) extends Rx[A] {
@@ -473,9 +474,9 @@ private final class VarSubject[A](seed: A) extends Var[A] {
   val observable: Observable[A] = state.distinctOnEquals
   def observer: Observer[A]     = state
 
-  def apply()(implicit owner: LiveOwner) = owner.unsafeLive(this)
-  def now()(implicit owner: NowOwner)    = state.now()
-  def nowIfSubscribedOption()            = Some(state.now())
+  def apply()(implicit owner: LiveOwner)      = owner.unsafeLive(this)
+  def now()(implicit @unused owner: NowOwner) = state.now()
+  def nowIfSubscribedOption()                 = Some(state.now())
 }
 
 private final class VarCreateStateless[A](innerWrite: RxWriter[A], innerRead: Rx[A]) extends Var[A] {
