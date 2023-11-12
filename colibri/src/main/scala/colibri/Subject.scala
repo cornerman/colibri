@@ -3,7 +3,7 @@ package colibri
 import scala.scalajs.js
 import colibri.helpers._
 
-final class ReplaySubject[A] extends Observer[A] with Observable.MaybeValue[A] {
+final class ReplayLatestSubject[A] extends Observer[A] with Observable[A] {
 
   private val state = new PublishSubject[A]
 
@@ -12,6 +12,10 @@ final class ReplaySubject[A] extends Observer[A] with Observable.MaybeValue[A] {
   def hasSubscribers: Boolean = state.hasSubscribers
 
   @inline def now(): Option[A] = current
+
+  def unsafeResetState(): Unit = {
+    current = None
+  }
 
   def unsafeOnNext(value: A): Unit = {
     current = Some(value)
@@ -27,7 +31,7 @@ final class ReplaySubject[A] extends Observer[A] with Observable.MaybeValue[A] {
   }
 }
 
-final class ReplayAllSubject[A] extends Observer[A] {
+final class ReplayAllSubject[A] extends Observer[A] with Observable[A] {
 
   private val state = new PublishSubject[A]
 
@@ -36,6 +40,10 @@ final class ReplayAllSubject[A] extends Observer[A] {
   def hasSubscribers: Boolean = state.hasSubscribers
 
   @inline def now(): Seq[A] = current.toSeq
+
+  def unsafeResetState(): Unit = {
+    current.clear()
+  }
 
   def unsafeOnNext(value: A): Unit = {
     current += value
@@ -51,7 +59,7 @@ final class ReplayAllSubject[A] extends Observer[A] {
   }
 }
 
-final class BehaviorSubject[A](private var current: A) extends Observer[A] with Observable.Value[A] {
+final class BehaviorSubject[A](private var current: A) extends Observer[A] with Observable[A] {
 
   private val state = new PublishSubject[A]
 
@@ -103,15 +111,8 @@ final class PublishSubject[A] extends Observer[A] with Observable[A] {
 }
 
 object Subject {
-  type Value[A]      = Observer[A] with Observable.Value[A]
-  type MaybeValue[A] = Observer[A] with Observable.MaybeValue[A]
-
-  @deprecated("Use replayLatest instead", "0.3.4")
-  def replay[O](): ReplaySubject[O]       = replayLatest[O]()
-  @deprecated("Use replayLatest instead", "0.4.0")
-  def replayLast[O](): ReplaySubject[O]   = replayLatest[O]()
-  def replayLatest[O](): ReplaySubject[O] = new ReplaySubject[O]
-  def replayAll[O](): ReplayAllSubject[O] = new ReplayAllSubject[O]
+  def replayLatest[O](): ReplayLatestSubject[O] = new ReplayLatestSubject[O]
+  def replayAll[O](): ReplayAllSubject[O]       = new ReplayAllSubject[O]
 
   def behavior[O](seed: O): BehaviorSubject[O] = new BehaviorSubject[O](seed)
 
@@ -123,9 +124,6 @@ object Subject {
 }
 
 object ProSubject {
-  type Value[-I, +O]      = Observer[I] with Observable.Value[O]
-  type MaybeValue[-I, +O] = Observer[I] with Observable.MaybeValue[O]
-
   def from[I, O](sink: Observer[I], source: Observable[O]): ProSubject[I, O] = new Observer[I] with Observable[O] {
     @inline def unsafeOnNext(value: I): Unit                   = sink.unsafeOnNext(value)
     @inline def unsafeOnError(error: Throwable): Unit          = sink.unsafeOnError(error)

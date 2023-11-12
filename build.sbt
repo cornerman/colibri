@@ -1,3 +1,5 @@
+Global / onChangedBuildSource := ReloadOnSourceChanges
+
 // Workaround for https://github.com/sbt/sbt/issues/3465
 crossScalaVersions := Nil
 
@@ -25,14 +27,18 @@ inThisBuild(
 )
 
 lazy val commonSettings = Seq(
-  crossScalaVersions := Seq("2.12.15", "2.13.8", "3.1.1"),
-  scalaVersion       := "2.13.8",
+  crossScalaVersions := Seq("2.13.12", "3.3.1"),
+  scalaVersion       := "2.13.12",
   libraryDependencies ++= (CrossVersion.partialVersion(scalaVersion.value) match {
     case Some((3, _)) => Seq.empty
-    case _            => Seq(compilerPlugin("org.typelevel" % "kind-projector" % "0.13.2" cross CrossVersion.full))
+    case _            =>
+      Seq(
+        compilerPlugin("org.typelevel" % "kind-projector" % "0.13.2" cross CrossVersion.full),
+        "org.scala-lang" % "scala-reflect" % scalaVersion.value % Provided,
+      )
   }),
   libraryDependencies ++= Seq(
-    "org.scalatest" %%% "scalatest" % "3.2.11" % Test,
+    "org.scalatest" %%% "scalatest" % "3.2.17" % Test,
   ),
   /* scalacOptions --= Seq("-Xfatal-warnings"), // overwrite option from https://github.com/DavidGregory084/sbt-tpolecat */
 )
@@ -44,9 +50,21 @@ lazy val colibri = project
   .settings(
     name := "colibri",
     libraryDependencies ++= Seq(
-      "org.typelevel"        %%% "cats-core"   % "2.7.0",
-      "org.typelevel"        %%% "cats-effect" % "3.3.9",
-      "com.github.cornerman" %%% "sloth-types" % "0.6.3",
+      "org.typelevel" %%% "cats-core"   % "2.10.0",
+      "org.typelevel" %%% "cats-effect" % "3.4.11",
+    ),
+  )
+
+lazy val reactive = project
+  .enablePlugins(ScalaJSPlugin)
+  .dependsOn(colibri)
+  .in(file("reactive"))
+  .settings(commonSettings)
+  .settings(
+    name := "colibri-reactive",
+    libraryDependencies ++= Seq(
+      "dev.optics" %%% "monocle-core"  % "3.2.0",
+      "dev.optics" %%% "monocle-macro" % "3.2.0" % Test,
     ),
   )
 
@@ -58,7 +76,7 @@ lazy val jsdom = project
   .settings(
     name := "colibri-jsdom",
     libraryDependencies ++= Seq(
-      "org.scala-js" %%% "scalajs-dom" % "2.1.0",
+      "org.scala-js" %%% "scalajs-dom" % "2.8.0",
     ),
   )
 
@@ -68,10 +86,10 @@ lazy val jsdomTests = project
   .dependsOn(jsdom)
   .settings(commonSettings)
   .settings(
-    publish / skip := true,
-    name := "colibri-jsdom-tests",
-    Test/requireJsDomEnv := true,
-    installJsdom/version := "13.2.0",
+    publish / skip         := true,
+    name                   := "colibri-jsdom-tests",
+    Test / requireJsDomEnv := true,
+    installJsdom / version := "19.0.0",
   )
 
 lazy val router = project
@@ -92,7 +110,7 @@ lazy val rx = project
   .settings(commonSettings)
   .settings(
     name               := "colibri-rx",
-    crossScalaVersions := Seq("2.12.15", "2.13.8"), // no scala3, because scala.rx uses scala2 macros
+    crossScalaVersions := Seq("2.13.12"), // no scala3, because scala.rx uses scala2 macros
     libraryDependencies ++= Seq(
       "com.lihaoyi" %% "scalarx" % "0.4.3",
     ),
@@ -106,7 +124,7 @@ lazy val airstream = project
   .settings(
     name := "colibri-airstream",
     libraryDependencies ++= Seq(
-      "com.raquo" %%% "airstream" % "0.14.2",
+      "com.raquo" %%% "airstream" % "16.0.0",
     ),
   )
 
@@ -118,9 +136,9 @@ lazy val zio = project
   .settings(
     name := "colibri-zio",
     libraryDependencies ++= Seq(
-      "io.github.cquiroz" %%% "scala-java-time" % "2.3.0",
-      "dev.zio"           %%% "zio"             % "1.0.13",
-      "dev.zio"           %%% "zio-streams"     % "1.0.13",
+      "io.github.cquiroz" %%% "scala-java-time" % "2.5.0",
+      "dev.zio"           %%% "zio"             % "2.0.6",
+      "dev.zio"           %%% "zio-streams"     % "2.0.6",
     ),
   )
 
@@ -132,6 +150,6 @@ lazy val fs2 = project
   .settings(
     name := "colibri-fs2",
     libraryDependencies ++= Seq(
-      "co.fs2" %%% "fs2-core" % "3.2.5",
-    )
+      "co.fs2" %%% "fs2-core" % "3.9.3",
+    ),
   )

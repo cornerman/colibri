@@ -1,21 +1,22 @@
 package colibri
 
+import cats._
 import cats.implicits._
-import colibri.helpers.NativeTypes
-import colibri.effect.{RunSyncEffect, RunEffect}
-import cats.{Eq, FunctorFilter, MonoidK, Semigroupal, Applicative, Functor}
+import colibri.effect.RunEffect
 import cats.effect.{Sync, SyncIO, Async, IO, Resource}
-import sloth.types.FlatMapError
 
 import scala.scalajs.js
 import scala.scalajs.js.timers
-import scala.concurrent.Future
+import scala.concurrent.{ExecutionContext, Future}
 import scala.concurrent.duration.FiniteDuration
+import scala.util.Try
 
 trait Observable[+A] {
   def unsafeSubscribe(sink: Observer[A]): Cancelable
 }
 object Observable    {
+  import org.scalajs.macrotaskexecutor.MacrotaskExecutor
+  private val MicrotaskExecutor = scala.scalajs.concurrent.QueueExecutionContext.promises()
 
   implicit object source extends Source[Observable] {
     @inline def unsafeSubscribe[A](source: Observable[A])(sink: Observer[A]): Cancelable = source.unsafeSubscribe(sink)
@@ -25,47 +26,71 @@ object Observable    {
     @inline def lift[H[_]: Source, A](source: H[A]): Observable[A] = Observable.lift[H, A](source)
   }
 
-  implicit object monoidK extends MonoidK[Observable] {
-    @inline def empty[T]                                        = Observable.empty
-    @inline def combineK[T](a: Observable[T], b: Observable[T]) = Observable.merge(a, b)
+  implicit object catsInstances
+      extends MonadError[Observable, Throwable]
+      with FunctorFilter[Observable]
+      with Alternative[Observable]
+      with CoflatMap[Observable] {
+    @inline override def unit: Observable[Unit]                                                                        = Observable.unit
+    @inline override def pure[A](a: A): Observable[A]                                                                  = Observable.pure(a)
+    @inline override def map[A, B](fa: Observable[A])(f: A => B): Observable[B]                                        = fa.map(f)
+    @inline override def handleErrorWith[A](fa: Observable[A])(f: Throwable => Observable[A]): Observable[A]           =
+      fa.attempt.flatMap(_.fold(f, Observable.pure))
+    @inline override def raiseError[A](e: Throwable): Observable[A]                                                    = Observable.raiseError(e)
+    @inline override def recover[A](fa: Observable[A])(pf: PartialFunction[Throwable, A]): Observable[A]               = fa.recover(pf)
+    @inline override def flatMap[A, B](fa: Observable[A])(f: A => Observable[B]): Observable[B]                        = fa.flatMap(f)
+    @inline override def flatten[A](ffa: Observable[Observable[A]]): Observable[A]                                     = ffa.flatten
+    @inline override def tailRecM[A, B](a: A)(f: A => Observable[Either[A, B]]): Observable[B]                         = Observable.tailRecM[A, B](a)(f)
+    @inline override def ensure[A](fa: Observable[A])(error: => Throwable)(predicate: A => Boolean): Observable[A]     =
+      fa.mapEither(a => if (predicate(a)) Right(a) else Left(error))
+    @inline override def ensureOr[A](fa: Observable[A])(error: A => Throwable)(predicate: A => Boolean): Observable[A] =
+      fa.mapEither(a => if (predicate(a)) Right(a) else Left(error(a)))
+    @inline override def rethrow[A, EE <: Throwable](fa: Observable[Either[EE, A]]): Observable[A]                     = fa.flattenEither
+    @inline override def adaptError[A](fa: Observable[A])(pf: PartialFunction[Throwable, Throwable]): Observable[A]    = fa.adaptError(pf)
+
+    @inline def coflatMap[A, B](fa: Observable[A])(f: Observable[A] => B): Observable[B] = Observable.eval(f(fa))
+
+    @inline override def functor                                                                   = this
+    @inline override def mapFilter[A, B](fa: Observable[A])(f: A => Option[B]): Observable[B]      = fa.mapFilter(f)
+    @inline override def collect[A, B](fa: Observable[A])(f: PartialFunction[A, B]): Observable[B] = fa.collect(f)
+    @inline override def filter[A](fa: Observable[A])(f: A => Boolean): Observable[A]              = fa.filter(f)
+    @inline override def empty[T]                                                                  = Observable.empty
+    @inline override def combineK[T](a: Observable[T], b: Observable[T])                           = Observable.concat(a, b)
   }
 
-  implicit object applicative extends Applicative[Observable] {
-    @inline def ap[A, B](ff: Observable[A => B])(fa: Observable[A]): Observable[B] = ff.combineLatestMap(fa)((f, a) => f(a))
-    @inline def pure[A](a: A): Observable[A]                                       = Observable(a)
-    @inline override def map[A, B](fa: Observable[A])(f: A => B): Observable[B]    = fa.map(f)
+  implicit object catsParallelCombine extends Parallel[Observable] {
+    override type F[A] = CombineObservable.Type[A]
+
+    override def monad: Monad[Observable]                         = implicitly[Monad[Observable]]
+    override def applicative: Applicative[CombineObservable.Type] = implicitly[Applicative[CombineObservable.Type]]
+
+    override val sequential = new (CombineObservable.Type ~> Observable) {
+      def apply[A](fa: CombineObservable.Type[A]): Observable[A] = CombineObservable.unwrap(fa)
+    }
+    override val parallel   = new (Observable ~> CombineObservable.Type) {
+      def apply[A](fa: Observable[A]): CombineObservable.Type[A] = CombineObservable.wrap(fa)
+    }
   }
 
-  implicit object functorFilter extends FunctorFilter[Observable] {
-    @inline def functor                                                              = Observable.applicative
-    @inline def mapFilter[A, B](fa: Observable[A])(f: A => Option[B]): Observable[B] = fa.mapFilter(f)
+  implicit object catsInstancesSubject extends Invariant[Subject] {
+    @inline def imap[A, B](fa: Subject[A])(f: A => B)(g: B => A): Subject[B] = fa.imapProSubject(g)(f)
   }
 
-  implicit object semigroupal extends Semigroupal[Observable] {
-    @inline def product[A, B](fa: Observable[A], fb: Observable[B]): Observable[(A, B)] = fa.combineLatest(fb)
+  implicit object catsInstancesProSubject extends arrow.Profunctor[ProSubject] {
+    def dimap[A, B, C, D](fab: ProSubject[A, B])(f: C => A)(g: B => D): ProSubject[C, D] = fab.imapProSubject(f)(g)
   }
 
-  implicit object flatMapError extends FlatMapError[Observable, Throwable] {
-    def raiseError[B](failure: Throwable): Observable[B]                                    = Observable.raiseError(failure)
-    def flatMapEither[A, B](fa: Observable[A])(f: A => Either[Throwable, B]): Observable[B] = fa.mapEither(f)
+  trait ForSemantic[+A] {
+    def map[B](f: A => B): Observable[B]
+    def flatMap[B](f: A => Observable[B]): Observable[B]
   }
-
-  trait Value[+A]      extends Observable[A] {
-    def now(): A
-  }
-  trait MaybeValue[+A] extends Observable[A] {
-    def now(): Option[A]
-  }
-
-  type Hot[+A]           = Observable[A] with Cancelable
-  type HotValue[+A]      = Value[A] with Cancelable
-  type HotMaybeValue[+A] = MaybeValue[A] with Cancelable
 
   object Empty extends Observable[Nothing] {
     @inline def unsafeSubscribe(sink: Observer[Nothing]): Cancelable = Cancelable.empty
   }
 
-  @inline def empty = Empty
+  @inline def empty[A]: Observable[A] = Empty
+  val unit: Observable[Unit]          = Observable.pure(())
 
   def pure[T](value: T): Observable[T] = new Observable[T] {
     def unsafeSubscribe(sink: Observer[T]): Cancelable = {
@@ -78,25 +103,20 @@ object Observable    {
 
   @inline def apply[T](value: T, value2: T, values: T*): Observable[T] = Observable.fromIterable(value +: value2 +: values)
 
-  def delay[T](value: => T): Observable[T] = new Observable[T] {
+  def eval[T](value: => T): Observable[T] = new Observable[T] {
     def unsafeSubscribe(sink: Observer[T]): Cancelable = {
       sink.unsafeOnNext(value)
       Cancelable.empty
     }
   }
 
-  @deprecated("Use Observable.raiseError instead", "0.3.0")
-  def failure[T](error: Throwable): Observable[T]    = raiseError(error)
+  def evalObservable[T](value: => Observable[T]): Observable[T] = new Observable[T] {
+    def unsafeSubscribe(sink: Observer[T]): Cancelable = value.unsafeSubscribe(sink)
+  }
+
   def raiseError[T](error: Throwable): Observable[T] = new Observable[T] {
     def unsafeSubscribe(sink: Observer[T]): Cancelable = {
       sink.unsafeOnError(error)
-      Cancelable.empty
-    }
-  }
-
-  def fromIterable[T](values: Iterable[T]): Observable[T] = new Observable[T] {
-    def unsafeSubscribe(sink: Observer[T]): Cancelable = {
-      values.foreach(sink.unsafeOnNext)
       Cancelable.empty
     }
   }
@@ -113,6 +133,19 @@ object Observable    {
     def unsafeSubscribe(sink: Observer[A]): Cancelable = produce(sink)
   }
 
+  def createEmpty(subscription: () => Cancelable): Observable[Nothing] = create(_ => subscription())
+
+  def fromIterable[T](values: Iterable[T]): Observable[T] = new Observable[T] {
+    def unsafeSubscribe(sink: Observer[T]): Cancelable = {
+      values.foreach(sink.unsafeOnNext)
+      Cancelable.empty
+    }
+  }
+
+  def fromEval[A](evalA: Eval[A]): Observable[A] = eval(evalA.value)
+
+  def fromTry[A](value: Try[A]): Observable[A] = fromEither(value.toEither)
+
   def fromEither[A](value: Either[Throwable, A]): Observable[A] = new Observable[A] {
     def unsafeSubscribe(sink: Observer[A]): Cancelable = {
       value match {
@@ -123,10 +156,6 @@ object Observable    {
     }
   }
 
-  @deprecated("Use fromEffect instead", "0.3.0")
-  def fromSync[F[_]: RunSyncEffect, A](effect: F[A]): Observable[A] = fromEffect(effect)
-  @deprecated("Use fromEffect instead", "0.3.0")
-  def fromAsync[F[_]: RunEffect, A](effect: F[A]): Observable[A]    = fromEffect(effect)
   def fromEffect[F[_]: RunEffect, A](effect: F[A]): Observable[A]   = new Observable[A] {
     def unsafeSubscribe(sink: Observer[A]): Cancelable =
       RunEffect[F].unsafeRunSyncOrAsyncCancelable[A](effect)(_.fold(sink.unsafeOnError, sink.unsafeOnNext))
@@ -140,7 +169,9 @@ object Observable    {
 
       val cancelRun = RunEffect[F].unsafeRunSyncOrAsyncCancelable(resource.allocated) {
         case Right((value, finalizer)) =>
-          cancelable.updateExisting(Cancelable { () =>
+          sink.unsafeOnNext(value)
+
+          cancelable.unsafeAddExisting(Cancelable { () =>
             // async and forget the finalizer, we do not need to cancel it.
             // just pass the error to the sink.
             val _ = RunEffect[F].unsafeRunSyncOrAsyncCancelable(finalizer) {
@@ -148,8 +179,7 @@ object Observable    {
               case Left(error) => sink.unsafeOnError(error)
             }
           })
-
-          sink.unsafeOnNext(value)
+          cancelable.unsafeFreeze()
 
         case Left(error) =>
           sink.unsafeOnError(error)
@@ -159,36 +189,51 @@ object Observable    {
     }
   }
 
-  @deprecated("Use concatEffect instead", "0.3.0")
-  def concatSync[F[_]: RunSyncEffect, T](effects: F[T]*): Observable[T] = concatEffect(effects: _*)
-  @deprecated("Use concatEffect instead", "0.3.0")
-  def concatAsync[F[_]: RunEffect, T](effects: F[T]*): Observable[T]    = concatEffect(effects: _*)
-  def concatEffect[F[_]: RunEffect, T](effects: F[T]*): Observable[T]   = fromIterable(effects).mapEffect(identity)
-  def concatFuture[T](values: Future[T]*): Observable[T]                = fromIterable(values).mapFuture(identity)
+  def like[H[_]: ObservableLike, A](observableLike: H[A]): Observable[A] = ObservableLike[H].toObservable(observableLike)
 
-  @deprecated("Use concatEffect instead", "0.3.0")
-  def concatSync[F[_]: RunSyncEffect, T](effect: F[T], source: Observable[T]): Observable[T] = concatEffect(effect, source)
-  @deprecated("Use concatEffect instead", "0.3.0")
-  def concatAsync[F[_]: RunEffect, T](effect: F[T], source: Observable[T]): Observable[T]    = concatEffect(effect, source)
+  def concatEffect[F[_]: RunEffect, T](effects: F[T]*): Observable[T] = fromIterable(effects).mapEffect(identity)
+
+  def concatFuture[T](value1: => Future[T]): Observable[T]                                                                   = concatEffect(IO.fromFuture(IO(value1)))
+  def concatFuture[T](value1: => Future[T], value2: => Future[T]): Observable[T]                                             =
+    concatEffect(IO.fromFuture(IO(value1)), IO.fromFuture(IO(value2)))
+  def concatFuture[T](value1: => Future[T], value2: => Future[T], value3: => Future[T]): Observable[T]                       =
+    concatEffect(IO.fromFuture(IO(value1)), IO.fromFuture(IO(value2)), IO.fromFuture(IO(value3)))
+  def concatFuture[T](value1: => Future[T], value2: => Future[T], value3: => Future[T], value4: => Future[T]): Observable[T] =
+    concatEffect(IO.fromFuture(IO(value1)), IO.fromFuture(IO(value2)), IO.fromFuture(IO(value3)), IO.fromFuture(IO(value4)))
+  def concatFuture[T](
+      value1: => Future[T],
+      value2: => Future[T],
+      value3: => Future[T],
+      value4: => Future[T],
+      value5: => Future[T],
+  ): Observable[T] = concatEffect(
+    IO.fromFuture(IO(value1)),
+    IO.fromFuture(IO(value2)),
+    IO.fromFuture(IO(value3)),
+    IO.fromFuture(IO(value4)),
+    IO.fromFuture(IO(value5)),
+  )
+
   def concatEffect[F[_]: RunEffect, T](effect: F[T], source: Observable[T]): Observable[T]   = new Observable[T] {
     def unsafeSubscribe(sink: Observer[T]): Cancelable = {
       val consecutive = Cancelable.consecutive()
-      consecutive += (() =>
+      consecutive.unsafeAdd(() =>
         RunEffect[F].unsafeRunSyncOrAsyncCancelable[T](effect) { either =>
           either.fold(sink.unsafeOnError, sink.unsafeOnNext)
           consecutive.switch()
         },
       )
-      consecutive += (() => source.unsafeSubscribe(sink))
+      consecutive.unsafeAdd(() => source.unsafeSubscribe(sink))
+      consecutive.unsafeFreeze()
       consecutive
     }
   }
   def concatFuture[T](value: => Future[T], source: Observable[T]): Observable[T]             =
     concatEffect(IO.fromFuture(IO.pure(value)), source)
 
-  def merge[A](sources: Observable[A]*): Observable[A] = mergeSeq(sources)
+  @inline def merge[A](sources: Observable[A]*): Observable[A] = mergeIterable(sources)
 
-  def mergeSeq[A](sources: Seq[Observable[A]]): Observable[A] = new Observable[A] {
+  def mergeIterable[A](sources: Iterable[Observable[A]]): Observable[A] = new Observable[A] {
     def unsafeSubscribe(sink: Observer[A]): Cancelable = {
       val subscriptions = sources.map { source =>
         source.unsafeSubscribe(sink)
@@ -198,16 +243,59 @@ object Observable    {
     }
   }
 
-  def switch[A](sources: Observable[A]*): Observable[A] = switchSeq(sources)
+  @inline def switch[A](sources: Observable[A]*): Observable[A] = switchIterable(sources)
 
-  def switchSeq[A](sources: Seq[Observable[A]]): Observable[A] = new Observable[A] {
+  def switchIterable[A](sources: Iterable[Observable[A]]): Observable[A] = new Observable[A] {
     def unsafeSubscribe(sink: Observer[A]): Cancelable = {
       val variable = Cancelable.variable()
       sources.foreach { source =>
-        variable() = (() => source.unsafeSubscribe(sink))
+        variable.unsafeAdd(() => source.unsafeSubscribe(sink))
       }
+      variable.unsafeFreeze()
 
       variable
+    }
+  }
+
+  @inline def concat[A](sources: Observable[A]*): Observable[A] = concatIterable(sources)
+
+  def concatIterable[A](sources: Iterable[Observable[A]]): Observable[A] = new Observable[A] {
+    def unsafeSubscribe(sink: Observer[A]): Cancelable = {
+      val consecutive = Cancelable.consecutive()
+
+      var innerCancelCheck      = false
+      var innerCheckIsScheduled = false
+
+      sources.foreach { source =>
+        consecutive.unsafeAdd { () =>
+          var cancelable: Cancelable = null
+          cancelable = source.unsafeSubscribe(
+            Observer.create[A](
+              { a =>
+                sink.unsafeOnNext(a)
+                if (!innerCheckIsScheduled) {
+                  innerCheckIsScheduled = true
+                  innerCancelCheck = false
+                  MicrotaskExecutor.execute { () =>
+                    innerCheckIsScheduled = false
+                    if (!innerCancelCheck && cancelable.isEmpty()) consecutive.switch()
+                  }
+                }
+              },
+              sink.unsafeOnError,
+            ),
+          )
+
+          if (cancelable.isEmpty()) {
+            innerCancelCheck = true
+            consecutive.switch()
+          }
+          cancelable
+        }
+      }
+      consecutive.unsafeFreeze()
+
+      consecutive
     }
   }
 
@@ -235,35 +323,135 @@ object Observable    {
     }
   }
 
-  @inline implicit class Operations[A](val source: Observable[A]) extends AnyVal {
-    def failed: Observable[Throwable] = new Observable[Throwable] {
-      def unsafeSubscribe(sink: Observer[Throwable]): Cancelable =
-        source.unsafeSubscribe(Observer.createUnrecovered(_ => (), sink.unsafeOnNext(_)))
+  def tailRecM[A, B](a: A)(f: A => Observable[Either[A, B]]): Observable[B] = new Observable[B] {
+    def unsafeSubscribe(sink: Observer[B]): Cancelable = {
+      val subjectRecurse = Subject.publish[Observable[Either[A, B]]]()
+      val consecutive    = Cancelable.consecutive()
+
+      var openSubscriptions     = 0
+      var innerCheckIsScheduled = false
+
+      var subscription: Cancelable = null
+      subscription = subjectRecurse
+        .unsafeSubscribe(
+          Observer.create[Observable[Either[A, B]]](
+            { source =>
+              openSubscriptions += 1
+              consecutive.unsafeAdd { () =>
+                openSubscriptions -= 1
+                var cancelable: Cancelable = null
+                cancelable = source.unsafeSubscribe(
+                  Observer.create[Either[A, B]](
+                    { either =>
+                      either match {
+                        case Right(b) => sink.unsafeOnNext(b)
+                        case Left(a)  => subjectRecurse.unsafeOnNext(f(a))
+                      }
+
+                      if (!innerCheckIsScheduled) {
+                        innerCheckIsScheduled = true
+                        MicrotaskExecutor.execute { () =>
+                          innerCheckIsScheduled = false
+                          if (cancelable.isEmpty()) {
+                            if (openSubscriptions == 0) consecutive.unsafeFreeze()
+                            else consecutive.switch()
+                          }
+                        }
+                      }
+                    },
+                    sink.unsafeOnError,
+                  ),
+                )
+
+                cancelable
+              }
+            },
+            sink.unsafeOnError,
+          ),
+        )
+
+      subjectRecurse.unsafeOnNext(f(a))
+
+      Cancelable.composite(consecutive, Cancelable.withIsEmptyWrap(consecutive.isEmpty())(subscription))
     }
+
+  }
+
+  @inline implicit class Operations[A](private val source: Observable[A]) extends AnyVal {
+
+    def liftSource[H[_]: LiftSource]: H[A] = LiftSource[H].lift(source)
+
+    def failed: Observable[Throwable] = new Observable[Throwable] {
+      def unsafeSubscribe(sink: Observer[Throwable]): Cancelable = source.unsafeSubscribe(sink.failed)
+    }
+
+    def dropFailed: Observable[A] = new Observable[A] {
+      def unsafeSubscribe(sink: Observer[A]): Cancelable = source.unsafeSubscribe(sink.dropOnError)
+    }
+
+    def debugLog: Observable[A]                 = via(Observer.debugLog)
+    def debugLog(prefix: String): Observable[A] = via(Observer.debugLog(prefix))
 
     def via(sink: Observer[A]): Observable[A] = new Observable[A] {
       def unsafeSubscribe(sink2: Observer[A]): Cancelable = source.unsafeSubscribe(Observer.combine(sink, sink2))
     }
 
-    // TODO: this will become the normal foreach after the deprecated gready foreach is removed.
-    def foreach_(f: A => Unit): Observable[Unit] = to(Observer.create(f))
+    def to(sink: Observer[A]): Observable[Unit] = via(sink).void
 
-    def to(sink: Observer[A]): Observable[Unit] = new Observable[Unit] {
-      def unsafeSubscribe(sink2: Observer[Unit]): Cancelable = source.unsafeSubscribe(Observer.combine(sink, sink2.contramap(_ => ())))
-    }
+    @deprecated("Use tap instead", "0.7.8")
+    def foreach_(f: A => Unit): Observable[Unit] = via(Observer.create(f)).void
 
-    def subscribing(f: Observable[Unit]): Observable[A] = tapSubscribe(() => f.unsafeSubscribe())
+    def subscribing[B](f: Observable[B]): Observable[A] = tapSubscribe(() => f.unsafeSubscribe())
 
     def map[B](f: A => B): Observable[B] = new Observable[B] {
       def unsafeSubscribe(sink: Observer[B]): Cancelable = source.unsafeSubscribe(sink.contramap(f))
     }
 
-    def discard: Observable[Nothing]                             = Observable.empty.subscribing(void)
+    def parMapEffect[B, F[_]: RunEffect](f: A => F[B]): Observable[B] = new Observable[B] {
+      def unsafeSubscribe(sink: Observer[B]): Cancelable = {
+        val tasks = js.Array[Either[Throwable, B]]()
+
+        val taskCancelables = Cancelable.builder()
+
+        val subscription = source.unsafeSubscribe(
+          Observer.create(
+            { input =>
+              val index = tasks.length
+              tasks.push(null)
+
+              val effect = f(input)
+
+              taskCancelables.unsafeAdd(() =>
+                RunEffect[F].unsafeRunSyncOrAsyncCancelable(effect) { either =>
+                  tasks(index) = either
+                  val finishedTasks = tasks.takeWhileInPlace(_ != null)
+                  finishedTasks.foreach {
+                    case Right(value) => sink.unsafeOnNext(value)
+                    case Left(error)  => sink.unsafeOnError(error)
+                  }
+                },
+              )
+            },
+            sink.unsafeOnError,
+          ),
+        )
+
+        Cancelable.composite(
+          subscription,
+          Cancelable.checkIsEmpty(subscription.isEmpty())(taskCancelables.unsafeFreeze),
+          taskCancelables,
+        )
+      }
+    }
+
+    def parMapFuture[B](f: A => Future[B]): Observable[B] = parMapEffect(a => IO.fromFuture(IO(f(a))))
+
+    def discard: Observable[Nothing]                             = Observable.empty.subscribing(source)
     def void: Observable[Unit]                                   = map(_ => ())
     def as[B](value: B): Observable[B]                           = map(_ => value)
-    def asDelay[B](value: => B): Observable[B]                   = map(_ => value)
+    def asEval[B](value: => B): Observable[B]                    = map(_ => value)
     def asEffect[F[_]: RunEffect, B](value: F[B]): Observable[B] = mapEffect(_ => value)
-    def asFuture[B](value: Future[B]): Observable[B]             = mapFuture(_ => value)
+    def asFuture[B](value: => Future[B]): Observable[B]          = mapFuture(_ => value)
 
     def mapFilter[B](f: A => Option[B]): Observable[B] = new Observable[B] {
       def unsafeSubscribe(sink: Observer[B]): Cancelable = source.unsafeSubscribe(sink.contramapFilter(f))
@@ -281,14 +469,54 @@ object Observable    {
       def unsafeSubscribe(sink: Observer[A]): Cancelable = source.unsafeSubscribe(sink.contrafilter(f))
     }
 
+    @deprecated("Use scan instead", "0.7.8")
     def scanToList: Observable[List[A]] = scan(List.empty[A])((list, x) => x :: list)
 
+    @deprecated("Use scan0 instead", "0.7.8")
     def scan0ToList: Observable[List[A]] = scan0(List.empty[A])((list, x) => x :: list)
 
-    def scan0[B](seed: B)(f: (B, A) => B): Observable[B] = scan(seed)(f).prepend(seed)
+    def scan0[B](seed: => B)(f: (B, A) => B): Observable[B] = scan(seed)(f).prependEval(seed)
 
-    def scan[B](seed: B)(f: (B, A) => B): Observable[B] = new Observable[B] {
+    def scan[B](seed: => B)(f: (B, A) => B): Observable[B] = new Observable[B] {
       def unsafeSubscribe(sink: Observer[B]): Cancelable = source.unsafeSubscribe(sink.contrascan(seed)(f))
+    }
+
+    def scanReduce(f: (A, A) => A): Observable[A] =
+      scan[Option[A]](None)((previous, current) => Some(previous.fold(current)(f(_, current)))).flattenOption
+
+    def switchScan[B](seed: B)(f: (B, A) => Observable[B]): Observable[B] = new Observable[B] {
+      override def unsafeSubscribe(sink: Observer[B]): Cancelable = {
+        var current = seed
+        val cancel  = Cancelable.variable()
+
+        def recurse(nested: Observable[B], theA: A): Cancelable = nested.unsafeSubscribe(
+          Observer.create[B](
+            { value =>
+              current = value
+              val result = f(current, theA)
+              sink.unsafeOnNext(value)
+              cancel.unsafeAdd(() => recurse(result, theA))
+            },
+            sink.unsafeOnError,
+          ),
+        )
+
+        val subscription = source.unsafeSubscribe(
+          Observer.create[A](
+            { value =>
+              val next = f(current, value)
+              cancel.unsafeAdd(() => recurse(next, value))
+            },
+            sink.unsafeOnError,
+          ),
+        )
+
+        Cancelable.composite(
+          subscription,
+          Cancelable.checkIsEmpty(subscription.isEmpty())(cancel.unsafeFreeze),
+          cancel,
+        )
+      }
     }
 
     def mapEither[B](f: A => Either[Throwable, B]): Observable[B] = new Observable[B] {
@@ -300,8 +528,7 @@ object Observable    {
         source.unsafeSubscribe(Observer.createFromEither(sink.unsafeOnNext))
     }
 
-    @deprecated("Use attempt instead", "0.3.0")
-    def recoverToEither: Observable[Either[Throwable, A]] = source.attempt
+    def recoverMap(f: Throwable => A): Observable[A] = recover { case t => f(t) }
 
     def recover(f: PartialFunction[Throwable, A]): Observable[A] = recoverOption(f andThen (Some(_)))
 
@@ -316,12 +543,21 @@ object Observable    {
       }
     }
 
+    def adaptError(f: PartialFunction[Throwable, Throwable]): Observable[A] = new Observable[A] {
+      def unsafeSubscribe(sink: Observer[A]): Cancelable =
+        source.unsafeSubscribe(sink.doOnError { error =>
+          sink.unsafeOnError(f.applyOrElse[Throwable, Throwable](error, t => t))
+        })
+    }
+
     def tapSubscribeEffect[F[_]: RunEffect](f: F[Cancelable]): Observable[A] = new Observable[A] {
       def unsafeSubscribe(sink: Observer[A]): Cancelable = {
         val variable = Cancelable.variable()
 
         val cancelable = RunEffect[F].unsafeRunSyncOrAsyncCancelable[Cancelable](f) {
-          case Right(value) => variable.updateExisting(value)
+          case Right(value) =>
+            variable.unsafeAddExisting(value)
+            variable.unsafeFreeze()
           case Left(error)  => sink.unsafeOnError(error)
         }
 
@@ -339,8 +575,6 @@ object Observable    {
     def tapFailedEffect[F[_]: RunEffect: Applicative](f: Throwable => F[Unit]): Observable[A] =
       attempt.tapEffect(_.swap.traverseTap(f).void).flattenEither
 
-    @deprecated("Use .tapSubscribe(f) instead", "0.3.4")
-    def doOnSubscribe(f: () => Cancelable): Observable[A] = tapSubscribe(f)
     def tapSubscribe(f: () => Cancelable): Observable[A]  = new Observable[A] {
       def unsafeSubscribe(sink: Observer[A]): Cancelable = {
         val cancelable = f()
@@ -351,8 +585,17 @@ object Observable    {
       }
     }
 
-    @deprecated("Use .tap(f) instead", "0.3.4")
-    def doOnNext(f: A => Unit): Observable[A] = tap(f)
+    def tapCancel(f: () => Unit): Observable[A] = new Observable[A] {
+      def unsafeSubscribe(sink: Observer[A]): Cancelable = {
+        Cancelable.composite(
+          source.unsafeSubscribe(sink),
+          Cancelable.ignoreIsEmpty { () =>
+            f()
+          },
+        )
+      }
+    }
+
     def tap(f: A => Unit): Observable[A]      = new Observable[A] {
       def unsafeSubscribe(sink: Observer[A]): Cancelable = {
         source.unsafeSubscribe(sink.doOnNext { value =>
@@ -362,8 +605,6 @@ object Observable    {
       }
     }
 
-    @deprecated("Use .tapFailed(f) instead", "0.3.4")
-    def doOnError(f: Throwable => Unit): Observable[A] = tapFailed(f)
     def tapFailed(f: Throwable => Unit): Observable[A] = new Observable[A] {
       def unsafeSubscribe(sink: Observer[A]): Cancelable = {
         source.unsafeSubscribe(sink.doOnError { error =>
@@ -373,91 +614,101 @@ object Observable    {
       }
     }
 
-    def mergeMap[B](f: A => Observable[B]): Observable[B] = new Observable[B] {
-      def unsafeSubscribe(sink: Observer[B]): Cancelable = {
-        val builder = Cancelable.builder()
+    def merge(sources: Observable[A]*): Observable[A] = Observable.mergeIterable(source +: sources)
 
-        val subscription = source.unsafeSubscribe(
-          Observer.create[A](
-            { value =>
-              val sourceB = f(value)
-              builder += (() => sourceB.unsafeSubscribe(sink))
-            },
-            sink.unsafeOnError,
-          ),
-        )
+    def switch(sources: Observable[A]*): Observable[A] = Observable.switchIterable(source +: sources)
 
-        Cancelable.composite(subscription, builder)
+    def concat(sources: Observable[A]*): Observable[A] = Observable.concatIterable(source +: sources)
+
+    @inline def mergeMap[B](f: A => Observable[B]): Observable[B]               = mapObservableWithCancelable(f)(Cancelable.builder)
+    @inline def mergeMapEffect[F[_]: RunEffect, B](f: A => F[B]): Observable[B] = mergeMap(a => Observable.fromEffect(f(a)))
+    @inline def mergeMapFuture[B](f: A => Future[B]): Observable[B]             = mergeMap(a => Observable.fromFuture(f(a)))
+
+    @inline def switchMap[B](f: A => Observable[B]): Observable[B]               = mapObservableWithCancelable(f)(Cancelable.variable)
+    @inline def switchMapEffect[F[_]: RunEffect, B](f: A => F[B]): Observable[B] = switchMap(a => Observable.fromEffect(f(a)))
+    @inline def switchMapFuture[B](f: A => Future[B]): Observable[B]             = switchMap(a => Observable.fromFuture(f(a)))
+
+    private def mapObservableWithCancelable[B](f: A => Observable[B])(newCancelableSetter: () => Cancelable.Setter): Observable[B] =
+      new Observable[B] {
+        def unsafeSubscribe(sink: Observer[B]): Cancelable = {
+          val setter = newCancelableSetter()
+
+          val subscription = source.unsafeSubscribe(
+            Observer.create[A](
+              { value =>
+                val sourceB = f(value)
+                setter.unsafeAdd(() => sourceB.unsafeSubscribe(sink))
+              },
+              sink.unsafeOnError,
+            ),
+          )
+
+          Cancelable.composite(
+            subscription,
+            Cancelable.checkIsEmpty(subscription.isEmpty())(setter.unsafeFreeze),
+            setter,
+          )
+        }
       }
-    }
 
-    def merge(sources: Observable[A]*): Observable[A] = Observable.mergeSeq(source +: sources)
-
-    def switch(sources: Observable[A]*): Observable[A] = Observable.switchSeq(source +: sources)
-
-    def switchMap[B](f: A => Observable[B]): Observable[B] = new Observable[B] {
-      def unsafeSubscribe(sink: Observer[B]): Cancelable = {
-        val current = Cancelable.variable()
-
-        val subscription = source.unsafeSubscribe(
-          Observer.create[A](
-            { value =>
-              val sourceB = f(value)
-              current() = (() => sourceB.unsafeSubscribe(sink))
-            },
-            sink.unsafeOnError,
-          ),
-        )
-
-        Cancelable.composite(current, subscription)
-      }
-    }
-
-    @deprecated("Use mapEffect instead", "0.3.0")
-    @inline def mapSync[F[_]: RunSyncEffect, B](f: A => F[B]): Observable[B] = mapEffect(f)
-    @deprecated("Use mapEffect instead", "0.3.0")
-    def mapAsync[F[_]: RunEffect, B](f: A => F[B]): Observable[B]            = mapEffect(f)
-    def mapEffect[F[_]: RunEffect, B](f: A => F[B]): Observable[B]           = new Observable[B] {
+    @inline def mapEffect[F[_]: RunEffect, B](f: A => F[B]): Observable[B] = concatMapEffect(f)
+    def concatMapEffect[F[_]: RunEffect, B](f: A => F[B]): Observable[B]   = new Observable[B] {
       def unsafeSubscribe(sink: Observer[B]): Cancelable = {
         val consecutive = Cancelable.consecutive()
 
+        var isRunOpen = false
+
         val subscription = source.unsafeSubscribe(
           Observer.create[A](
             { value =>
               val effect = f(value)
-              consecutive += (() =>
+              consecutive.unsafeAdd { () =>
+                isRunOpen = true
                 RunEffect[F].unsafeRunSyncOrAsyncCancelable[B](effect) { either =>
+                  isRunOpen = false
                   either.fold(sink.unsafeOnError, sink.unsafeOnNext)
                   consecutive.switch()
-                },
-              )
+                }
+              }
             },
             sink.unsafeOnError,
           ),
         )
 
-        Cancelable.composite(subscription, consecutive)
+        Cancelable.composite(
+          subscription,
+          Cancelable.withIsEmptyWrap(subscription.isEmpty() && !isRunOpen)(consecutive),
+        )
       }
     }
 
-    @inline def mapFuture[B](f: A => Future[B]): Observable[B] = mapEffect(v => IO.fromFuture(IO(f(v))))
+    @inline def mapFuture[B](f: A => Future[B]): Observable[B]       = concatMapFuture(f)
+    @inline def concatMapFuture[B](f: A => Future[B]): Observable[B] = mapEffect(v => IO.fromFuture(IO(f(v))))
 
-    def mapResource[F[_]: RunEffect: Sync, B](f: A => Resource[F, B]): Observable[B] = new Observable[B] {
+    @inline def mapResource[F[_]: RunEffect: Sync, B](f: A => Resource[F, B]): Observable[B] =
+      mapResourceWithCancelable(f)(Cancelable.builder)
+
+    @inline def switchMapResource[F[_]: RunEffect: Sync, B](f: A => Resource[F, B]): Observable[B] =
+      mapResourceWithCancelable(f)(Cancelable.variable)
+
+    private def mapResourceWithCancelable[F[_]: RunEffect: Sync, B](
+        f: A => Resource[F, B],
+    )(newCancelableSetter: () => Cancelable.Setter): Observable[B] = new Observable[B] {
       def unsafeSubscribe(sink: Observer[B]): Cancelable = {
-        val consecutive       = Cancelable.consecutive()
-        val cancelableBuilder = Cancelable.builder()
+        val consecutive      = Cancelable.consecutive()
+        val cancelableSetter = newCancelableSetter()
 
         val subscription = source.unsafeSubscribe(
           Observer.create[A](
             { value =>
               val resource = f(value)
-              consecutive += (() =>
+              consecutive.unsafeAdd(() =>
                 RunEffect[F].unsafeRunSyncOrAsyncCancelable(resource.allocated) { either =>
                   either match {
                     case Right((value, finalizer)) =>
                       sink.unsafeOnNext(value)
 
-                      cancelableBuilder.addExisting(Cancelable { () =>
+                      cancelableSetter.unsafeAddExisting(Cancelable { () =>
                         // async and forget the finalizer, we do not need to cancel it.
                         // just pass the error to the sink.
                         val _ = RunEffect[F].unsafeRunSyncOrAsyncCancelable(finalizer) {
@@ -478,78 +729,182 @@ object Observable    {
           ),
         )
 
-        Cancelable.composite(subscription, consecutive, cancelableBuilder)
+        Cancelable.composite(subscription, consecutive, cancelableSetter)
       }
     }
 
-    def switchMapResource[F[_]: RunEffect: Sync, B](f: A => Resource[F, B]): Observable[B] = new Observable[B] {
-      def unsafeSubscribe(sink: Observer[B]): Cancelable = {
-        val consecutive       = Cancelable.consecutive()
-        val cancelableVariable = Cancelable.variable()
-
-        val subscription = source.unsafeSubscribe(
-          Observer.create[A](
-            { value =>
-              val resource = f(value)
-              consecutive += (() =>
-                RunEffect[F].unsafeRunSyncOrAsyncCancelable(resource.allocated) { either =>
-                  either match {
-                    case Right((value, finalizer)) =>
-                      sink.unsafeOnNext(value)
-
-                      cancelableVariable.updateExisting(Cancelable { () =>
-                        // async and forget the finalizer, we do not need to cancel it.
-                        // just pass the error to the sink.
-                        val _ = RunEffect[F].unsafeRunSyncOrAsyncCancelable(finalizer) {
-                          case Right(())   => ()
-                          case Left(error) => sink.unsafeOnError(error)
-                        }
-                      })
-
-                    case Left(error) =>
-                      sink.unsafeOnError(error)
-                  }
-
-                  consecutive.switch()
-                },
-              )
-            },
-            sink.unsafeOnError,
-          ),
-        )
-
-        Cancelable.composite(subscription, consecutive, cancelableVariable)
-      }
-    }
-
-    @deprecated("Use mapEffectSingleOrDrop instead", "0.3.0")
-    def mapAsyncSingleOrDrop[F[_]: RunEffect, B](f: A => F[B]): Observable[B]  = mapEffectSingleOrDrop(f)
-    def mapEffectSingleOrDrop[F[_]: RunEffect, B](f: A => F[B]): Observable[B] = new Observable[B] {
+    def singleMapEffect[F[_]: RunEffect, B](f: A => F[B]): Observable[B]       = new Observable[B] {
       def unsafeSubscribe(sink: Observer[B]): Cancelable = {
         val single = Cancelable.singleOrDrop()
 
+        var isRunOpen = false
+
         val subscription = source.unsafeSubscribe(
           Observer.create[A](
             { value =>
               val effect = f(value)
-              single() = (
-                  () =>
-                    RunEffect[F].unsafeRunSyncOrAsyncCancelable[B](effect) { either =>
-                      either.fold(sink.unsafeOnError, sink.unsafeOnNext)
-                      single.done()
-                    },
-              )
+              single.unsafeAdd { () =>
+                isRunOpen = true
+                RunEffect[F].unsafeRunSyncOrAsyncCancelable[B](effect) { either =>
+                  isRunOpen = false
+                  either.fold(sink.unsafeOnError, sink.unsafeOnNext)
+                  single.done()
+                }
+              }
             },
             sink.unsafeOnError,
           ),
         )
 
-        Cancelable.composite(subscription, single)
+        Cancelable.composite(
+          subscription,
+          Cancelable.withIsEmptyWrap(subscription.isEmpty() && !isRunOpen)(single),
+        )
       }
     }
 
-    @inline def mapFutureSingleOrDrop[B](f: A => Future[B]): Observable[B] =
-      mapEffectSingleOrDrop(v => IO.fromFuture(IO(f(v))))
+    @inline def singleMapFuture[B](f: A => Future[B]): Observable[B]       =
+      singleMapEffect(v => IO.fromFuture(IO(f(v))))
+
+    @inline def flatMap[B](f: A => Observable[B]): Observable[B] = concatMap(f)
+
+    def concatMap[B](f: A => Observable[B]): Observable[B] = new Observable[B] {
+      def unsafeSubscribe(sink: Observer[B]): Cancelable = {
+        val consecutive = Cancelable.consecutive()
+
+        var innerCancelCheck      = false
+        var innerCheckIsScheduled = false
+
+        val subscription = source.unsafeSubscribe(
+          Observer.create[A](
+            { value =>
+              val source = f(value)
+
+              consecutive.unsafeAdd { () =>
+                var cancelable: Cancelable = null
+                cancelable = source.unsafeSubscribe(
+                  Observer.create[B](
+                    { b =>
+                      sink.unsafeOnNext(b)
+                      if (!innerCheckIsScheduled) {
+                        innerCheckIsScheduled = true
+                        innerCancelCheck = false
+                        MicrotaskExecutor.execute { () =>
+                          innerCheckIsScheduled = false
+                          if (!innerCancelCheck && cancelable.isEmpty()) consecutive.switch()
+                        }
+                      }
+                    },
+                    sink.unsafeOnError,
+                  ),
+                )
+
+                if (cancelable.isEmpty()) {
+                  innerCancelCheck = true
+                  consecutive.switch()
+                }
+                cancelable
+              }
+            },
+            sink.unsafeOnError,
+          ),
+        )
+
+        Cancelable.composite(
+          subscription,
+          Cancelable.checkIsEmpty(subscription.isEmpty())(consecutive.unsafeFreeze),
+          consecutive,
+        )
+      }
+    }
+
+    def forMerge: ForSemantic[A] = new ForSemantic[A] {
+      def map[B](f: A => B): Observable[B]                 = source.map(f)
+      def flatMap[B](f: A => Observable[B]): Observable[B] = source.mergeMap(f)
+    }
+
+    def forSwitch: ForSemantic[A] = new ForSemantic[A] {
+      def map[B](f: A => B): Observable[B]                 = source.map(f)
+      def flatMap[B](f: A => Observable[B]): Observable[B] = source.switchMap(f)
+    }
+
+    def forConcat: ForSemantic[A] = new ForSemantic[A] {
+      def map[B](f: A => B): Observable[B]                 = source.map(f)
+      def flatMap[B](f: A => Observable[B]): Observable[B] = source.concatMap(f)
+    }
+
+    def dropSyncAll: Observable[A] = new Observable[A] {
+      def unsafeSubscribe(sink: Observer[A]): Cancelable = {
+        var isSync = true
+
+        val cancelable = source.unsafeSubscribe(
+          Observer.create[A](
+            value => if (!isSync) sink.unsafeOnNext(value),
+            sink.unsafeOnError,
+          ),
+        )
+
+        isSync = false
+
+        cancelable
+      }
+    }
+
+    def dropUntilSyncLatest: Observable[A] = new Observable[A] {
+      def unsafeSubscribe(sink: Observer[A]): Cancelable = {
+        var isSync        = true
+        var lastSyncValue = Option.empty[A]
+
+        val cancelable = source.unsafeSubscribe(
+          Observer.create[A](
+            { value =>
+              if (isSync) {
+                lastSyncValue = Some(value)
+              } else {
+                sink.unsafeOnNext(value)
+              }
+            },
+            sink.unsafeOnError,
+          ),
+        )
+
+        isSync = false
+        lastSyncValue.foreach(sink.unsafeOnNext)
+        cancelable
+      }
+    }
+
+    def dropSyncGlitches: Observable[A] = new Observable[A] {
+      def unsafeSubscribe(sink: Observer[A]): Cancelable = {
+        var isCancel       = false
+        var runIsScheduled = false
+        var lastValue      = Option.empty[A]
+
+        val cancelable = source.unsafeSubscribe(
+          Observer.create[A](
+            { value =>
+              lastValue = Some(value)
+              if (!runIsScheduled) {
+                runIsScheduled = true
+                MicrotaskExecutor.execute { () =>
+                  runIsScheduled = false
+                  if (!isCancel) lastValue.foreach(sink.unsafeOnNext)
+                  lastValue = None
+                }
+              }
+            },
+            sink.unsafeOnError,
+          ),
+        )
+
+        Cancelable.composite(
+          Cancelable.withIsEmpty(!runIsScheduled) { () =>
+            isCancel = true
+          },
+          cancelable,
+        )
+      }
+    }
 
     @inline def zip[B](sourceB: Observable[B]): Observable[(A, B)]                                                             =
       zipMap(sourceB)(_ -> _)
@@ -623,6 +978,8 @@ object Observable    {
         sourceF: Observable[F],
     )(f: (A, B, C, D, E, F) => R): Observable[R] =
       zipMap(sourceB.zip(sourceC, sourceD, sourceE, sourceF))((a, tail) => f(a, tail._1, tail._2, tail._3, tail._4, tail._5))
+
+    @inline def combineLatest_(sourceB: Observable[Unit]): Observable[A] = combineLatestMap(sourceB)((a, _) => a)
 
     @inline def combineLatest[B](sourceB: Observable[B]): Observable[(A, B)]                                                             =
       combineLatestMap(sourceB)(_ -> _)
@@ -798,9 +1155,10 @@ object Observable    {
       def unsafeSubscribe(sink: Observer[A]): Cancelable = {
         var lastTimeout: js.UndefOr[timers.SetTimeoutHandle] = js.undefined
         var isCancel                                         = false
+        var openRuns                                         = 0
 
         Cancelable.composite(
-          Cancelable { () =>
+          Cancelable.withIsEmpty(openRuns == 0) { () =>
             isCancel = true
             lastTimeout.foreach(timers.clearTimeout)
           },
@@ -810,10 +1168,38 @@ object Observable    {
                 lastTimeout.foreach { id =>
                   timers.clearTimeout(id)
                 }
+                openRuns += 1
                 lastTimeout = timers.setTimeout(duration.toDouble) {
+                  openRuns -= 1
                   if (!isCancel) sink.unsafeOnNext(value)
                 }
               },
+              sink.unsafeOnError,
+            ),
+          ),
+        )
+      }
+    }
+
+    @inline def sampleWith(trigger: Observable[Unit]): Observable[A] = new Observable[A] {
+      def unsafeSubscribe(sink: Observer[A]): Cancelable = {
+        var lastValue: Option[A] = None
+
+        def send(): Unit = {
+          lastValue.foreach(sink.unsafeOnNext)
+          lastValue = None
+        }
+
+        Cancelable.composite(
+          source.unsafeSubscribe(
+            Observer.createUnrecovered(
+              value => lastValue = Some(value),
+              sink.unsafeOnError,
+            ),
+          ),
+          trigger.unsafeSubscribe(
+            Observer.createUnrecovered(
+              _ => send(),
               sink.unsafeOnError,
             ),
           ),
@@ -850,18 +1236,21 @@ object Observable    {
       }
     }
 
-    def asyncMicro: Observable[A] = new Observable[A] {
+    def evalOn(ec: ExecutionContext): Observable[A] = new Observable[A] {
       def unsafeSubscribe(sink: Observer[A]): Cancelable = {
         var isCancel = false
+        var openRuns = 0
 
         Cancelable.composite(
-          Cancelable { () =>
+          Cancelable.withIsEmpty(openRuns == 0) { () =>
             isCancel = true
           },
           source.unsafeSubscribe(
             Observer.create[A](
               { value =>
-                NativeTypes.queueMicrotask { () =>
+                openRuns += 1
+                ec.execute { () =>
+                  openRuns -= 1
                   if (!isCancel) sink.unsafeOnNext(value)
                 }
               },
@@ -872,32 +1261,9 @@ object Observable    {
       }
     }
 
+    def asyncMicro: Observable[A]    = evalOn(MicrotaskExecutor)
+    def asyncMacro: Observable[A]    = evalOn(MacrotaskExecutor)
     @inline def async: Observable[A] = asyncMacro
-    def asyncMacro: Observable[A]    = new Observable[A] {
-      def unsafeSubscribe(sink: Observer[A]): Cancelable = {
-        var lastTimeout: js.UndefOr[NativeTypes.SetImmediateHandle] = js.undefined
-        var isCancel                                                = false
-
-        // TODO: we only actually cancel the last timeout. The check isCancel
-        // makes sure that unsafeCancelled subscription is really respected.
-        Cancelable.composite(
-          Cancelable { () =>
-            isCancel = true
-            lastTimeout.foreach(NativeTypes.clearImmediateRef)
-          },
-          source.unsafeSubscribe(
-            Observer.create[A](
-              { value =>
-                lastTimeout = NativeTypes.setImmediateRef { () =>
-                  if (!isCancel) sink.unsafeOnNext(value)
-                }
-              },
-              sink.unsafeOnError,
-            ),
-          ),
-        )
-      }
-    }
 
     @inline def delay(duration: FiniteDuration): Observable[A] = delayMillis(duration.toMillis.toInt)
 
@@ -905,18 +1271,21 @@ object Observable    {
       def unsafeSubscribe(sink: Observer[A]): Cancelable = {
         var lastTimeout: js.UndefOr[timers.SetTimeoutHandle] = js.undefined
         var isCancel                                         = false
+        var openRuns                                         = 0
 
         // TODO: we only actually cancel the last timeout. The check isCancel
         // makes sure that unsafeCancelled subscription is really respected.
         Cancelable.composite(
-          Cancelable { () =>
+          Cancelable.withIsEmpty(openRuns == 0) { () =>
             isCancel = true
             lastTimeout.foreach(timers.clearTimeout)
           },
           source.unsafeSubscribe(
             Observer.create[A](
               { value =>
+                openRuns += 1
                 lastTimeout = timers.setTimeout(duration.toDouble) {
+                  openRuns -= 1
                   if (!isCancel) sink.unsafeOnNext(value)
                 }
               },
@@ -952,20 +1321,6 @@ object Observable    {
     @inline def distinctByOnEquals[B](f: A => B): Observable[A] = distinctBy(f)(Eq.fromUniversalEquals)
     @inline def distinctOnEquals: Observable[A]                 = distinct(Eq.fromUniversalEquals)
 
-    def withDefaultSubscription(sink: Observer[A]): Observable[A] = new Observable[A] {
-      private var defaultSubscription = source.unsafeSubscribe(sink)
-
-      def unsafeSubscribe(sink: Observer[A]): Cancelable = {
-        // stop the default subscription.
-        if (defaultSubscription != null) {
-          defaultSubscription.unsafeCancel()
-          defaultSubscription = null
-        }
-
-        source.unsafeSubscribe(sink)
-      }
-    }
-
     @inline def transformSource[B](transform: Observable[A] => Observable[B]): Observable[B] = new Observable[B] {
       def unsafeSubscribe(sink: Observer[B]): Cancelable = transform(source).unsafeSubscribe(sink)
     }
@@ -974,18 +1329,22 @@ object Observable    {
       def unsafeSubscribe(sink: Observer[B]): Cancelable = source.unsafeSubscribe(transform(sink))
     }
 
-    @inline def publish: Connectable[Observable[A]]                  = multicast(Subject.publish[A]())
-    @deprecated("Use replayLatest instead", "0.3.4")
-    @inline def replay: Connectable[Observable.MaybeValue[A]]        = replayLatest
-    @inline def replayLatest: Connectable[Observable.MaybeValue[A]]  = multicastMaybeValue(Subject.replayLatest[A]())
-    @inline def behavior(value: A): Connectable[Observable.Value[A]] = multicastValue(Subject.behavior(value))
+    @inline def publish: Connectable[Observable[A]]                 = multicast(Subject.publish[A]())
+    @inline def replayLatest: Connectable[Observable[A]] = multicast(Subject.replayLatest[A]())
+    @inline def replayAll: Connectable[Observable[A]]               = multicast(Subject.replayAll[A]())
+    @inline def behavior(seed: A): Connectable[Observable[A]] = multicast(Subject.behavior(seed))
+
+    @inline def publishShare: Observable[A]                 = publish.refCount
+    @inline def replayLatestShare: Observable[A] = replayLatest.refCount
+    @inline def replayAllShare: Observable[A]               = replayAll.refCount
+    @inline def behaviorShare(seed: A): Observable[A] = behavior(seed).refCount
 
     @inline def publishSelector[B](f: Observable[A] => Observable[B]): Observable[B]                  = transformSource(s => f(s.publish.refCount))
-    @deprecated("Use replayLatestSelector instead", "0.3.4")
-    @inline def replaySelector[B](f: Observable.MaybeValue[A] => Observable[B]): Observable[B]        = replayLatestSelector(f)
-    @inline def replayLatestSelector[B](f: Observable.MaybeValue[A] => Observable[B]): Observable[B]  =
+    @inline def replayLatestSelector[B](f: Observable[A] => Observable[B]): Observable[B]  =
       transformSource(s => f(s.replayLatest.refCount))
-    @inline def behaviorSelector[B](value: A)(f: Observable.Value[A] => Observable[B]): Observable[B] =
+    @inline def replayAllSelector[B](f: Observable[A] => Observable[B]): Observable[B]                =
+      transformSource(s => f(s.replayAll.refCount))
+    @inline def behaviorSelector[B](value: A)(f: Observable[A] => Observable[B]): Observable[B] =
       transformSource(s => f(s.behavior(value).refCount))
 
     def multicast(pipe: Subject[A]): Connectable[Observable[A]] = Connectable(
@@ -995,36 +1354,27 @@ object Observable    {
       () => source.unsafeSubscribe(pipe),
     )
 
-    def multicastValue(pipe: Subject.Value[A]): Connectable[Observable.Value[A]] = Connectable(
-      new Value[A] {
-        def now(): A                                       = pipe.now()
-        def unsafeSubscribe(sink: Observer[A]): Cancelable = pipe.unsafeSubscribe(sink)
-      },
-      () => source.unsafeSubscribe(pipe),
-    )
+    def fold[B](seed: B)(f: (B, A) => B): Observable[B]         = scan(seed)(f).last
+    def foldF[F[_]: Async, B](seed: B)(f: (B, A) => B): F[B]    = scan(seed)(f).lastF[F]
+    def foldIO[B](seed: B)(f: (B, A) => B): IO[B]               = scan(seed)(f).lastIO
+    def unsafeFoldFuture[B](seed: B)(f: (B, A) => B): Future[B] = scan(seed)(f).unsafeLastFuture()
 
-    def multicastMaybeValue(pipe: Subject.MaybeValue[A]): Connectable[Observable.MaybeValue[A]] = Connectable(
-      new MaybeValue[A] {
-        def now(): Option[A]                               = pipe.now()
-        def unsafeSubscribe(sink: Observer[A]): Cancelable = pipe.unsafeSubscribe(sink)
-      },
-      () => source.unsafeSubscribe(pipe),
-    )
+    @inline def prependEffect[F[_]: RunEffect](value: F[A]): Observable[A] = concatEffect[F, A](value, source)
+    @inline def prependFuture(value: => Future[A]): Observable[A]          = concatFuture[A](value, source)
 
-    @deprecated("Use prependEffect instead", "0.3.0")
-    @inline def prependSync[F[_]: RunSyncEffect](value: F[A]): Observable[A] = prependEffect(value)
-    @deprecated("Use prependEffect instead", "0.3.0")
-    @inline def prependAsync[F[_]: RunEffect](value: F[A]): Observable[A]    = prependEffect(value)
-    @inline def prependEffect[F[_]: RunEffect](value: F[A]): Observable[A]   = concatEffect[F, A](value, source)
-    @inline def prependFuture(value: => Future[A]): Observable[A]            = concatFuture[A](value, source)
-
-    def prepend(value: A): Observable[A]         = prependDelay(value)
-    def prependDelay(value: => A): Observable[A] = new Observable[A] {
+    def prepend(value: A): Observable[A]        = prependEval(value)
+    def prependEval(value: => A): Observable[A] = new Observable[A] {
       def unsafeSubscribe(sink: Observer[A]): Cancelable = {
         sink.unsafeOnNext(value)
         source.unsafeSubscribe(sink)
       }
     }
+
+    @inline def appendEffect[F[_]: RunEffect](value: F[A]): Observable[A] = concat(Observable.fromEffect(value))
+    @inline def appendFuture(value: => Future[A]): Observable[A]          = concat(Observable.fromFuture(value))
+
+    @inline def append(value: A): Observable[A]        = concat(Observable(value))
+    @inline def appendEval(value: => A): Observable[A] = concat(Observable.eval(value))
 
     def startWith(values: Iterable[A]): Observable[A] = new Observable[A] {
       def unsafeSubscribe(sink: Observer[A]): Cancelable = {
@@ -1033,9 +1383,54 @@ object Observable    {
       }
     }
 
-    @deprecated("Use headEffect instead", "0.3.0")
-    def headF[F[_]: Async]: F[A]      = headEffect[F]
-    def headEffect[F[_]: Async]: F[A] = Async[F].async[A] { callback =>
+    def endWith(values: Iterable[A]): Observable[A] = concat(Observable.fromIterable(values))
+
+    def syncLatestF[F[_]: Sync]: F[Option[A]] = Sync[F].defer {
+      var lastValue = Option.empty[F[A]]
+
+      val cancelable = source.unsafeSubscribe(
+        Observer.create[A](value => lastValue = Some(Sync[F].pure(value)), error => lastValue = Some(Sync[F].raiseError(error))),
+      )
+      cancelable.unsafeCancel()
+
+      lastValue.sequence
+    }
+
+    @inline def syncLatestIO: IO[Option[A]] = syncLatestF[IO]
+
+    @inline def syncLatestSyncIO: SyncIO[Option[A]] = syncLatestF[SyncIO]
+
+    @inline def syncLatest: Observable[A] = Observable.fromEffect(syncLatestSyncIO).flattenOption
+
+    def syncAllF[F[_]: Sync]: F[Seq[A]] = Sync[F].defer {
+      val values = collection.mutable.ArrayBuffer[F[A]]()
+
+      val cancelable = source.unsafeSubscribe(
+        Observer.create[A](value => values.addOne(Sync[F].pure(value)), error => values.addOne(Sync[F].raiseError(error))),
+      )
+      cancelable.unsafeCancel()
+
+      values.toSeq.sequence
+    }
+
+    @inline def syncAllIO: IO[Seq[A]] = syncAllF[IO]
+
+    @inline def syncAllSyncIO: SyncIO[Seq[A]] = syncAllF[SyncIO]
+
+    @inline def syncAll: Observable[A] = Observable.fromEffect(syncAllSyncIO).flattenIterable
+
+    @inline def collectFirst[B](f: PartialFunction[A, B]): Observable[B]      = Observable.fromEffect(collectFirstIO(f))
+    @inline def collectFirstIO[B](f: PartialFunction[A, B]): IO[B]            = collectFirstF[IO, B](f)
+    @inline def collectFirstF[F[_]: Async, B](f: PartialFunction[A, B]): F[B] = mapFilterFirstF(f.lift)
+
+    @inline def mapFilterFirst[B](f: A => Option[B]): Observable[B]      = Observable.fromEffect(mapFilterFirstIO(f))
+    @inline def mapFilterFirstIO[B](f: A => Option[B]): IO[B]            = mapFilterFirstF[IO, B](f)
+    @inline def mapFilterFirstF[F[_]: Async, B](f: A => Option[B]): F[B] = mapFilter(f).headF
+
+    @inline def collectWhile[B](f: PartialFunction[A, B]): Observable[B] = mapFilterWhile(f.lift)
+    @inline def mapFilterWhile[B](f: A => Option[B]): Observable[B]      = map(f).takeWhile(_.isDefined).flattenOption
+
+    def headF[F[_]: Async]: F[A] = Async[F].async[A] { callback =>
       Async[F].delay {
         val cancelable = Cancelable.variable()
         var isDone     = false
@@ -1046,15 +1441,64 @@ object Observable    {
           callback(value)
         }
 
-        cancelable() = (() => source.unsafeSubscribe(Observer.create[A](value => dispatch(Right(value)), error => dispatch(Left(error)))))
+        cancelable.unsafeAdd(() =>
+          source.unsafeSubscribe(Observer.create[A](value => dispatch(Right(value)), error => dispatch(Left(error)))),
+        )
+
+        cancelable.unsafeFreeze()
 
         Some(Async[F].delay(cancelable.unsafeCancel()))
       }
     }
 
-    @inline def headIO: IO[A] = headEffect[IO]
+    @inline def headIO: IO[A] = headF[IO]
+
+    @inline def unsafeHeadFuture(): Future[A] = headIO.unsafeToFuture()(cats.effect.unsafe.IORuntime.global)
 
     @inline def head: Observable[A] = take(1)
+
+    def lastF[F[_]: Async]: F[A] = Async[F].async[A] { callback =>
+      Async[F].delay {
+        var lastValue: Either[Throwable, A] = null
+        val cancelable                      = Cancelable.variable()
+
+        var innerCancelCheck      = false
+        var innerCheckIsScheduled = false
+
+        def dispatch(value: Either[Throwable, A]) = {
+          lastValue = value
+          if (!innerCheckIsScheduled) {
+            innerCheckIsScheduled = true
+            innerCancelCheck = false
+            MicrotaskExecutor.execute { () =>
+              innerCheckIsScheduled = false
+              if (!innerCancelCheck && cancelable.isEmpty()) callback(lastValue)
+            }
+          }
+        }
+
+        cancelable.unsafeAdd(() =>
+          source.unsafeSubscribe(Observer.create[A](value => dispatch(Right(value)), error => dispatch(Left(error)))),
+        )
+
+        cancelable.unsafeFreeze()
+
+        if (cancelable.isEmpty() && lastValue != null) {
+          innerCancelCheck = true
+          callback(lastValue)
+        }
+
+        Some(Async[F].delay(cancelable.unsafeCancel()))
+      }
+    }
+
+    @inline def lastIO: IO[A] = lastF[IO]
+
+    @inline def unsafeLastFuture(): Future[A] = lastIO.unsafeToFuture()(cats.effect.unsafe.IORuntime.global)
+
+    @inline def last: Observable[A] = Observable.fromEffect(lastIO)
+
+    @inline def tail: Observable[A] = drop(1)
 
     def take(num: Int): Observable[A] = {
       if (num <= 0) Observable.empty
@@ -1063,40 +1507,62 @@ object Observable    {
           def unsafeSubscribe(sink: Observer[A]): Cancelable = {
             var counter      = 0
             val subscription = Cancelable.variable()
-            subscription() = (
-                () =>
-                  source.unsafeSubscribe(sink.contrafilter { _ =>
-                    if (num > counter) {
-                      counter += 1
-                      true
-                    } else {
-                      subscription.unsafeCancel()
-                      false
-                    }
-                  }),
+            subscription.unsafeAdd(() =>
+              source.unsafeSubscribe(sink.contrafilter { _ =>
+                if (num > counter) {
+                  counter += 1
+                  true
+                } else {
+                  subscription.unsafeCancel()
+                  false
+                }
+              }),
             )
+            subscription.unsafeFreeze()
 
             subscription
           }
         }
     }
 
+    def takeWhileInclusive(predicate: A => Boolean): Observable[A] = new Observable[A] {
+      def unsafeSubscribe(sink: Observer[A]): Cancelable = {
+        var finishedTake = false
+        val subscription = Cancelable.variable()
+        subscription.unsafeAdd(() =>
+          source.unsafeSubscribe(sink.contrafilter { v =>
+            if (finishedTake) false
+            else {
+              if (!predicate(v)) {
+                finishedTake = true
+                subscription.unsafeCancel()
+              }
+              true
+            }
+          }),
+        )
+        subscription.unsafeFreeze()
+
+        subscription
+      }
+    }
+
     def takeWhile(predicate: A => Boolean): Observable[A] = new Observable[A] {
       def unsafeSubscribe(sink: Observer[A]): Cancelable = {
         var finishedTake = false
         val subscription = Cancelable.variable()
-        subscription() = (
-            () =>
-              source.unsafeSubscribe(sink.contrafilter { v =>
-                if (finishedTake) false
-                else if (predicate(v)) true
-                else {
-                  finishedTake = true
-                  subscription.unsafeCancel()
-                  false
-                }
-              }),
+        subscription.unsafeAdd(() =>
+          source.unsafeSubscribe(sink.contrafilter { v =>
+            if (finishedTake) false
+            else if (predicate(v)) true
+            else {
+              finishedTake = true
+              subscription.unsafeCancel()
+              false
+            }
+          }),
         )
+        subscription.unsafeFreeze()
 
         subscription
       }
@@ -1107,7 +1573,7 @@ object Observable    {
         var finishedTake = false
         val subscription = Cancelable.builder()
 
-        subscription += (() =>
+        subscription.unsafeAdd(() =>
           until.unsafeSubscribe(
             Observer.createUnrecovered[Unit](
               { _ =>
@@ -1119,9 +1585,28 @@ object Observable    {
           ),
         )
 
-        if (!finishedTake) subscription += (() => source.unsafeSubscribe(sink.contrafilter(_ => !finishedTake)))
+        if (!finishedTake) subscription.unsafeAdd(() => source.unsafeSubscribe(sink.contrafilter(_ => !finishedTake)))
+
+        subscription.unsafeFreeze()
 
         subscription
+      }
+    }
+
+    def replaceWith(obs: Observable[A]): Observable[A] = new Observable[A] {
+      def unsafeSubscribe(sink: Observer[A]): Cancelable = {
+        val replacedSubscription = Cancelable.variable()
+
+        val subscription = obs
+          .tap(_ => replacedSubscription.unsafeCancel())
+          .unsafeSubscribe(sink)
+
+        replacedSubscription.unsafeAdd(() => source.unsafeSubscribe(sink))
+
+        Cancelable.composite(
+          replacedSubscription,
+          subscription,
+        )
       }
     }
 
@@ -1160,18 +1645,19 @@ object Observable    {
         var finishedDrop = false
 
         val untilCancelable = Cancelable.variable()
-        untilCancelable() = (
-            () =>
-              until.unsafeSubscribe(
-                Observer.createUnrecovered[Unit](
-                  { _ =>
-                    finishedDrop = true
-                    untilCancelable.unsafeCancel()
-                  },
-                  sink.unsafeOnError(_),
-                ),
-              ),
+        untilCancelable.unsafeAdd(() =>
+          until.unsafeSubscribe(
+            Observer.createUnrecovered[Unit](
+              { _ =>
+                finishedDrop = true
+                untilCancelable.unsafeCancel()
+              },
+              sink.unsafeOnError(_),
+            ),
+          ),
         )
+
+        untilCancelable.unsafeFreeze()
 
         val subscription = source.unsafeSubscribe(sink.contrafilter(_ => finishedDrop))
 
@@ -1185,39 +1671,40 @@ object Observable    {
 
     @inline def unsafeSubscribe(): Cancelable           = source.unsafeSubscribe(Observer.empty)
     @inline def unsafeForeach(f: A => Unit): Cancelable = source.unsafeSubscribe(Observer.create(f))
-
-    @deprecated("Use unsafeSubscribe(sink) or to(sink).unsafeSubscribe() or to(sink).subscribeF[F] instead", "0.3.0")
-    @inline def subscribe(sink: Observer[A]): Cancelable = source.unsafeSubscribe(sink)
-    @deprecated("Use unsafeSubscribe() or subscribeF[F] instead", "0.3.0")
-    @inline def subscribe(): Cancelable                  = unsafeSubscribe()
-    @deprecated("Use unsafeForeach(f) or foreach_(f).unsafeSubscribe() instead", "0.3.0")
-    @inline def foreach(f: A => Unit): Cancelable        = unsafeForeach(f)
   }
 
-  @inline implicit class IterableOperations[A](val source: Observable[Iterable[A]]) extends AnyVal {
-    @inline def flattenIterable[B]: Observable[A] = source.mapIterable(identity)
+  @inline implicit class ThrowableOperations(private val source: Observable[Throwable]) extends AnyVal {
+    @inline def mergeFailed: Observable[Throwable] = source.recoverMap(identity)
   }
 
-  @inline implicit class EitherOperations[A](val source: Observable[Either[Throwable, A]]) extends AnyVal {
-    @inline def flattenEither[B]: Observable[A] = source.mapEither(identity)
-  }
-
-  @inline implicit class SubjectValueOperations[A](val handler: Subject.Value[A]) extends AnyVal {
-    def lens[B](read: A => B)(write: (A, B) => A): Subject.Value[B] = new Observer[B] with Observable.Value[B] {
-      @inline def now()                                          = read(handler.now())
-      @inline def unsafeOnNext(value: B): Unit                   = handler.unsafeOnNext(write(handler.now(), value))
-      @inline def unsafeOnError(error: Throwable): Unit          = handler.unsafeOnError(error)
-      @inline def unsafeSubscribe(sink: Observer[B]): Cancelable = handler.map(read).unsafeSubscribe(sink)
+  @inline implicit class BooleanOperations(private val source: Observable[Boolean]) extends AnyVal {
+    @inline def toggle[A](ifTrue: => A, ifFalse: A): Observable[A] = source.map {
+      case true  => ifTrue
+      case false => ifFalse
     }
+
+    @inline def toggle[A: Monoid](ifTrue: => A): Observable[A] = toggle(ifTrue, Monoid[A].empty)
+
+    @inline def negated: Observable[Boolean] = source.map(x => !x)
   }
 
-  @inline implicit class SubjectMaybeValueOperations[A](val handler: Subject.MaybeValue[A]) extends AnyVal {
-    def lens[B](seed: => A)(read: A => B)(write: (A, B) => A): Subject.MaybeValue[B] = new Observer[B] with Observable.MaybeValue[B] {
-      @inline def now()                                          = handler.now().map(read)
-      @inline def unsafeOnNext(value: B): Unit                   = handler.unsafeOnNext(write(handler.now().getOrElse(seed), value))
-      @inline def unsafeOnError(error: Throwable): Unit          = handler.unsafeOnError(error)
-      @inline def unsafeSubscribe(sink: Observer[B]): Cancelable = handler.map(read).unsafeSubscribe(sink)
-    }
+  @inline implicit class IterableOperations[A](private val source: Observable[Iterable[A]]) extends AnyVal {
+    @inline def flattenIterable: Observable[A] = source.mapIterable(identity)
+  }
+
+  @inline implicit class EitherOperations[A](private val source: Observable[Either[Throwable, A]]) extends AnyVal {
+    @inline def flattenEither: Observable[A] = source.mapEither(identity)
+  }
+
+  @inline implicit class OptionOperations[A](private val source: Observable[Option[A]]) extends AnyVal {
+    @inline def flattenOption: Observable[A] = source.mapFilter(identity)
+  }
+
+  @inline implicit class ObservableLikeOperations[F[_]: ObservableLike, A](val source: Observable[F[A]]) {
+    @inline def flatten: Observable[A]       = source.flatMap(o => ObservableLike[F].toObservable(o))
+    @inline def flattenConcat: Observable[A] = source.concatMap(o => ObservableLike[F].toObservable(o))
+    @inline def flattenMerge: Observable[A]  = source.mergeMap(o => ObservableLike[F].toObservable(o))
+    @inline def flattenSwitch: Observable[A] = source.switchMap(o => ObservableLike[F].toObservable(o))
   }
 
   @inline implicit class ProSubjectOperations[I, O](val handler: ProSubject[I, O]) extends AnyVal {
@@ -1236,15 +1723,13 @@ object Observable    {
   }
 
   @inline implicit class ListSubjectOperations[A](val handler: Subject[Seq[A]]) extends AnyVal {
-    def sequence: Observable[Seq[Subject.Value[A]]] = new Observable[Seq[Subject.Value[A]]] {
-      def unsafeSubscribe(sink: Observer[Seq[Subject.Value[A]]]): Cancelable = {
+    def sequence: Observable[Seq[Subject[A]]] = new Observable[Seq[Subject[A]]] {
+      def unsafeSubscribe(sink: Observer[Seq[Subject[A]]]): Cancelable = {
         handler.unsafeSubscribe(
           Observer.create(
             { sequence =>
               sink.unsafeOnNext(sequence.zipWithIndex.map { case (a, idx) =>
-                new Observer[A] with Observable.Value[A] {
-                  def now(): A = a
-
+                new Observer[A] with Observable[A] {
                   def unsafeSubscribe(sink: Observer[A]): Cancelable = {
                     sink.unsafeOnNext(a)
                     Cancelable.empty

@@ -11,10 +11,13 @@ package object fs2 {
 
   implicit object fs2StreamPureSource extends Source[Stream[Pure, *]] {
     override def unsafeSubscribe[A](source: Stream[Pure, A])(sink: Observer[A]): Cancelable = {
-      source.attempt.map {
-        case Right(value) => sink.unsafeOnNext(value)
-        case Left(error) => sink.unsafeOnError(error)
-      }.compile.drain
+      source.attempt
+        .map {
+          case Right(value) => sink.unsafeOnNext(value)
+          case Left(error)  => sink.unsafeOnError(error)
+        }
+        .compile
+        .drain
 
       Cancelable.empty
     }
@@ -23,11 +26,14 @@ package object fs2 {
 
 private final class SourceFs2[F[_]: Sync: RunEffect] extends Source[Stream[F, *]] {
   override def unsafeSubscribe[A](source: Stream[F, A])(sink: Observer[A]): Cancelable = {
-    val effect = source.attempt.evalMap {
-      case Right(value) => sink.onNextF[F](value)
-      case Left(error) => sink.onErrorF(error)
-    }.compile.drain
+    val effect = source.attempt
+      .evalMap {
+        case Right(value) => sink.onNextF[F](value)
+        case Left(error)  => sink.onErrorF(error)
+      }
+      .compile
+      .drain
 
-    RunEffect[F].unsafeRunSyncOrAsyncCancelable(effect) {_ => ()}
+    RunEffect[F].unsafeRunSyncOrAsyncCancelable(effect) { _ => () }
   }
 }

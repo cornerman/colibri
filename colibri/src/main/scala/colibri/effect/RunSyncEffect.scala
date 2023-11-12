@@ -4,7 +4,7 @@ import cats.Eval
 import cats.implicits._
 import cats.effect.SyncIO
 import colibri.Cancelable
-import colibri.helpers.NativeTypes
+import org.scalajs.macrotaskexecutor.MacrotaskExecutor
 
 trait RunSyncEffect[-F[_]] extends RunEffect[F] {
   def unsafeRun[T](effect: F[T]): Either[Throwable, T]
@@ -12,7 +12,7 @@ trait RunSyncEffect[-F[_]] extends RunEffect[F] {
   final override def unsafeRunAsyncCancelable[T](effect: F[T])(cb: Either[Throwable, T] => Unit): Cancelable = {
     var isCancel = false
 
-    val setImmediateHandle = NativeTypes.setImmediateRef { () =>
+    MacrotaskExecutor.execute { () =>
       if (!isCancel) {
         isCancel = true
         val result = unsafeRun(effect)
@@ -20,9 +20,8 @@ trait RunSyncEffect[-F[_]] extends RunEffect[F] {
       }
     }
 
-    Cancelable { () =>
+    Cancelable.withIsEmpty(isCancel) { () =>
       isCancel = true
-      NativeTypes.clearImmediateRef(setImmediateHandle)
     }
   }
 

@@ -13,10 +13,10 @@ class CancelableSpec extends AsyncFlatSpec with Matchers {
     var outerCancel = 0
     var innerCancel = 0
 
-    cancelable() = { () =>
+    cancelable.unsafeAdd { () =>
       outerInit += 1
 
-      cancelable() = { () =>
+      cancelable.unsafeAdd { () =>
         innerInit += 1
 
         Cancelable { () =>
