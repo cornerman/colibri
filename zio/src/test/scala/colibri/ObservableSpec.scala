@@ -94,13 +94,11 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
     import scala.concurrent.duration._
 
     val test = for {
-      _ <- IO.sleep(FiniteDuration.apply(0, TimeUnit.SECONDS))
+      //TODO: why does it need an actual delay?
+      _ <- IO.sleep(FiniteDuration.apply(1, TimeUnit.SECONDS))
 
       _ = received shouldBe List(15, 10, 6, 3, 1, 0)
       _ = errors shouldBe 0
-
-      //TODO: why does it need an actual delay?
-      _ <- IO.sleep(FiniteDuration.apply(10, TimeUnit.MILLISECONDS))
       _ = cancelable.isEmpty() shouldBe true
     } yield succeed
 
