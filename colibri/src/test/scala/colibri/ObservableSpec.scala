@@ -1261,7 +1261,7 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
       _ = received shouldBe List.empty
       _ = errors shouldBe 0
 
-      _ <- IO.sleep(0.seconds)
+      _ <- IO.sleep(0.1.seconds)
 
       _ = cancelable.isEmpty() shouldBe true
       _ = received shouldBe List((iterations * (iterations + 1)) / 2)
