@@ -1,12 +1,23 @@
 package colibri
 
+import cats.effect.IO
+import cats.effect.unsafe
 import zio._
-// import zio.stream.ZStream
 import colibri.ext.zio._
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.flatspec.AsyncFlatSpec
 
+import java.util.concurrent.TimeUnit
+
 class ObservableSpec extends AsyncFlatSpec with Matchers {
+  override val executionContext            = scala.scalajs.concurrent.QueueExecutionContext()
+  implicit val ioRuntime: unsafe.IORuntime = unsafe.IORuntime(
+    compute = this.executionContext,
+    blocking = this.executionContext,
+    config = unsafe.IORuntimeConfig(),
+    scheduler = unsafe.IORuntime.defaultScheduler,
+    shutdown = () => (),
+  )
 
   "Observable" should "recover after mapEffect" in {
     var recovered      = List.empty[Throwable]
@@ -76,8 +87,23 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
       ),
     )
 
-    received shouldBe List(15, 10, 6, 3, 1, 0)
+    cancelable.isEmpty() shouldBe false
+    received shouldBe List.empty
     errors shouldBe 0
-    cancelable.isEmpty() shouldBe true
+
+    import scala.concurrent.duration._
+
+    val test = for {
+      _ <- IO.sleep(FiniteDuration.apply(0, TimeUnit.SECONDS))
+
+      _ = received shouldBe List(15, 10, 6, 3, 1, 0)
+      _ = errors shouldBe 0
+
+      //TODO: why does it need an actual delay?
+      _ <- IO.sleep(FiniteDuration.apply(10, TimeUnit.MILLISECONDS))
+      _ = cancelable.isEmpty() shouldBe true
+    } yield succeed
+
+    test.unsafeToFuture()
   }
 }
