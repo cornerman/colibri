@@ -29,11 +29,6 @@ object Observer    {
       }
   }
 
-  @deprecated("Use createUnrecovered instead", "")
-  @inline def unsafeCreate[A](
-      consume: A => Unit,
-      failure: Throwable => Unit = UnhandledErrorReporter.errorSubject.unsafeOnNext,
-  ): Observer[A] = createUnrecovered(consume, failure)
   @inline def createUnrecovered[A](
       consume: A => Unit,
       failure: Throwable => Unit = UnhandledErrorReporter.errorSubject.unsafeOnNext,
@@ -90,8 +85,6 @@ object Observer    {
 
   @inline def combine[A](sinks: Observer[A]*): Observer[A] = combineIterable(sinks)
 
-  @deprecated("Use combineIterable instead", "0.5.0")
-  def combineSeq[A](sinks: Seq[Observer[A]]): Observer[A]           = combineIterable(sinks)
   def combineIterable[A](sinks: Iterable[Observer[A]]): Observer[A] = new Observer[A] {
     def unsafeOnNext(value: A): Unit          = sinks.foreach(_.unsafeOnNext(value))
     def unsafeOnError(error: Throwable): Unit = sinks.foreach(_.unsafeOnError(error))
@@ -154,9 +147,9 @@ object Observer    {
       def unsafeOnError(error: Throwable): Unit = sink.unsafeOnError(error)
     }
 
-    def contraflattenIterable[B]: Observer[Iterable[A]]        = contramapIterable(identity)
-    def contraflattenEither[B]: Observer[Either[Throwable, A]] = contramapEither(identity)
-    def contraflattenOption[B]: Observer[Option[A]]            = contramapFilter(identity)
+    def contraflattenIterable: Observer[Iterable[A]]        = contramapIterable(identity)
+    def contraflattenEither: Observer[Either[Throwable, A]] = contramapEither(identity)
+    def contraflattenOption: Observer[Option[A]]            = contramapFilter(identity)
 
     // TODO return effect
     def contrascan[B](seed: A)(f: (A, B) => A): Observer[B] = new Observer[B] {
@@ -171,6 +164,8 @@ object Observer    {
       )
       def unsafeOnError(error: Throwable): Unit = sink.unsafeOnError(error)
     }
+
+    def as(value: A): Observer[Any] = sink.contramap(_ => value)
 
     def tap(f: A => Unit): Observer[A] = new Observer[A] {
       def unsafeOnNext(value: A): Unit          = {
@@ -215,11 +210,6 @@ object Observer    {
       Connectable(handler, () => source.unsafeSubscribe(sink))
     }
 
-    @deprecated("Use unsafeOnNext instead", "")
-    def onNext(value: A): Unit          = sink.unsafeOnNext(value)
-    @deprecated("Use unsafeOnError instead", "")
-    def onError(error: Throwable): Unit = sink.unsafeOnError(error)
-
     def onNextF[F[_]: Sync](value: A): F[Unit] = Sync[F].delay(sink.unsafeOnNext(value))
     def onNextIO(value: A): IO[Unit]           = onNextF[IO](value)
     def onNextSyncIO(value: A): SyncIO[Unit]   = onNextF[SyncIO](value)
@@ -230,7 +220,7 @@ object Observer    {
   }
 
   @inline implicit class UnitOperations(private val sink: Observer[Unit]) extends AnyVal {
-    @inline def void: Observer[Any] = sink.contramap(_ => ())
+    @inline def void: Observer[Any] = sink.as(())
   }
 
   @inline implicit class ThrowableOperations(private val sink: Observer[Throwable]) extends AnyVal {

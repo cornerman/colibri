@@ -27,8 +27,8 @@ inThisBuild(
 )
 
 lazy val commonSettings = Seq(
-  crossScalaVersions := Seq("2.13.10", "3.2.1"),
-  scalaVersion       := "2.13.10",
+  crossScalaVersions := Seq("2.13.12", "3.3.1"),
+  scalaVersion       := "2.13.12",
   libraryDependencies ++= (CrossVersion.partialVersion(scalaVersion.value) match {
     case Some((3, _)) => Seq.empty
     case _            =>
@@ -38,7 +38,7 @@ lazy val commonSettings = Seq(
       )
   }),
   libraryDependencies ++= Seq(
-    "org.scalatest" %%% "scalatest" % "3.2.14" % Test,
+    "org.scalatest" %%% "scalatest" % "3.2.17" % Test,
   ),
   /* scalacOptions --= Seq("-Xfatal-warnings"), // overwrite option from https://github.com/DavidGregory084/sbt-tpolecat */
 )
@@ -50,8 +50,8 @@ lazy val colibri = project
   .settings(
     name := "colibri",
     libraryDependencies ++= Seq(
-      "org.typelevel" %%% "cats-core"   % "2.9.0",
-      "org.typelevel" %%% "cats-effect" % "3.4.2",
+      "org.typelevel" %%% "cats-core"   % "2.10.0",
+      "org.typelevel" %%% "cats-effect" % "3.5.2",
     ),
   )
 
@@ -63,8 +63,8 @@ lazy val reactive = project
   .settings(
     name := "colibri-reactive",
     libraryDependencies ++= Seq(
-      "dev.optics" %%% "monocle-core"  % "3.1.0",
-      "dev.optics" %%% "monocle-macro" % "3.1.0" % Test,
+      "dev.optics" %%% "monocle-core"  % "3.2.0",
+      "dev.optics" %%% "monocle-macro" % "3.2.0" % Test,
     ),
   )
 
@@ -76,7 +76,7 @@ lazy val jsdom = project
   .settings(
     name := "colibri-jsdom",
     libraryDependencies ++= Seq(
-      "org.scala-js" %%% "scalajs-dom" % "2.3.0",
+      "org.scala-js" %%% "scalajs-dom" % "2.8.0",
     ),
   )
 
@@ -110,7 +110,7 @@ lazy val rx = project
   .settings(commonSettings)
   .settings(
     name               := "colibri-rx",
-    crossScalaVersions := Seq("2.13.10"), // no scala3, because scala.rx uses scala2 macros
+    crossScalaVersions := Seq("2.13.12"), // no scala3, because scala.rx uses scala2 macros
     libraryDependencies ++= Seq(
       "com.lihaoyi" %% "scalarx" % "0.4.3",
     ),
@@ -124,7 +124,7 @@ lazy val airstream = project
   .settings(
     name := "colibri-airstream",
     libraryDependencies ++= Seq(
-      "com.raquo" %%% "airstream" % "0.14.5",
+      "com.raquo" %%% "airstream" % "16.0.0",
     ),
   )
 
@@ -137,8 +137,8 @@ lazy val zio = project
     name := "colibri-zio",
     libraryDependencies ++= Seq(
       "io.github.cquiroz" %%% "scala-java-time" % "2.5.0",
-      "dev.zio"           %%% "zio"             % "2.0.5",
-      "dev.zio"           %%% "zio-streams"     % "2.0.5",
+      "dev.zio"           %%% "zio"             % "2.0.19",
+      "dev.zio"           %%% "zio-streams"     % "2.0.19",
     ),
   )
 
@@ -150,6 +150,6 @@ lazy val fs2 = project
   .settings(
     name := "colibri-fs2",
     libraryDependencies ++= Seq(
-      "co.fs2" %%% "fs2-core" % "3.4.0",
+      "co.fs2" %%% "fs2-core" % "3.9.3",
     ),
   )

@@ -1016,7 +1016,7 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
 
     val test = for {
       cancelable <- stream
-                      .to(
+                      .via(
                         Observer.create[Int](
                           received ::= _,
                           _ => errors += 1,
@@ -1063,7 +1063,7 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
 
     val test = for {
       cancelable <- stream
-                      .to(
+                      .via(
                         Observer.create[Int](
                           received ::= _,
                           _ => errors += 1,
@@ -1097,7 +1097,7 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
 
     val test = for {
       cancelable <- stream
-                      .to(
+                      .via(
                         Observer.create[Int](
                           received ::= _,
                           _ => errors += 1,
@@ -1124,7 +1124,7 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
 
     val test = for {
       cancelable <- stream
-                      .to(
+                      .via(
                         Observer.create[Int](
                           received ::= _,
                           _ => errors += 1,
@@ -1157,7 +1157,7 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
 
     val test = for {
       cancelable <- stream
-                      .to(
+                      .via(
                         Observer.create[Int](
                           received ::= _,
                           _ => errors += 1,
@@ -1184,7 +1184,7 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
 
     val test = for {
       cancelable <- stream
-                      .to(
+                      .via(
                         Observer.create[Int](
                           received ::= _,
                           _ => errors += 1,
@@ -1211,7 +1211,7 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
 
     val test = for {
       cancelable <- stream
-                      .to(
+                      .via(
                         Observer.create[Int](
                           received ::= _,
                           _ => errors += 1,
@@ -1249,7 +1249,7 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
 
     val test = for {
       cancelable <- stream
-                      .to(
+                      .via(
                         Observer.create[Int](
                           received ::= _,
                           _ => errors += 1,
@@ -1261,7 +1261,7 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
       _ = received shouldBe List.empty
       _ = errors shouldBe 0
 
-      _ <- IO.sleep(0.seconds)
+      _ <- IO.sleep(0.1.seconds)
 
       _ = cancelable.isEmpty() shouldBe true
       _ = received shouldBe List((iterations * (iterations + 1)) / 2)
@@ -1279,7 +1279,7 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
 
     val test = for {
       cancelable <- stream
-                      .to(
+                      .via(
                         Observer.create[Int](
                           received ::= _,
                           _ => errors += 1,
@@ -1292,7 +1292,7 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
       _ = errors shouldBe 0
 
       cancelable2 <- stream.dropSyncGlitches
-                       .to(
+                       .via(
                          Observer.create[Int](
                            received ::= _,
                            _ => errors += 1,
@@ -1365,7 +1365,8 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
   it should "lastIO async complex" in {
     val last = Observable(2)
       .prependEffect(IO.cede *> IO.pure(1))
-      .concatMap(x => Observable(x,x).prependEffect(IO.cede *> IO.pure(0))).take(100)
+      .concatMap(x => Observable(x, x).prependEffect(IO.cede *> IO.pure(0)))
+      .take(100)
       .dropSyncAll
       .prepend(1000)
       .switchMap(x => Observable(x).delayMillis(40))
@@ -1606,7 +1607,7 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
   }
 
   it should "mapFilterFirst" in {
-    val result   = Observable(1, 2, 3).mapFilterFirstIO(v => Option.when(v == 2)(v))
+    val result = Observable(1, 2, 3).mapFilterFirstIO(v => Option.when(v == 2)(v))
 
     val test = result.map { v =>
       v shouldBe 2
@@ -1635,11 +1636,11 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
   it should "forSemantic" in {
     var received = List.empty[Int]
     var errors   = 0
-    val stream = for {
+    val stream   = for {
       a <- Observable(1).concat(Observable(2).delayMillis(1)).forSwitch
-      b <- Observable(10).concat(Observable(20).delayMillis(2)).forMerge
-      c <- Observable(100).concat(Observable(200).delayMillis(3)).forConcat
-      d <- Observable(1000).concat(Observable(2000).delayMillis(4))
+      b <- Observable(10).concat(Observable(20).delayMillis(5)).forMerge
+      c <- Observable(100).concat(Observable(200).delayMillis(10)).forConcat
+      d <- Observable(1000).concat(Observable(2000).delayMillis(15))
     } yield a + b + c + d
 
     val cancelable = stream.unsafeSubscribe(
@@ -1666,9 +1667,9 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
   it should "sampleWith" in {
     var received = List.empty[Int]
     var errors   = 0
-    val trigger = Subject.publish[Unit]()
-    val subject = Subject.publish[Int]()
-    val stream = subject.sampleWith(trigger)
+    val trigger  = Subject.publish[Unit]()
+    val subject  = Subject.publish[Int]()
+    val stream   = subject.sampleWith(trigger)
 
     val cancelable = stream.unsafeSubscribe(
       Observer.create[Int](
@@ -1722,9 +1723,9 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
   it should "sampleWith initial" in {
     var received = List.empty[Int]
     var errors   = 0
-    val trigger = Subject.publish[Unit]()
-    val subject = Subject.publish[Int]()
-    val stream = subject.prepend(-100).sampleWith(trigger.prepend(()))
+    val trigger  = Subject.publish[Unit]()
+    val subject  = Subject.publish[Int]()
+    val stream   = subject.prepend(-100).sampleWith(trigger.prepend(()))
 
     val cancelable = stream.unsafeSubscribe(
       Observer.create[Int](
@@ -1757,13 +1758,13 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
   }
 
   it should "replaceWith" in {
-    var mappedA = List.empty[Unit]
-    var mappedB = List.empty[Unit]
+    var mappedA  = List.empty[Unit]
+    var mappedB  = List.empty[Unit]
     var received = List.empty[Unit]
     var errors   = 0
-    val a = Subject.publish[Unit]()
-    val b = Subject.publish[Unit]()
-    val stream = (a: Observable[Unit]).tap(mappedA ::= _).replaceWith((b: Observable[Unit]).tap(mappedB ::= _))
+    val a        = Subject.publish[Unit]()
+    val b        = Subject.publish[Unit]()
+    val stream   = (a: Observable[Unit]).tap(mappedA ::= _).replaceWith((b: Observable[Unit]).tap(mappedB ::= _))
 
     val cancelable = stream.unsafeSubscribe(
       Observer.create[Unit](
@@ -1804,11 +1805,11 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
   }
 
   it should "replaceWith sync" in {
-    var mappedA = List.empty[Unit]
-    var mappedB = List.empty[Unit]
+    var mappedA  = List.empty[Unit]
+    var mappedB  = List.empty[Unit]
     var received = List.empty[Unit]
     var errors   = 0
-    val stream = Observable.pure(()).tap(mappedA ::= _).replaceWith(Observable.pure(()).tap(mappedB ::= _))
+    val stream   = Observable.pure(()).tap(mappedA ::= _).replaceWith(Observable.pure(()).tap(mappedB ::= _))
 
     val cancelable = stream.unsafeSubscribe(
       Observer.create[Unit](
