@@ -886,7 +886,7 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
     val eventAVar2   = eventVar.subTypeSeed[EventA](null)
     val eventNotAVar = eventNotVar.prismSeedOptic(GenPrism[Event, EventA])(null)
     val eventAVarRx  = eventVar.prismOptic(GenPrism[Event, EventA])
-    val eventAVarRx2  = eventVar.subType[EventA]
+    val eventAVarRx2 = eventVar.subType[EventA]
 
     eventAVar.unsafeSubscribe()
     eventAVar2.unsafeSubscribe()
@@ -901,7 +901,7 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
     eventAVarRx.nowIfSubscribed().get.now() shouldBe EventA(0)
     eventAVarRx2.nowIfSubscribed().get.now() shouldBe EventA(0)
 
-    val prevEventAVarRx = eventAVarRx.nowIfSubscribed().get
+    val prevEventAVarRx  = eventAVarRx.nowIfSubscribed().get
     val prevEventAVarRx2 = eventAVarRx2.nowIfSubscribed().get
     eventAVar.set(EventA(1))
 
