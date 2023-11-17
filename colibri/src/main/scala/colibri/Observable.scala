@@ -156,7 +156,7 @@ object Observable    {
     }
   }
 
-  def fromEffect[F[_]: RunEffect, A](effect: F[A]): Observable[A]   = new Observable[A] {
+  def fromEffect[F[_]: RunEffect, A](effect: F[A]): Observable[A] = new Observable[A] {
     def unsafeSubscribe(sink: Observer[A]): Cancelable =
       RunEffect[F].unsafeRunSyncOrAsyncCancelable[A](effect)(_.fold(sink.unsafeOnError, sink.unsafeOnNext))
   }
@@ -214,7 +214,7 @@ object Observable    {
     IO.fromFuture(IO(value5)),
   )
 
-  def concatEffect[F[_]: RunEffect, T](effect: F[T], source: Observable[T]): Observable[T]   = new Observable[T] {
+  def concatEffect[F[_]: RunEffect, T](effect: F[T], source: Observable[T]): Observable[T] = new Observable[T] {
     def unsafeSubscribe(sink: Observer[T]): Cancelable = {
       val consecutive = Cancelable.consecutive()
       consecutive.unsafeAdd(() =>
@@ -228,7 +228,7 @@ object Observable    {
       consecutive
     }
   }
-  def concatFuture[T](value: => Future[T], source: Observable[T]): Observable[T]             =
+  def concatFuture[T](value: => Future[T], source: Observable[T]): Observable[T]           =
     concatEffect(IO.fromFuture(IO.pure(value)), source)
 
   @inline def merge[A](sources: Observable[A]*): Observable[A] = mergeIterable(sources)
@@ -575,7 +575,7 @@ object Observable    {
     def tapFailedEffect[F[_]: RunEffect: Applicative](f: Throwable => F[Unit]): Observable[A] =
       attempt.tapEffect(_.swap.traverseTap(f).void).flattenEither
 
-    def tapSubscribe(f: () => Cancelable): Observable[A]  = new Observable[A] {
+    def tapSubscribe(f: () => Cancelable): Observable[A] = new Observable[A] {
       def unsafeSubscribe(sink: Observer[A]): Cancelable = {
         val cancelable = f()
         Cancelable.composite(
@@ -596,7 +596,7 @@ object Observable    {
       }
     }
 
-    def tap(f: A => Unit): Observable[A]      = new Observable[A] {
+    def tap(f: A => Unit): Observable[A] = new Observable[A] {
       def unsafeSubscribe(sink: Observer[A]): Cancelable = {
         source.unsafeSubscribe(sink.doOnNext { value =>
           f(value)
@@ -733,7 +733,7 @@ object Observable    {
       }
     }
 
-    def singleMapEffect[F[_]: RunEffect, B](f: A => F[B]): Observable[B]       = new Observable[B] {
+    def singleMapEffect[F[_]: RunEffect, B](f: A => F[B]): Observable[B] = new Observable[B] {
       def unsafeSubscribe(sink: Observer[B]): Cancelable = {
         val single = Cancelable.singleOrDrop()
 
@@ -763,7 +763,7 @@ object Observable    {
       }
     }
 
-    @inline def singleMapFuture[B](f: A => Future[B]): Observable[B]       =
+    @inline def singleMapFuture[B](f: A => Future[B]): Observable[B] =
       singleMapEffect(v => IO.fromFuture(IO(f(v))))
 
     @inline def flatMap[B](f: A => Observable[B]): Observable[B] = concatMap(f)
@@ -1329,20 +1329,20 @@ object Observable    {
       def unsafeSubscribe(sink: Observer[B]): Cancelable = source.unsafeSubscribe(transform(sink))
     }
 
-    @inline def publish: Connectable[Observable[A]]                 = multicast(Subject.publish[A]())
-    @inline def replayLatest: Connectable[Observable[A]] = multicast(Subject.replayLatest[A]())
-    @inline def replayAll: Connectable[Observable[A]]               = multicast(Subject.replayAll[A]())
+    @inline def publish: Connectable[Observable[A]]           = multicast(Subject.publish[A]())
+    @inline def replayLatest: Connectable[Observable[A]]      = multicast(Subject.replayLatest[A]())
+    @inline def replayAll: Connectable[Observable[A]]         = multicast(Subject.replayAll[A]())
     @inline def behavior(seed: A): Connectable[Observable[A]] = multicast(Subject.behavior(seed))
 
-    @inline def publishShare: Observable[A]                 = publish.refCount
-    @inline def replayLatestShare: Observable[A] = replayLatest.refCount
-    @inline def replayAllShare: Observable[A]               = replayAll.refCount
+    @inline def publishShare: Observable[A]           = publish.refCount
+    @inline def replayLatestShare: Observable[A]      = replayLatest.refCount
+    @inline def replayAllShare: Observable[A]         = replayAll.refCount
     @inline def behaviorShare(seed: A): Observable[A] = behavior(seed).refCount
 
-    @inline def publishSelector[B](f: Observable[A] => Observable[B]): Observable[B]                  = transformSource(s => f(s.publish.refCount))
-    @inline def replayLatestSelector[B](f: Observable[A] => Observable[B]): Observable[B]  =
+    @inline def publishSelector[B](f: Observable[A] => Observable[B]): Observable[B]            = transformSource(s => f(s.publish.refCount))
+    @inline def replayLatestSelector[B](f: Observable[A] => Observable[B]): Observable[B]       =
       transformSource(s => f(s.replayLatest.refCount))
-    @inline def replayAllSelector[B](f: Observable[A] => Observable[B]): Observable[B]                =
+    @inline def replayAllSelector[B](f: Observable[A] => Observable[B]): Observable[B]          =
       transformSource(s => f(s.replayAll.refCount))
     @inline def behaviorSelector[B](value: A)(f: Observable[A] => Observable[B]): Observable[B] =
       transformSource(s => f(s.behavior(value).refCount))

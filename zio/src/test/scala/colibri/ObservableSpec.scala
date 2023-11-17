@@ -94,7 +94,7 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
     import scala.concurrent.duration._
 
     val test = for {
-      //TODO: why does it need an actual delay?
+      // TODO: why does it need an actual delay?
       _ <- IO.sleep(FiniteDuration.apply(1, TimeUnit.SECONDS))
 
       _ = received shouldBe List(15, 10, 6, 3, 1, 0)
