@@ -704,6 +704,44 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
       sequence.nowIfSubscribed().apply(0).set(2)
       variable.nowIfSubscribed() shouldBe Seq(2)
     }
+
+    {
+      // only trigger outer Rx if collection size changed
+      val variable                    = Var[Seq[Int]](Seq(1,2))
+      val sequence: Rx[Seq[Var[Int]]] = variable.sequence
+      var sequenceTriggered = 0
+      sequence.unsafeForeach(_ => sequenceTriggered += 1)
+
+      sequenceTriggered shouldBe 1
+      sequence.now().size shouldBe 2
+
+      sequence.now().apply(0).set(3)
+      sequence.now().size shouldBe 2
+      sequenceTriggered shouldBe 1
+
+      variable.set(Seq(3,4))
+      sequence.now().size shouldBe 2
+      sequence.now().apply(0).now() shouldBe 3
+      sequence.now().apply(1).now() shouldBe 4
+      sequenceTriggered shouldBe 1
+
+      variable.set(Seq(3,4,5,6))
+      sequence.now().size shouldBe 4
+      sequence.now().apply(0).now() shouldBe 3
+      sequence.now().apply(1).now() shouldBe 4
+      sequence.now().apply(2).now() shouldBe 5
+      sequenceTriggered shouldBe 2
+
+      variable.set(Seq(7))
+      sequence.now().size shouldBe 1
+      sequence.now().apply(0).now() shouldBe 7
+      sequenceTriggered shouldBe 3
+
+      variable.set(Seq(8))
+      sequence.now().size shouldBe 1
+      sequence.now().apply(0).now() shouldBe 8
+      sequenceTriggered shouldBe 3
+    }
   }
 
   it should "sequence on Var[Option[T]]" in {

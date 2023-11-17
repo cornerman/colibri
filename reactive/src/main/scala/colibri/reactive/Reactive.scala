@@ -8,6 +8,7 @@ import monocle.{Iso, Lens, Prism}
 
 import scala.concurrent.Future
 import scala.reflect.ClassTag
+import collection.mutable
 import scala.util.control.NonFatal
 import scala.annotation.unused
 
@@ -335,30 +336,54 @@ object Var {
   def createStateless[A](write: RxWriter[A], read: Rx[A]): Var[A] = new VarCreateStateless(write, read)
 
   @inline implicit class SeqVarOperations[A](rxvar: Var[Seq[A]]) {
-    def sequence: Rx[Seq[Var[A]]] = Rx.observableSync(new Observable[Seq[Var[A]]] {
 
-      def unsafeSubscribe(sink: Observer[Seq[Var[A]]]): Cancelable = {
-        rxvar.observable.unsafeSubscribe(
-          Observer.create(
-            { seq =>
-              sink.unsafeOnNext(seq.zipWithIndex.map { case (a, idx) =>
-                val observer = new Observer[A] {
-                  def unsafeOnNext(value: A): Unit = {
-                    rxvar.set(seq.updated(idx, value))
-                  }
+    def sequence: Rx[Seq[Var[A]]] = {
+      val observable = new Observable[Seq[Var[A]]] {
+        def unsafeSubscribe(sink: Observer[Seq[Var[A]]]): Cancelable = {
+          // keep a var for every index of the original sequence
+          val vars = mutable.ArrayBuffer.empty[Var[A]]
 
-                  def unsafeOnError(error: Throwable): Unit = {
-                    sink.unsafeOnError(error)
+          def createIndexVar(idx: Int, seed: A): Var[A] = {
+            Var[A](seed).transformVarWrite {
+              _.contramap { newValue =>
+                rxvar.update(_.updated(idx, newValue))
+                newValue
+              }
+            }
+          }
+
+          rxvar.observable.zipWithIndex.unsafeSubscribe(
+            Observer.create(
+              consume = { case (seq, idx) =>
+                val needsRetrigger = if (seq.size < vars.size) {
+                  vars.remove(seq.size, vars.size - seq.size)
+                  true
+                } else if (seq.size > vars.size) {
+                  for ((elem, idx) <- seq.zipWithIndex.takeRight(seq.size - vars.size)) {
+                    vars += createIndexVar(idx, seed = elem)
                   }
+                  true
+                } else {
+                  idx == 0
                 }
-                Var.createStateless(RxWriter.observer(observer), Rx.const(a))
-              })
-            },
-            sink.unsafeOnError,
-          ),
-        )
+
+                assert(seq.size == vars.size)
+
+                for ((newValue, elemVar) <- seq.zip(vars)) {
+                  elemVar.set(newValue)
+                }
+
+                if (needsRetrigger) {
+                  sink.unsafeOnNext(vars.toSeq)
+                }
+              },
+              failure = sink.unsafeOnError,
+            ),
+          )
+        }
       }
-    })
+      Rx.observableSync(observable)
+    }
   }
 
   @inline implicit class OptionVarOperations[A](rxvar: Var[Option[A]]) {
