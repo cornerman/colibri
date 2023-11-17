@@ -343,28 +343,39 @@ object Var {
           // keep a var for every index of the original sequence
           val vars = mutable.ArrayBuffer.empty[Var[A]]
 
-          def createIndexVar(idx:Int, seed: A):Var[A] = {
-            Var[A](seed).transformVarWrite{ _.contramap{ newValue => 
-              rxvar.update(_.updated(idx, newValue))
-              newValue
-            }}
+          def createIndexVar(idx: Int, seed: A): Var[A] = {
+            Var[A](seed).transformVarWrite {
+              _.contramap { newValue =>
+                rxvar.update(_.updated(idx, newValue))
+                newValue
+              }
+            }
           }
 
-          rxvar.observable.unsafeSubscribe(
+          rxvar.observable.zipWithIndex.unsafeSubscribe(
             Observer.create(
-              consume = { seq =>
-                if(seq.size < vars.size) {
+              consume = { case (seq, idx) =>
+                val needsRetrigger = if (seq.size < vars.size) {
                   vars.remove(seq.size, vars.size - seq.size)
-                } else if(seq.size > vars.size) {
-                  for((elem,idx) <- seq.zipWithIndex.takeRight(seq.size - vars.size)) {
-                    vars += createIndexVar(idx, seed= elem)
+                  true
+                } else if (seq.size > vars.size) {
+                  for ((elem, idx) <- seq.zipWithIndex.takeRight(seq.size - vars.size)) {
+                    vars += createIndexVar(idx, seed = elem)
                   }
+                  true
+                } else {
+                  idx == 0
                 }
+
                 assert(seq.size == vars.size)
+
                 for ((newValue, elemVar) <- seq.zip(vars)) {
                   elemVar.set(newValue)
                 }
-                sink.unsafeOnNext(vars.toSeq)
+
+                if (needsRetrigger) {
+                  sink.unsafeOnNext(vars.toSeq)
+                }
               },
               failure = sink.unsafeOnError,
             ),
