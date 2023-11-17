@@ -896,7 +896,7 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
     case class Employee(name: String, company: Company)
 
     val employee = Var(Employee("jules", Company("wules", 7)))
-    val zipcode  = employee.lensO(GenLens[Employee](_.company.zipcode))
+    val zipcode  = employee.lensOptic(GenLens[Employee](_.company.zipcode))
 
     zipcode.unsafeSubscribe()
 
@@ -920,42 +920,64 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
     val eventVar: Var[Event]    = Var[Event](EventA(0))
     val eventNotVar: Var[Event] = Var[Event](EventB(""))
 
-    val eventAVar    = eventVar.prismO(GenPrism[Event, EventA])(null)
-    val eventAVar2   = eventVar.subType[EventA](null)
-    val eventNotAVar = eventNotVar.prismO(GenPrism[Event, EventA])(null)
+    val eventAVar    = eventVar.prismSeedOptic(GenPrism[Event, EventA])(null)
+    val eventAVar2   = eventVar.subTypeSeed[EventA](null)
+    val eventNotAVar = eventNotVar.prismSeedOptic(GenPrism[Event, EventA])(null)
+    val eventAVarRx  = eventVar.prismOptic(GenPrism[Event, EventA])
+    val eventAVarRx2  = eventVar.subType[EventA]
 
     eventAVar.unsafeSubscribe()
     eventAVar2.unsafeSubscribe()
     eventNotAVar.unsafeSubscribe()
+    eventAVarRx.unsafeSubscribe()
+    eventAVarRx2.unsafeSubscribe()
 
     eventVar.nowIfSubscribed() shouldBe EventA(0)
     eventAVar.nowIfSubscribed() shouldBe EventA(0)
     eventAVar2.nowIfSubscribed() shouldBe EventA(0)
     eventNotAVar.nowIfSubscribed() shouldBe null
+    eventAVarRx.nowIfSubscribed().get.now() shouldBe EventA(0)
+    eventAVarRx2.nowIfSubscribed().get.now() shouldBe EventA(0)
 
+    val prevEventAVarRx = eventAVarRx.nowIfSubscribed().get
+    val prevEventAVarRx2 = eventAVarRx2.nowIfSubscribed().get
     eventAVar.set(EventA(1))
 
     eventVar.nowIfSubscribed() shouldBe EventA(1)
     eventAVar.nowIfSubscribed() shouldBe EventA(1)
     eventAVar2.nowIfSubscribed() shouldBe EventA(1)
+    eventNotAVar.nowIfSubscribed() shouldBe null
+    eventAVarRx.nowIfSubscribed().get.now() shouldBe EventA(1)
+    eventAVarRx.nowIfSubscribed().get shouldBe prevEventAVarRx
+    eventAVarRx2.nowIfSubscribed().get.now() shouldBe EventA(1)
+    eventAVarRx2.nowIfSubscribed().get shouldBe prevEventAVarRx2
 
     eventVar.set(EventB("he"))
 
     eventVar.nowIfSubscribed() shouldBe EventB("he")
     eventAVar.nowIfSubscribed() shouldBe EventA(1)
     eventAVar2.nowIfSubscribed() shouldBe EventA(1)
+    eventNotAVar.nowIfSubscribed() shouldBe null
+    eventAVarRx.nowIfSubscribed() shouldBe None
+    eventAVarRx2.nowIfSubscribed() shouldBe None
 
     eventAVar.set(EventA(2))
 
     eventVar.nowIfSubscribed() shouldBe EventA(2)
     eventAVar.nowIfSubscribed() shouldBe EventA(2)
     eventAVar2.nowIfSubscribed() shouldBe EventA(2)
+    eventNotAVar.nowIfSubscribed() shouldBe null
+    eventAVarRx.nowIfSubscribed().get.now() shouldBe EventA(2)
+    eventAVarRx2.nowIfSubscribed().get.now() shouldBe EventA(2)
 
     eventVar.set(EventA(3))
 
     eventVar.nowIfSubscribed() shouldBe EventA(3)
     eventAVar.nowIfSubscribed() shouldBe EventA(3)
     eventAVar2.nowIfSubscribed() shouldBe EventA(3)
+    eventNotAVar.nowIfSubscribed() shouldBe null
+    eventAVarRx.nowIfSubscribed().get.now() shouldBe EventA(3)
+    eventAVarRx2.nowIfSubscribed().get.now() shouldBe EventA(3)
   }
 
   it should "map and now()" in {

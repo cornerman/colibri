@@ -296,18 +296,34 @@ trait Var[A] extends VarState[A] with Rx[A] {
   final def lens[B](read: A => B)(write: (A, B) => A)(implicit owner: NowOwner): Var[B] =
     transformVar(_.contramap(write(now(), _)))(_.map(read))
 
-  final def prism[A2](f: A2 => A)(g: A => Option[A2])(seed: => A2): Var[A2] =
+  final def prismSeed[A2](f: A2 => A)(g: A => Option[A2])(seed: => A2): Var[A2] =
     transformVar(_.contramap(f))(rx => Rx.observableSync(rx.observable.mapFilter(g).prependEval(seed)))
 
-  final def subType[A2 <: A: ClassTag](seed: => A2): Var[A2] = prism[A2]((x: A2) => x) {
+  final def prism[A2](f: A2 => A)(g: A => Option[A2]): Rx[Option[Var[A2]]] =
+    this.scan(Option.empty[Var[A2]]) { (prevVar, value) =>
+      (prevVar, g(value)) match {
+        case (variable@Some(_), Some(_)) => variable
+        case (None, Some(result)) => Some(prismSeed(f)(g)(result))
+        case (_, None) => None
+      }
+    }
+
+  final def subTypeSeed[A2 <: A: ClassTag](seed: => A2): Var[A2] = prismSeed[A2]((x: A2) => x) {
     case a: A2 => Some(a)
     case _     => None
   }(seed)
 
-  final def imapO[B](optic: Iso[A, B]): Var[B]                = imap(optic.reverseGet(_))(optic.get(_))
-  final def lensO[B](optic: Lens[A, B]): Var[B]               = lens(optic.get(_))((base, zoomed) => optic.replace(zoomed)(base))
-  final def prismO[B](optic: Prism[A, B])(seed: => B): Var[B] =
-    prism(optic.reverseGet(_))(optic.getOption(_))(seed)
+  final def subType[A2 <: A: ClassTag]: Rx[Option[Var[A2]]] = prism[A2]((x: A2) => x) {
+    case a: A2 => Some(a)
+    case _     => None
+  }
+
+  final def imapOptic[B](optic: Iso[A, B]): Var[B]                = imap(optic.reverseGet(_))(optic.get(_))
+  final def lensOptic[B](optic: Lens[A, B]): Var[B]               = lens(optic.get(_))((base, zoomed) => optic.replace(zoomed)(base))
+  final def prismSeedOptic[B](optic: Prism[A, B])(seed: => B): Var[B] =
+    prismSeed(optic.reverseGet(_))(optic.getOption(_))(seed)
+  final def prismOptic[B](optic: Prism[A, B]): Rx[Option[Var[B]]]         =
+    prism(optic.reverseGet(_))(optic.getOption(_))
 }
 
 object Var {
