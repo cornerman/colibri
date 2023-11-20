@@ -112,7 +112,7 @@ trait RxEvent[+A] extends RxSource[A] with RxSourceSelf[RxEvent, RxEvent, A] {
 
 object RxEvent extends RxPlatform {
   private val _empty: RxEvent[Nothing] = observableUnshared(Observable.empty)
-  @inline def empty[A]: RxEvent[A]     = _empty
+  @inline def empty: RxEvent[Nothing]  = _empty
 
   @inline def apply[A](values: A*): RxEvent[A] = iterable(values)
 
@@ -148,7 +148,7 @@ trait RxLater[+A] extends RxState[A] with RxSourceSelf[RxLater, RxLater, A] {
 }
 
 object RxLater {
-  @inline def empty[A]: RxLater[A] = RxLaterEmpty
+  @inline def empty: RxLater[Nothing] = RxLaterEmpty
 
   def future[A](future: => Future[A]): RxLater[A]          = observable(Observable.fromFuture(future))
   def effect[F[_]: RunEffect, A](effect: F[A]): RxLater[A] = observable(Observable.fromEffect(effect))

@@ -89,8 +89,8 @@ object Observable    {
     @inline def unsafeSubscribe(sink: Observer[Nothing]): Cancelable = Cancelable.empty
   }
 
-  @inline def empty[A]: Observable[A] = Empty
-  val unit: Observable[Unit]          = Observable.pure(())
+  @inline def empty: Observable[Nothing] = Empty
+  val unit: Observable[Unit]             = Observable.pure(())
 
   def pure[T](value: T): Observable[T] = new Observable[T] {
     def unsafeSubscribe(sink: Observer[T]): Cancelable = {
