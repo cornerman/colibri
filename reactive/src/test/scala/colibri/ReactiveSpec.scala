@@ -707,9 +707,9 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
 
     {
       // only trigger outer Rx if collection size changed
-      val variable                    = Var[Seq[Int]](Seq(1,2))
+      val variable                    = Var[Seq[Int]](Seq(1, 2))
       val sequence: Rx[Seq[Var[Int]]] = variable.sequence
-      var sequenceTriggered = 0
+      var sequenceTriggered           = 0
       sequence.unsafeForeach(_ => sequenceTriggered += 1)
 
       sequenceTriggered shouldBe 1
@@ -719,13 +719,13 @@ class ReactiveSpec extends AsyncFlatSpec with Matchers {
       sequence.now().size shouldBe 2
       sequenceTriggered shouldBe 1
 
-      variable.set(Seq(3,4))
+      variable.set(Seq(3, 4))
       sequence.now().size shouldBe 2
       sequence.now().apply(0).now() shouldBe 3
       sequence.now().apply(1).now() shouldBe 4
       sequenceTriggered shouldBe 1
 
-      variable.set(Seq(3,4,5,6))
+      variable.set(Seq(3, 4, 5, 6))
       sequence.now().size shouldBe 4
       sequence.now().apply(0).now() shouldBe 3
       sequence.now().apply(1).now() shouldBe 4
