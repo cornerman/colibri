@@ -1862,7 +1862,7 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
       ),
     )
 
-    // cancelable.isEmpty() shouldBe false
+    cancelable.isEmpty() shouldBe false
 
     received shouldBe List(0)
     errors shouldBe 0
