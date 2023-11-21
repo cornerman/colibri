@@ -110,6 +110,10 @@ object Observable    {
     }
   }
 
+  def evalCancelable(value: => Cancelable): Observable[Unit] = new Observable[Unit] {
+    def unsafeSubscribe(sink: Observer[Unit]): Cancelable = value
+  }
+
   def evalObservable[T](value: => Observable[T]): Observable[T] = new Observable[T] {
     def unsafeSubscribe(sink: Observer[T]): Cancelable = value.unsafeSubscribe(sink)
   }
@@ -710,6 +714,9 @@ object Observable    {
 
     @inline def mapFuture[B](f: A => Future[B]): Observable[B]       = concatMapFuture(f)
     @inline def concatMapFuture[B](f: A => Future[B]): Observable[B] = mapEffect(v => IO.fromFuture(IO(f(v))))
+
+    @inline def mapCancelable(f: A => Cancelable): Observable[Unit] =
+      source.switchMap(a => Observable.evalCancelable(f(a)))
 
     @inline def mapResource[F[_]: RunEffect: Sync, B](f: A => Resource[F, B]): Observable[B] =
       mapResourceWithCancelable(f)(Cancelable.builder)
