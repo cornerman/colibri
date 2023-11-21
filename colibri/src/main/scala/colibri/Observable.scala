@@ -299,6 +299,32 @@ object Observable    {
     }
   }
 
+  @inline def race[A](sources: Observable[A]*): Observable[A] = raceIterable(sources)
+
+  def raceIterable[A](sources: Iterable[Observable[A]]): Observable[A] = new Observable[A] {
+    def unsafeSubscribe(sink: Observer[A]): Cancelable = {
+      val cancelables = new js.Array[Cancelable]
+
+      var winnerIsSelected                       = false
+      def cancelAllButIndex(notIndex: Int): Unit = if (!winnerIsSelected) {
+        winnerIsSelected = true
+        cancelables.view.zipWithIndex.foreach { case (cancelable, idx) =>
+          if (idx != notIndex) cancelable.unsafeCancel()
+        }
+      }
+
+      sources.view.zipWithIndex.foreach { case (source, idx) =>
+        if (!winnerIsSelected) {
+          cancelables(idx) = source.unsafeSubscribe(
+            Observer.combine(Observer.foreach(_ => cancelAllButIndex(idx)), sink),
+          )
+        }
+      }
+
+      Cancelable.compositeFromIterable(cancelables)
+    }
+  }
+
   @inline def interval(delay: FiniteDuration): Observable[Long] = intervalMillis(delay.toMillis.toInt)
 
   def intervalMillis(delay: Int): Observable[Long] = new Observable[Long] {

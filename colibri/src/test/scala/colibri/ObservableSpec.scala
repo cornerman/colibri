@@ -1824,4 +1824,52 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
     errors shouldBe 0
     cancelable.isEmpty() shouldBe true
   }
+
+  it should "race" in {
+    var received = List.empty[Int]
+    var errors   = 0
+    val handler  = Subject.publish[Int]()
+    val stream   = Observable.race(Observable.empty, handler, Observable(1, 2))
+
+    val cancelable = stream.unsafeSubscribe(
+      Observer.create[Int](
+        received ::= _,
+        _ => errors += 1,
+      ),
+    )
+
+    cancelable.isEmpty() shouldBe true
+
+    received shouldBe List(2, 1)
+    errors shouldBe 0
+
+    handler.unsafeOnNext(19)
+
+    received shouldBe List(2, 1)
+    errors shouldBe 0
+  }
+
+  it should "race and subject wins" in {
+    var received = List.empty[Int]
+    var errors   = 0
+    val handler  = Subject.behavior[Int](0)
+    val stream   = Observable.race(Observable.empty, handler, Observable(1, 2))
+
+    val _ = stream.unsafeSubscribe(
+      Observer.create[Int](
+        received ::= _,
+        _ => errors += 1,
+      ),
+    )
+
+    // cancelable.isEmpty() shouldBe false
+
+    received shouldBe List(0)
+    errors shouldBe 0
+
+    handler.unsafeOnNext(19)
+
+    received shouldBe List(19, 0)
+    errors shouldBe 0
+  }
 }
