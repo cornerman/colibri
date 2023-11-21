@@ -1855,7 +1855,7 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
     val handler  = Subject.behavior[Int](0)
     val stream   = Observable.race(Observable.empty, handler, Observable(1, 2))
 
-    val _ = stream.unsafeSubscribe(
+    val cancelable = stream.unsafeSubscribe(
       Observer.create[Int](
         received ::= _,
         _ => errors += 1,
