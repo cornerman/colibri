@@ -3,8 +3,9 @@ package colibri
 import cats._
 import cats.implicits._
 import colibri.effect.RunEffect
-import cats.effect.{Sync, SyncIO, Async, IO, Resource}
+import cats.effect.{Async, IO, Resource, Sync, SyncIO}
 
+import java.util.concurrent.Flow
 import scala.scalajs.js
 import scala.scalajs.js.timers
 import scala.concurrent.{ExecutionContext, Future}
@@ -131,6 +132,29 @@ object Observable    {
       new Observable[A] {
         def unsafeSubscribe(sink: Observer[A]): Cancelable = Source[H].unsafeSubscribe(source)(sink)
       }
+  }
+
+  def fromPublisher[A](publisher: Flow.Publisher[A]): Observable[A] = Observable.create { observer =>
+    var subscription: Flow.Subscription = null
+    var isComplete                      = false
+    val subscriber                      = new Flow.Subscriber[A] {
+      def onNext(a: A)                      = observer.unsafeOnNext(a)
+      def onError(t: Throwable)             = observer.unsafeOnError(t)
+      def onComplete()                      = isComplete = true
+      def onSubscribe(s: Flow.Subscription) = {
+        subscription = s
+        s.request(Long.MaxValue)
+      }
+    }
+
+    publisher.subscribe(subscriber)
+
+    Cancelable.withIsEmpty(isComplete)(() => {
+      if (subscription != null) {
+        subscription.cancel()
+        subscription = null
+      }
+    })
   }
 
   @inline def create[A](produce: Observer[A] => Cancelable): Observable[A] = new Observable[A] {
