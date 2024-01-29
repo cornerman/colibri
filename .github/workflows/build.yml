@@ -22,7 +22,6 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
       - uses: coursier/cache-action@v6
-      - uses: olafurpg/setup-scala@v14
 
       - name: Test
         env:
@@ -52,9 +51,6 @@ jobs:
         with:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha }}
-      - uses: olafurpg/setup-scala@v14
-        with:
-          java-version: 8
       - name: Cache SBT
         uses: coursier/cache-action@v6
       - name: Publish
