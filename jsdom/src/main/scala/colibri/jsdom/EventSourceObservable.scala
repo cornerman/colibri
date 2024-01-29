@@ -15,7 +15,9 @@ object EventSourceObservable {
     source.onerror = { ev =>
       observer.unsafeOnError(new Exception(s"Failed EventSource (${ev.filename}:${ev.lineno}:${ev.colno}): ${ev.message}"))
     }
-    source.onmessage = observer.unsafeOnNext
+    source.onmessage = { ev =>
+      observer.unsafeOnNext(ev)
+    }
 
     Cancelable(source.close)
   }
