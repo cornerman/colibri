@@ -4,6 +4,8 @@ import colibri._
 import org.scalajs.dom
 
 object EventSourceObservable {
+  case class Failed(event: dom.Event) extends Exception("Failed EventSource")
+
   def apply(url: String): Observable[dom.MessageEvent] =
     from(() => new dom.EventSource(url))
 
@@ -13,7 +15,7 @@ object EventSourceObservable {
   def from(createSource: () => dom.EventSource): Observable[dom.MessageEvent] = Observable.create { observer =>
     val source = createSource()
     source.onerror = { ev =>
-      observer.unsafeOnError(new Exception(s"Failed EventSource (${ev.filename}:${ev.lineno}:${ev.colno}): ${ev.message}"))
+      observer.unsafeOnError(Failed(ev))
     }
     source.onmessage = { ev =>
       observer.unsafeOnNext(ev)
