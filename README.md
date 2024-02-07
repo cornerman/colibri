@@ -84,7 +84,7 @@ The implementation follows the reactive design:
 
 Observables in colibri are lazy, that means nothing starts until you call `unsafeSubscribe` on an `Observable` (or any `unsafe*` method).
 
-We integrate with effect types by means of typeclasses (see below). It provides support for `cats.effect.IO`, `cats.effect.SyncIO`, `cats.Eval`, `cats.effect.Resource` (out of the box) as well as `zio.Task` (with `outwatch-zio`).
+We integrate with effect types by means of typeclasses (see below). It provides support for `cats.effect.IO`, `cats.effect.SyncIO`, `cats.Eval`, `cats.effect.Resource` (out of the box) as well as `zio.Task` (with `colibri-zio`).
 
 Example Observables:
 ```scala
