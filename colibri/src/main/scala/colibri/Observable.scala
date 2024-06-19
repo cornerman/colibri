@@ -452,9 +452,6 @@ object Observable    {
 
     def to(sink: Observer[A]): Observable[Unit] = via(sink).void
 
-    @deprecated("Use tap instead", "0.7.8")
-    def foreach_(f: A => Unit): Observable[Unit] = via(Observer.create(f)).void
-
     def subscribing[B](f: Observable[B]): Observable[A] = tapSubscribe(() => f.unsafeSubscribe())
 
     def map[B](f: A => B): Observable[B] = new Observable[B] {
@@ -522,12 +519,6 @@ object Observable    {
     def filter(f: A => Boolean): Observable[A] = new Observable[A] {
       def unsafeSubscribe(sink: Observer[A]): Cancelable = source.unsafeSubscribe(sink.contrafilter(f))
     }
-
-    @deprecated("Use scan instead", "0.7.8")
-    def scanToList: Observable[List[A]] = scan(List.empty[A])((list, x) => x :: list)
-
-    @deprecated("Use scan0 instead", "0.7.8")
-    def scan0ToList: Observable[List[A]] = scan0(List.empty[A])((list, x) => x :: list)
 
     def scan0[B](seed: => B)(f: (B, A) => B): Observable[B] = scan(seed)(f).prependEval(seed)
 
