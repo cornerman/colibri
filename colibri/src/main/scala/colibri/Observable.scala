@@ -1105,6 +1105,8 @@ object Observable    {
         f(a, tail._1, tail._2, tail._3, tail._4, tail._5),
       )
 
+    def asLatest[B](latest: Observable[B]): Observable[B] = withLatestMap(latest)((_, b) => b)
+
     def withLatest[B](latest: Observable[B]): Observable[(A, B)]                                                              =
       withLatestMap(latest)(_ -> _)
     def withLatest[B, C](latestB: Observable[B], latestC: Observable[C]): Observable[(A, B, C)]                               =
