@@ -51,8 +51,8 @@ trait RxSourceSelf[+Self[+X] <: RxSource[X], +SelfSync[+X] <: RxSource[X], +A] {
   final def as[B](value: B): SelfSync[B]        = transformRxSync(_.as(value))
   final def asEval[B](value: => B): SelfSync[B] = transformRxSync(_.asEval(value))
 
-  final def asSyncEffect[F[_]: RunSyncEffect, B](value: F[B]): SelfSync[B] = transformRxSync(_.asEffect(value))
-  final def asEffect[F[_]: RunEffect, B](value: F[B]): Self[B]             = transformRx(_.asEffect(value))
+  final def asSyncEffect[F[_]: RunSyncEffect, B](value: => F[B]): SelfSync[B] = transformRxSync(_.asEffect(value))
+  final def asEffect[F[_]: RunEffect, B](value: => F[B]): Self[B]             = transformRx(_.asEffect(value))
   final def asFuture[B](value: => Future[B]): Self[B]                      = transformRx(_.asFuture(value))
 
   final def via(writer: RxWriter[A]): SelfSync[A]   = transformRxSync(_.via(writer.observer))

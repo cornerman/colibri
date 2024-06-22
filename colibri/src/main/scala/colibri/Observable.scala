@@ -501,7 +501,7 @@ object Observable    {
     def void: Observable[Unit]                                   = map(_ => ())
     def as[B](value: B): Observable[B]                           = map(_ => value)
     def asEval[B](value: => B): Observable[B]                    = map(_ => value)
-    def asEffect[F[_]: RunEffect, B](value: F[B]): Observable[B] = mapEffect(_ => value)
+    def asEffect[F[_]: RunEffect, B](value: => F[B]): Observable[B] = mapEffect(_ => value)
     def asFuture[B](value: => Future[B]): Observable[B]          = mapFuture(_ => value)
 
     def mapFilter[B](f: A => Option[B]): Observable[B] = new Observable[B] {
