@@ -53,7 +53,7 @@ trait RxSourceSelf[+Self[+X] <: RxSource[X], +SelfSync[+X] <: RxSource[X], +A] {
 
   final def asSyncEffect[F[_]: RunSyncEffect, B](value: => F[B]): SelfSync[B] = transformRxSync(_.asEffect(value))
   final def asEffect[F[_]: RunEffect, B](value: => F[B]): Self[B]             = transformRx(_.asEffect(value))
-  final def asFuture[B](value: => Future[B]): Self[B]                      = transformRx(_.asFuture(value))
+  final def asFuture[B](value: => Future[B]): Self[B]                         = transformRx(_.asFuture(value))
 
   final def via(writer: RxWriter[A]): SelfSync[A]   = transformRxSync(_.via(writer.observer))
   final def to(writer: RxWriter[A]): SelfSync[Unit] = transformRxSync(_.to(writer.observer))
@@ -133,6 +133,11 @@ object RxEvent extends RxPlatform {
 
     def toRx: Rx[Option[A]]     = Rx.observableSeed(self.observable.map[Option[A]](Some.apply))(None)
     def toRx(seed: => A): Rx[A] = Rx.observableSeed(self.observable)(seed)
+
+    def prependEffect[F[_]: RunEffect](value: F[A]): RxEvent[A] = self.transformRx(_.prependEffect(value))
+    def prependFuture(value: => Future[A]): RxEvent[A]          = self.transformRx(_.prependFuture(value))
+    def prepend(value: A): RxEvent[A]                           = self.transformRx(_.prepend(value))
+    def prependEval(value: => A): RxEvent[A]                    = self.transformRx(_.prependEval(value))
   }
 }
 
