@@ -1316,11 +1316,13 @@ object Observable    {
       }
     }
 
-    @inline def bufferTimed[Col[_]](duration: FiniteDuration)(implicit factory: Factory[A, Col[A]]): Observable[Col[A]] = bufferTimedMillis(
+    @inline def bufferTimed[Col[a] <: Iterable[a]](duration: FiniteDuration)(implicit factory: Factory[A, Col[A]]): Observable[Col[A]] =
+      bufferTimedMillis(
       duration.toMillis.toInt,
     )
 
-    def bufferTimedMillis[Col[_]](duration: Int)(implicit factory: Factory[A, Col[A]]): Observable[Col[A]] = new Observable[Col[A]] {
+    def bufferTimedMillis[Col[a] <: Iterable[a]](duration: Int)(implicit factory: Factory[A, Col[A]]): Observable[Col[A]] =
+      new Observable[Col[A]] {
       def unsafeSubscribe(sink: Observer[Col[A]]): Cancelable = {
         var isCancel = false
         var builder  = factory.newBuilder
@@ -1470,13 +1472,14 @@ object Observable    {
     def foldIO[B](seed: B)(f: (B, A) => B): IO[B]               = scan(seed)(f).lastIO
     def unsafeFoldFuture[B](seed: B)(f: (B, A) => B): Future[B] = scan(seed)(f).unsafeLastFuture()
 
-    def foldAllF[F[_]: Async, Col[_]](implicit factory: Factory[A, Col[A]]): F[Col[A]]     = foldF(factory.newBuilder) { (buff, next) =>
+    def foldAllF[F[_]: Async, Col[a] <: Iterable[a]](implicit factory: Factory[A, Col[A]]): F[Col[A]]     = foldF(factory.newBuilder) {
+      (buff, next) =>
       buff += next
       buff
     }.map(_.result())
-    def foldAllIO[Col[_]](implicit factory: Factory[A, Col[A]]): IO[Col[A]]                = foldAllF[IO, Col]
-    def foldAll[Col[_]](implicit factory: Factory[A, Col[A]]): Observable[Col[A]]          = Observable.fromEffect(foldAllIO[Col])
-    def unsafeFoldToFuture[Col[_]]()(implicit factory: Factory[A, Col[A]]): Future[Col[A]] =
+    def foldAllIO[Col[a] <: Iterable[a]](implicit factory: Factory[A, Col[A]]): IO[Col[A]]                = foldAllF[IO, Col]
+    def foldAll[Col[a] <: Iterable[a]](implicit factory: Factory[A, Col[A]]): Observable[Col[A]]          = Observable.fromEffect(foldAllIO[Col])
+    def unsafeFoldToFuture[Col[a] <: Iterable[a]]()(implicit factory: Factory[A, Col[A]]): Future[Col[A]] =
       foldAllIO[Col].unsafeToFuture()(cats.effect.unsafe.IORuntime.global)
 
     @inline def prependEffect[F[_]: RunEffect](value: F[A]): Observable[A] = concatEffect[F, A](value, source)
