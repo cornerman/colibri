@@ -498,12 +498,12 @@ object Observable    {
 
     def parMapFuture[B](f: A => Future[B]): Observable[B] = parMapEffect(a => IO.fromFuture(IO(f(a))))
 
-    def discard: Observable[Nothing]                             = Observable.empty.subscribing(source)
-    def void: Observable[Unit]                                   = map(_ => ())
-    def as[B](value: B): Observable[B]                           = map(_ => value)
-    def asEval[B](value: => B): Observable[B]                    = map(_ => value)
+    def discard: Observable[Nothing]                                = Observable.empty.subscribing(source)
+    def void: Observable[Unit]                                      = map(_ => ())
+    def as[B](value: B): Observable[B]                              = map(_ => value)
+    def asEval[B](value: => B): Observable[B]                       = map(_ => value)
     def asEffect[F[_]: RunEffect, B](value: => F[B]): Observable[B] = mapEffect(_ => value)
-    def asFuture[B](value: => Future[B]): Observable[B]          = mapFuture(_ => value)
+    def asFuture[B](value: => Future[B]): Observable[B]             = mapFuture(_ => value)
 
     def mapFilter[B](f: A => Option[B]): Observable[B] = new Observable[B] {
       def unsafeSubscribe(sink: Observer[B]): Cancelable = source.unsafeSubscribe(sink.contramapFilter(f))
@@ -1309,6 +1309,37 @@ object Observable    {
           source.unsafeSubscribe(
             Observer.createUnrecovered(
               value => lastValue = Some(value),
+              sink.unsafeOnError,
+            ),
+          ),
+        )
+      }
+    }
+
+    @inline def bufferTimed[Col[_]](duration: FiniteDuration)(implicit factory: Factory[A, Col[A]]): Observable[Col[A]] = bufferTimedMillis(
+      duration.toMillis.toInt,
+    )
+
+    def bufferTimedMillis[Col[_]](duration: Int)(implicit factory: Factory[A, Col[A]]): Observable[Col[A]] = new Observable[Col[A]] {
+      def unsafeSubscribe(sink: Observer[Col[A]]): Cancelable = {
+        var isCancel = false
+        var builder  = factory.newBuilder
+
+        def send(): Unit = {
+          sink.unsafeOnNext(builder.result())
+          builder = factory.newBuilder
+        }
+
+        val intervalId = timers.setInterval(duration.toDouble) { if (!isCancel) send() }
+
+        Cancelable.composite(
+          Cancelable { () =>
+            isCancel = true
+            timers.clearInterval(intervalId)
+          },
+          source.unsafeSubscribe(
+            Observer.createUnrecovered(
+              value => builder += value,
               sink.unsafeOnError,
             ),
           ),

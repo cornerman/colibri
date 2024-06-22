@@ -1931,4 +1931,43 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
 
     test.unsafeToFuture()
   }
+
+  it should "bufferTimed" in {
+    var received = List.empty[Int]
+    var errors   = 0
+    val subject  = Subject.behavior[Int](0)
+    val stream   = subject.bufferTimedMillis[Vector](100)
+
+    import scala.concurrent.duration._
+
+    val cancelable = stream.unsafeSubscribe(
+      Observer.create[Vector[Int]](
+        received ++= _,
+        _ => errors += 1,
+      ),
+    )
+    cancelable.isEmpty() shouldBe false
+    received shouldBe List()
+
+    val test = for {
+      _ <- subject.onNextIO(1)
+      _  = received shouldBe List()
+      _ <- IO.sleep(50.millis)
+      _ <- subject.onNextIO(2)
+      _  = received shouldBe List()
+      _ <- IO.sleep(50.millis)
+      _ <- subject.onNextIO(3)
+      _  = received shouldBe List(0, 1, 2)
+      _ <- subject.onNextIO(4)
+      _  = received shouldBe List(0, 1, 2)
+      _ <- IO.sleep(200.millis)
+      _ <- subject.onNextIO(5)
+      _  = received shouldBe List(0, 1, 2, 3, 4)
+      _ <- IO.sleep(100.millis)
+      _  = received shouldBe List(0, 1, 2, 3, 4, 5)
+      _  = errors shouldBe 0
+    } yield succeed
+
+    test.unsafeToFuture()
+  }
 }
