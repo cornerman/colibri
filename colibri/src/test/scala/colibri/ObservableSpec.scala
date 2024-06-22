@@ -1872,4 +1872,26 @@ class ObservableSpec extends AsyncFlatSpec with Matchers {
     received shouldBe List(19, 0)
     errors shouldBe 0
   }
+
+  it should "foldAll sync" in {
+    val all = Observable(1, 2, 3, 4).foldAllIO[Vector]
+
+    val test = for {
+      coll <- all
+      _     = coll shouldBe Vector(1, 2, 3, 4)
+    } yield succeed
+
+    test.unsafeToFuture()
+  }
+
+  it should "foldAll async" in {
+    val all = Observable(1, 2, 3, 4).delayMillis(100).foldAllIO[Vector]
+
+    val test = for {
+      coll <- all
+      _     = coll shouldBe Vector(1, 2, 3, 4)
+    } yield succeed
+
+    test.unsafeToFuture()
+  }
 }

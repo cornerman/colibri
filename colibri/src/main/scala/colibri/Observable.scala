@@ -8,6 +8,7 @@ import cats.effect.{Async, IO, Resource, Sync, SyncIO}
 import java.util.concurrent.Flow
 import scala.scalajs.js
 import scala.scalajs.js.timers
+import scala.collection.Factory
 import scala.concurrent.{ExecutionContext, Future}
 import scala.concurrent.duration.FiniteDuration
 import scala.util.Try
@@ -1408,6 +1409,15 @@ object Observable    {
     def foldF[F[_]: Async, B](seed: B)(f: (B, A) => B): F[B]    = scan(seed)(f).lastF[F]
     def foldIO[B](seed: B)(f: (B, A) => B): IO[B]               = scan(seed)(f).lastIO
     def unsafeFoldFuture[B](seed: B)(f: (B, A) => B): Future[B] = scan(seed)(f).unsafeLastFuture()
+
+    def foldAllF[F[_]: Async, Col[_]](implicit factory: Factory[A, Col[A]]): F[Col[A]]     = foldF(factory.newBuilder) { (buff, next) =>
+      buff += next
+      buff
+    }.map(_.result())
+    def foldAllIO[Col[_]](implicit factory: Factory[A, Col[A]]): IO[Col[A]]                = foldAllF[IO, Col]
+    def foldAll[Col[_]](implicit factory: Factory[A, Col[A]]): Observable[Col[A]]          = Observable.fromEffect(foldAllIO[Col])
+    def unsafeFoldToFuture[Col[_]]()(implicit factory: Factory[A, Col[A]]): Future[Col[A]] =
+      foldAllIO[Col].unsafeToFuture()(cats.effect.unsafe.IORuntime.global)
 
     @inline def prependEffect[F[_]: RunEffect](value: F[A]): Observable[A] = concatEffect[F, A](value, source)
     @inline def prependFuture(value: => Future[A]): Observable[A]          = concatFuture[A](value, source)
