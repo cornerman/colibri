@@ -1200,6 +1200,35 @@ object Observable    {
       }
     }
 
+    @inline def throttle(duration: FiniteDuration): Observable[A] = throttleMillis(duration.toMillis.toInt)
+
+    def throttleMillis(duration: Int): Observable[A] = new Observable[A] {
+      def unsafeSubscribe(sink: Observer[A]): Cancelable = {
+        var lastTimeout: js.UndefOr[timers.SetTimeoutHandle] = js.undefined
+        var isSilent                                         = false
+
+        Cancelable.composite(
+          Cancelable.ignoreIsEmpty { () =>
+            lastTimeout.foreach(timers.clearTimeout)
+          },
+          source.unsafeSubscribe(
+            Observer.create[A](
+              { value =>
+                if (!isSilent) {
+                  isSilent = true
+                  sink.unsafeOnNext(value)
+                  lastTimeout = timers.setTimeout(duration.toDouble) {
+                    isSilent = false
+                  }
+                }
+              },
+              sink.unsafeOnError,
+            ),
+          ),
+        )
+      }
+    }
+
     @inline def debounce(duration: FiniteDuration): Observable[A] = debounceMillis(duration.toMillis.toInt)
 
     def debounceMillis(duration: Int): Observable[A] = new Observable[A] {
