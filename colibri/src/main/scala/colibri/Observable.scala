@@ -1462,6 +1462,8 @@ object Observable    {
 
     @inline def syncLatest: Observable[A] = Observable.fromEffect(syncLatestSyncIO).flattenOption
 
+    @inline def unsafeSyncLatest(): Option[A] = syncLatestSyncIO.unsafeRunSync()
+
     def syncAllF[F[_]: Sync]: F[Seq[A]] = Sync[F].defer {
       val values = collection.mutable.ArrayBuffer[F[A]]()
 
@@ -1478,6 +1480,8 @@ object Observable    {
     @inline def syncAllSyncIO: SyncIO[Seq[A]] = syncAllF[SyncIO]
 
     @inline def syncAll: Observable[A] = Observable.fromEffect(syncAllSyncIO).flattenIterable
+
+    @inline def unsafeSyncAll(): Seq[A] = syncAllSyncIO.unsafeRunSync()
 
     @inline def collectFirst[B](f: PartialFunction[A, B]): Observable[B]      = Observable.fromEffect(collectFirstIO(f))
     @inline def collectFirstIO[B](f: PartialFunction[A, B]): IO[B]            = collectFirstF[IO, B](f)
