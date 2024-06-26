@@ -253,7 +253,9 @@ object RxWriter {
   }
 }
 
-trait VarSource[A] extends RxWriter[A] with RxSource[A]
+trait VarSource[A] extends RxWriter[A] with RxSource[A] {
+  final def subject: Subject[A] = Subject.from(observer, observable)
+}
 
 trait VarEvent[A] extends VarSource[A] with RxEvent[A] {
   final def transformVar[A2](f: RxWriter[A] => RxWriter[A2])(g: RxEvent[A] => RxEvent[A2]): VarEvent[A2] = VarEvent.create(f(this), g(this))
