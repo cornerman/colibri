@@ -1318,36 +1318,36 @@ object Observable    {
 
     @inline def bufferTimed[Col[a] <: Iterable[a]](duration: FiniteDuration)(implicit factory: Factory[A, Col[A]]): Observable[Col[A]] =
       bufferTimedMillis(
-      duration.toMillis.toInt,
-    )
+        duration.toMillis.toInt,
+      )
 
     def bufferTimedMillis[Col[a] <: Iterable[a]](duration: Int)(implicit factory: Factory[A, Col[A]]): Observable[Col[A]] =
       new Observable[Col[A]] {
-      def unsafeSubscribe(sink: Observer[Col[A]]): Cancelable = {
-        var isCancel = false
-        var builder  = factory.newBuilder
+        def unsafeSubscribe(sink: Observer[Col[A]]): Cancelable = {
+          var isCancel = false
+          var builder  = factory.newBuilder
 
-        def send(): Unit = {
-          sink.unsafeOnNext(builder.result())
-          builder = factory.newBuilder
-        }
+          def send(): Unit = {
+            sink.unsafeOnNext(builder.result())
+            builder = factory.newBuilder
+          }
 
-        val intervalId = timers.setInterval(duration.toDouble) { if (!isCancel) send() }
+          val intervalId = timers.setInterval(duration.toDouble) { if (!isCancel) send() }
 
-        Cancelable.composite(
-          Cancelable { () =>
-            isCancel = true
-            timers.clearInterval(intervalId)
-          },
-          source.unsafeSubscribe(
-            Observer.createUnrecovered(
-              value => builder += value,
-              sink.unsafeOnError,
+          Cancelable.composite(
+            Cancelable { () =>
+              isCancel = true
+              timers.clearInterval(intervalId)
+            },
+            source.unsafeSubscribe(
+              Observer.createUnrecovered(
+                value => builder += value,
+                sink.unsafeOnError,
+              ),
             ),
-          ),
-        )
+          )
+        }
       }
-    }
 
     def evalOn(ec: ExecutionContext): Observable[A] = new Observable[A] {
       def unsafeSubscribe(sink: Observer[A]): Cancelable = {
@@ -1474,8 +1474,8 @@ object Observable    {
 
     def foldAllF[F[_]: Async, Col[a] <: Iterable[a]](implicit factory: Factory[A, Col[A]]): F[Col[A]]     = foldF(factory.newBuilder) {
       (buff, next) =>
-      buff += next
-      buff
+        buff += next
+        buff
     }.map(_.result())
     def foldAllIO[Col[a] <: Iterable[a]](implicit factory: Factory[A, Col[A]]): IO[Col[A]]                = foldAllF[IO, Col]
     def foldAll[Col[a] <: Iterable[a]](implicit factory: Factory[A, Col[A]]): Observable[Col[A]]          = Observable.fromEffect(foldAllIO[Col])
