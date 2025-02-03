@@ -47,30 +47,25 @@ package object zio extends ZioLowPrio {
 }
 
 private final class SinkZIOWithRuntime[Env](runtime: Runtime[Env]) extends Sink[zio.RSink[Env, *]] {
-  override def unsafeOnNext[A](sink: zio.RSink[Env, A])(value: A): Unit = {
-    Unsafe.unsafe(implicit u => runtime.unsafe.run(ZStream.succeed(value).run(sink)))
-    ()
-  }
+  override def unsafeOnNext[A](sink: zio.RSink[Env, A])(value: A): Unit =
+    Unsafe.unsafe(implicit u => runtime.unsafe.run(ZStream.succeed(value).run(sink)).getOrThrow())
 
-  override def unsafeOnError[A](sink: zio.RSink[Env, A])(error: Throwable): Unit = {
-    Unsafe.unsafe(implicit u => runtime.unsafe.run(ZStream.fail(error).run(sink)))
-    ()
-  }
+  override def unsafeOnError[A](sink: zio.RSink[Env, A])(error: Throwable): Unit =
+    Unsafe.unsafe(implicit u => runtime.unsafe.run(ZStream.fail(error).run(sink)).getOrThrow())
 }
 
 private final class SourceZIOWithRuntime[Env](runtime: Runtime[Env]) extends Source[zio.RStream[Env, *]] {
   override def unsafeSubscribe[A](source: zio.RStream[Env, A])(sink: Observer[A]): Cancelable = {
-    val canceler = Unsafe.unsafe(implicit u =>
-      runtime.unsafe.runToFuture(
+    Unsafe.unsafe { implicit u =>
+      val canceler = runtime.unsafe.runToFuture(
         source
           .onError(cause => ZIO.succeed(sink.unsafeOnError(cause.squash)))
           .foreach(value => ZIO.succeed(sink.unsafeOnNext(value))),
-      ),
-    )
+      )
 
-    Cancelable.withIsEmpty(canceler.isCompleted) { () =>
-      canceler.cancel()
-      ()
+      Cancelable.withIsEmpty(canceler.isCompleted) { () =>
+        canceler.cancel(): Unit
+      }
     }
   }
 }
