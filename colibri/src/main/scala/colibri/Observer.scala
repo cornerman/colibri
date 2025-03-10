@@ -54,8 +54,8 @@ object Observer    {
 
   def createFromPromise[A](promise: Promise[A]): Observer[A] =
     new Observer[A] {
-      def unsafeOnNext(value: A): Unit          = { promise.trySuccess(value); () }
-      def unsafeOnError(error: Throwable): Unit = { promise.tryFailure(error); () }
+      def unsafeOnNext(value: A): Unit          = promise.trySuccess(value): Unit
+      def unsafeOnError(error: Throwable): Unit = promise.tryFailure(error): Unit
     }
 
   def product[A, B](fa: Observer[A], fb: Observer[B]): Observer[(A, B)] = new Observer[(A, B)] {
@@ -133,7 +133,7 @@ object Observer    {
     }
 
     def contracollect[B](f: PartialFunction[B, A]): Observer[B] = new Observer[B] {
-      def unsafeOnNext(value: B): Unit          = recovered({ f.runWith(sink.unsafeOnNext)(value); () }, unsafeOnError)
+      def unsafeOnNext(value: B): Unit          = recovered(f.runWith(sink.unsafeOnNext)(value): Unit, unsafeOnError)
       def unsafeOnError(error: Throwable): Unit = sink.unsafeOnError(error)
     }
 

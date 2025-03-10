@@ -469,7 +469,7 @@ object Observable    {
           Observer.create(
             { input =>
               val index = tasks.length
-              tasks.push(null)
+              tasks.push(null): Unit
 
               val effect = f(input)
 
@@ -992,7 +992,7 @@ object Observable    {
           source.unsafeSubscribe(
             Observer.create[A](
               { value =>
-                seqA.push(value)
+                seqA.push(value): Unit
                 send()
               },
               sink.unsafeOnError,
@@ -1001,7 +1001,7 @@ object Observable    {
           sourceB.unsafeSubscribe(
             Observer.create[B](
               { value =>
-                seqB.push(value)
+                seqB.push(value): Unit
                 send()
               },
               sink.unsafeOnError,
