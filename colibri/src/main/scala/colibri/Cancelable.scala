@@ -44,7 +44,7 @@ object Cancelable {
     def unsafeAdd(subscription: () => Cancelable): Unit = if (buffer != null) {
       val cancelable = subscription()
       if (buffer == null) cancelable.unsafeCancel()
-      else buffer.push(cancelable)
+      else buffer.push(cancelable): Unit
       ()
     }
 
@@ -106,7 +106,7 @@ object Cancelable {
         val nextCancelable = subscriptions(0)
         val variable       = Cancelable.variable()
         latest = variable
-        subscriptions.splice(0, deleteCount = 1)
+        subscriptions.splice(0, deleteCount = 1): Unit
         variable.unsafeAdd(nextCancelable)
         variable.unsafeFreeze()
         ()
@@ -124,8 +124,7 @@ object Cancelable {
         variable.unsafeAdd(subscription)
         variable.unsafeFreeze()
       } else {
-        subscriptions.push(subscription)
-        ()
+        subscriptions.push(subscription): Unit
       }
     }
 
@@ -231,11 +230,10 @@ object Cancelable {
     }
 
     def unsafeAdd(subscription: () => Cancelable): Unit = if (buffer != null) {
-      buffer.push(subscription)
+      buffer.push(subscription): Unit
       if (currentCancelables != null) {
-        currentCancelables.push(subscription())
+        currentCancelables.push(subscription()): Unit
       }
-      ()
     }
 
     def unsafeFreeze(): Unit = {
