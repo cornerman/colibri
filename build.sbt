@@ -124,7 +124,7 @@ lazy val airstream = project
   .settings(
     name := "colibri-airstream",
     libraryDependencies ++= Seq(
-      "com.raquo" %%% "airstream" % "17.2.0",
+      "com.raquo" %%% "airstream" % "17.2.1",
     ),
   )
 
