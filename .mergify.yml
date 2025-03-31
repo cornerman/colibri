@@ -1,31 +1,30 @@
 queue_rules:
   - name: default
-    conditions:
+    queue_conditions:
+      - and:
+          - or:
+              - author~=^dependabot(|-preview)\[bot\]$
+              - author=scala-steward
+          - base=master
+          - check-success~=build \(2.13.\d+\)
+          - check-success~=build \(3.\d+.\d+\)
+    merge_conditions:
       # Conditions to get out of the queue (= merged)
       - check-success~=build \(2.13.\d+\)
       - check-success~=build \(3.\d+.\d+\)
+    merge_method: squash
 
 pull_request_rules:
 
   - name: Label dependency-update PRs
     conditions:
       - or:
-        - author~=^dependabot(|-preview)\[bot\]$
-        - author=scala-steward
+          - author~=^dependabot(|-preview)\[bot\]$
+          - author=scala-steward
     actions:
       label:
         add: [dependency-update]
-
   - name: Merge dependency-update PRs
-    conditions:
-      - and:
-        - or:
-          - author~=^dependabot(|-preview)\[bot\]$
-          - author=scala-steward
-        - base=master
-        - check-success~=build \(2.13.\d+\)
-        - check-success~=build \(3.\d+.\d+\)
+    conditions: []
     actions:
       queue:
-        name: default
-        method: squash
