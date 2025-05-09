@@ -14,7 +14,7 @@ jobs:
   build:
     strategy:
       matrix:
-        scalaVersion: ["2.13.12", "3.3.5"]
+        scalaVersion: ["2.13.12", "3.3.6"]
     runs-on: ubuntu-22.04
 
     steps:
