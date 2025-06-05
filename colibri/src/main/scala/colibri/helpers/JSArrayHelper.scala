@@ -5,8 +5,7 @@ import scala.scalajs.js
 private[colibri] object JSArrayHelper {
   def removeElement[T](array: js.Array[T])(element: T): Unit = {
     val index = array.indexOf(element)
-    if (index != -1) array.splice(index, deleteCount = 1)
-    ()
+    if (index != -1) array.splice(index, deleteCount = 1): Unit
   }
 
   def removeElementCopied[T](array: js.Array[T])(element: T): js.Array[T] = {
@@ -15,7 +14,7 @@ private[colibri] object JSArrayHelper {
       val newArray = js.Array[T]()
       var i        = 0
       while (i < array.length) {
-        if (i != index) newArray.push(array(i))
+        if (i != index) newArray.push(array(i)): Unit
         i += 1
       }
       newArray
