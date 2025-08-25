@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: ${{ github.event.pull_request.head.sha }}
       - uses: coursier/cache-action@v6
@@ -42,7 +42,7 @@ jobs:
       (github.event_name == 'pull_request' &&  contains(github.event.pull_request.labels.*.name, 'publish'))
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha }}
